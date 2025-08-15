@@ -1,0 +1,18 @@
+{
+  "papersize": "a4",
+  "margin": {
+    "x": "2cm",
+    "y": "2.5cm"
+  },
+  "toc": true,
+  "numberSections": true,
+  "default_image_width": "60%",
+  "default_image_alignment": "center",
+  "fonts": {
+    "main": "New Computer Modern",
+    "mono": "New Computer Modern Mono"
+  },
+  "render_debounce_ms": 400,
+  "focused_preview_enabled": true,
+  "preserve_scroll_position": true
+}

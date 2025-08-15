@@ -1,0 +1,8 @@
+project:
+  output-dir: .
+format:
+  typst:
+    toc: true
+    number-sections: true
+    papersize: a4
+    margin: { x: 2cm, y: 2.5cm }

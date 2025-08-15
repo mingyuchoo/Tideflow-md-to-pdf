@@ -1,0 +1,119 @@
+.editor-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border-right: 1px solid #e0e0e0;
+  overflow: hidden;
+}
+
+.editor-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid #e0e0e0;
+  background-color: #f5f5f5;
+  gap: 1rem;
+}
+
+.file-path {
+  font-size: 0.8rem;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 30%;
+}
+
+.editor-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: #666;
+}
+
+.typing-indicator {
+  background-color: #007acc;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-weight: 500;
+  animation: pulse 1.5s infinite;
+}
+
+.debounce-info {
+  background-color: #f0f0f0;
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid #ddd;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}
+
+.editor-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.editor-actions button {
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: all 0.2s ease;
+}
+
+.editor-actions button:hover:not(:disabled) {
+  background-color: #e0e0e0;
+}
+
+.editor-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.toggle-button {
+  position: relative;
+}
+
+.toggle-button.active {
+  background-color: #007acc !important;
+  color: white !important;
+  border-color: #007acc !important;
+}
+
+.toggle-button.active:hover {
+  background-color: #005a9e !important;
+}
+
+.editor-content {
+  flex: 1;
+  overflow: auto;
+}
+
+.no-file-message {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  color: #666;
+  font-style: italic;
+  padding: 2rem;
+  text-align: center;
+}
+
+/* CodeMirror overrides */
+.cm-editor {
+  height: 100%;
+}
+
+.cm-scroller {
+  overflow: auto;
+  font-family: 'JetBrains Mono', monospace;
+}
