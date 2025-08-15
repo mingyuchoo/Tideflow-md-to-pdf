@@ -92,10 +92,6 @@ export async function typstDiagnostics(): Promise<{
   return invoke('typst_diagnostics');
 }
 
-export async function setIncrementalRendering(enabled: boolean): Promise<void> {
-  return invoke('set_incremental_rendering', { enabled });
-}
-
 // Dialog operations
 export async function showOpenDialog(
   filters?: { name: string; extensions: string[] }[],

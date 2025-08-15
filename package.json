@@ -13,13 +13,7 @@
     "tauri:build": "tauri build"
   },
   "dependencies": {
-    "@codemirror/basic-setup": "^0.20.0",
-    "@codemirror/commands": "^6.8.1",
     "@codemirror/lang-markdown": "^6.3.4",
-    "@codemirror/language": "^6.11.2",
-    "@codemirror/language-data": "^6.5.1",
-    "@codemirror/state": "^6.5.2",
-    "@codemirror/view": "^6.38.1",
     "@tauri-apps/plugin-dialog": "^2.3.2",
     "codemirror": "^6.0.2",
     "react": "^19.1.1",

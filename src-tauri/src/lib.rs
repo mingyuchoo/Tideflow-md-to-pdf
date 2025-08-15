@@ -2,8 +2,6 @@ mod commands;
 mod preferences;
 mod renderer;
 mod utils;
-mod file_watcher;
-mod preloader;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

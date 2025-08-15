@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { EditorView } from '@codemirror/view';
-import { basicSetup } from 'codemirror';
+import { EditorView, basicSetup } from 'codemirror';
 import { markdown } from '@codemirror/lang-markdown';
 import { useAppStore } from '../store';
 import { writeMarkdownFile, importImage, generateImageMarkdown, renderTypst } from '../api';
@@ -216,14 +215,6 @@ const Editor: React.FC = () => {
 
   // Update editor content when currentFile changes or content is loaded
   useEffect(() => {
-    console.log('📊 Editor useEffect triggered:', {
-      currentFile,
-      contentLength: content.length,
-      contentPreview: content.substring(0, 50),
-      lastLoadedLength: lastLoadedContentRef.current.length,
-      isUserTyping: isUserTypingRef.current,
-      hasEditorView: !!editorViewRef.current
-    });
     
     if (editorViewRef.current && (content !== lastLoadedContentRef.current || lastLoadedContentRef.current === '')) {
       console.log('📄 File/content changed, updating editor content:', {

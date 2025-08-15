@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../store';
-import { setPreferences, applyPreferences, getCacheStats, clearRenderCache, setIncrementalRendering } from '../api';
+import { setPreferences, applyPreferences, getCacheStats, clearRenderCache } from '../api';
 import type { Preferences } from '../types';
 import './PrefsModal.css';
 
@@ -15,7 +15,6 @@ const PrefsModal: React.FC = () => {
     cache_misses: number;
   } | null>(null);
   const [clearingCache, setClearingCache] = useState(false);
-  const [incrementalEnabled, setIncrementalEnabled] = useState(true);
 
   useEffect(() => {
     // Reset form data when preferences change
@@ -44,15 +43,6 @@ const PrefsModal: React.FC = () => {
       console.error('Failed to clear cache:', error);
     } finally {
       setClearingCache(false);
-    }
-  };
-
-  const handleToggleIncremental = async (enabled: boolean) => {
-    try {
-      await setIncrementalRendering(enabled);
-      setIncrementalEnabled(enabled);
-    } catch (error) {
-      console.error('Failed to toggle incremental rendering:', error);
     }
   };
 
@@ -243,17 +233,6 @@ const PrefsModal: React.FC = () => {
           
           <div className="prefs-section">
             <h3>Performance & Caching</h3>
-            
-            <div className="form-group">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={incrementalEnabled}
-                  onChange={(e) => handleToggleIncremental(e.target.checked)}
-                />
-                Enable incremental rendering (faster re-renders for large documents)
-              </label>
-            </div>
             
             {cacheStats && (
               <div className="cache-stats">

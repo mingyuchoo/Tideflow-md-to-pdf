@@ -67,7 +67,6 @@ export const useAppStore = create<AppState>((set) => ({
   // Editor state
   editor: initialEditorState,
   setCurrentFile: (path: string | null) => set((state: AppState) => {
-    console.log('🔍 Store: setCurrentFile called with:', path);
     return {
       editor: {
         ...state.editor,
@@ -78,7 +77,6 @@ export const useAppStore = create<AppState>((set) => ({
     };
   }),
   setContent: (content: string) => set((state: AppState) => {
-    console.log('🔍 Store: setContent called with length:', content.length);
     return {
       editor: {
         ...state.editor,
@@ -101,12 +99,8 @@ export const useAppStore = create<AppState>((set) => ({
   
   // Tab management
   addOpenFile: (path: string) => set((state: AppState) => {
-    console.log('🔍 Store: addOpenFile called with:', path);
-    console.log('🔍 Store: Current openFiles:', state.editor.openFiles);
-    
     // If file is already open, don't add it again
     if (state.editor.openFiles.includes(path)) {
-      console.log('🔍 Store: File already open, not adding');
       return { editor: state.editor };
     }
     
@@ -117,7 +111,6 @@ export const useAppStore = create<AppState>((set) => ({
         openFiles: [...state.editor.openFiles, path]
       }
     };
-    console.log('🔍 Store: New openFiles:', newState.editor.openFiles);
     return newState;
   }),
   
