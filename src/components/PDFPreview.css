@@ -2,42 +2,57 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  background-color: var(--preview-bg);
   overflow: hidden;
+  min-width: 0; /* Important for flex children */
 }
 
 .pdf-preview-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.5rem 1rem;
-  border-bottom: 1px solid #e0e0e0;
-  background-color: #f5f5f5;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  background: linear-gradient(to bottom, #fafafa, #f5f5f5);
+  min-height: 52px;
 }
 
 .pdf-preview-header h3 {
   margin: 0;
   font-size: 1rem;
+  font-weight: 600;
+  color: #334155;
 }
 
 .error-badge {
-  background-color: #e53935;
+  background: linear-gradient(135deg, #ef4444, #dc2626);
   color: white;
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-size: 0.8rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2);
 }
 
 .pdf-preview-content {
   flex: 1;
   overflow: hidden;
   position: relative;
+  background-color: #f8fafc;
+  min-width: 0; /* Important for flex children */
+  min-height: 0; /* Important for flex children */
 }
 
 .pdf-iframe {
   width: 100%;
   height: 100%;
   border: none;
-  background-color: #f0f0f0;
+  background-color: white;
+  border-radius: 8px;
+  margin: 8px;
+  width: calc(100% - 16px);
+  height: calc(100% - 16px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .loading-message,
@@ -53,31 +68,64 @@
 }
 
 .loading-message {
-  color: #666;
+  color: #64748b;
   font-style: italic;
+  font-size: 1rem;
+}
+
+.loading-message::before {
+  content: '';
+  display: block;
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 1rem;
+  border: 3px solid #e2e8f0;
+  border-top: 3px solid #007acc;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 .no-pdf-message {
-  color: #666;
+  color: #64748b;
+  font-size: 1rem;
+}
+
+.no-pdf-message p:first-child {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
 }
 
 .error-message {
-  color: #e53935;
+  color: #dc2626;
   overflow-y: auto;
   align-items: flex-start;
-  padding: 1rem;
+  padding: 1.5rem;
+}
+
+.error-message h4 {
+  color: #dc2626;
+  margin-top: 0;
+  font-size: 1.1rem;
 }
 
 .error-details {
   margin-top: 1rem;
   padding: 1rem;
-  background-color: #f8f8f8;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-family: monospace;
-  font-size: 0.9rem;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Monaco', 'Consolas', monospace;
+  font-size: 0.85rem;
   white-space: pre-wrap;
   overflow-x: auto;
   max-width: 100%;
-  color: #666;
+  color: #7f1d1d;
+  max-height: 300px;
+  overflow-y: auto;
 }

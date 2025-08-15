@@ -236,7 +236,7 @@ fn create_default_config_files(app_handle: &AppHandle) -> Result<()> {
   "default_image_alignment": "center",
   "fonts": {
     "main": "New Computer Modern",
-    "mono": "New Computer Modern Mono"
+    "mono": "Liberation Mono"
   },
   "render_debounce_ms": 400,
   "focused_preview_enabled": true,

@@ -1,6 +1,11 @@
+// Import CommonMark parser for proper markdown rendering
+#import "@preview/cmarker:0.1.6": render
+
 #let prefs = json("prefs.json")
 
-#set text(lang: "tr")
+// Apply font preferences from the UI BEFORE setting language
+#set text(font: prefs.fonts.main, size: 11pt, lang: "tr")
+#show raw: set text(font: prefs.fonts.mono)
 
 // Convert string margins to lengths
 #let margin_x = if type(prefs.margin.x) == str {
@@ -24,5 +29,5 @@
   pagebreak()
 }
 
-// Temporary: Use raw text instead of cmarker until we fix the package issue
-#raw(read("content.md"), lang: "markdown")
+// Render markdown content with proper CommonMark parsing
+#render(read("content.md"))

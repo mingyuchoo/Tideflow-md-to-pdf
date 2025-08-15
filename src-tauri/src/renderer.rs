@@ -202,8 +202,14 @@ pub async fn export_markdown(app_handle: &AppHandle, file_path: &str) -> Result<
 
 /// Renders Typst content directly to PDF (always full render)
 pub async fn render_typst(app_handle: &AppHandle, content: &str, format: &str) -> Result<String> {
-    // Simple content-based caching for identical documents
-    let content_hash = calculate_content_hash(content);
+    // Get preferences to include in cache hash
+    let prefs = preferences::get_preferences(app_handle.clone()).await
+        .map_err(|e| anyhow!("Failed to get preferences: {}", e))?;
+    let prefs_json = serde_json::to_string(&prefs)?;
+    
+    // Content + preferences based caching for identical documents + settings
+    let combined_content = format!("{}\n---PREFS---\n{}", content, prefs_json);
+    let content_hash = calculate_content_hash(&combined_content);
     let content_dir = utils::get_content_dir(app_handle)?;
     let build_dir = content_dir.join(".build");
     
@@ -218,7 +224,7 @@ pub async fn render_typst(app_handle: &AppHandle, content: &str, format: &str) -
     let cached_path = build_dir.join(&cached_file_name);
     
     if cached_path.exists() {
-        println!("📋 Using cached render for identical content (hash: {})", content_hash);
+        println!("📋 Using cached render for identical content + preferences (hash: {})", content_hash);
         return Ok(cached_path.to_string_lossy().to_string());
     }
 
@@ -239,7 +245,7 @@ pub async fn render_typst(app_handle: &AppHandle, content: &str, format: &str) -
     let temp_content_name = format!("temp_{}.md", uuid);
     let temp_content_path = build_dir.join(&temp_content_name);
     
-    // Write the content to temporary markdown file
+    // Write the content to temporary markdown file (no preprocessing needed for raw Typst)
     fs::write(&temp_content_path, content)?;
     
     // Get preferences and write prefs.json
@@ -295,8 +301,7 @@ pub async fn render_typst(app_handle: &AppHandle, content: &str, format: &str) -
     }
     
     // Create cached copy for future reuse
-    let hash = calculate_content_hash(content);
-    let cached_file_name = format!("cached_{}_{}.{}", hash, format, output_ext);
+    let cached_file_name = format!("cached_{}_{}.{}", content_hash, format, output_ext);
     let cached_path = build_dir.join(&cached_file_name);
     
     // Copy output to cached location

@@ -47,7 +47,7 @@ impl Default for Preferences {
             default_image_alignment: "center".to_string(),
             fonts: Fonts {
                 main: "New Computer Modern".to_string(),
-                mono: "New Computer Modern Mono".to_string(),
+                mono: "Liberation Mono".to_string(),
             },
             // Preview optimization defaults
             render_debounce_ms: 400,  // 400ms for responsive feel

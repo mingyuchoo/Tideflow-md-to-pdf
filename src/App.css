@@ -2,19 +2,23 @@
   --primary-color: #0066cc;
   --accent-color: #2a9d8f;
   --text-color: #333;
-  --background-color: #f9f9f9;
-  --border-color: #e0e0e0;
+  --background-color: #f8fafc;
+  --border-color: #e2e8f0;
   --panel-bg: white;
-  --hover-bg: #f0f0f0;
+  --hover-bg: #f1f5f9;
   --error-color: #e53935;
   --warning-color: #ff9800;
   --success-color: #4caf50;
+  --editor-bg: #fefefe;
+  --preview-bg: #ffffff;
 }
 
 html, body, #root {
-  height: 100%;
+  height: 100vh;
+  width: 100vw;
   margin: 0;
   padding: 0;
+  overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
     Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
   color: var(--text-color);
@@ -24,7 +28,8 @@ html, body, #root {
 .app {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: 100vh;
+  width: 100vw;
   overflow: hidden;
 }
 
@@ -33,17 +38,37 @@ html, body, #root {
   overflow: hidden;
   display: flex;
   margin-top: 5px; /* Add spacing after tabs */
+  min-height: 0; /* Important for flex children */
 }
 
 .resize-handle {
-  width: 4px;
+  width: 6px;
   background-color: var(--border-color);
   cursor: col-resize;
-  transition: background-color 0.2s;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.resize-handle::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 3px;
+  height: 24px;
+  background-color: var(--border-color);
+  border-radius: 2px;
+  transition: all 0.2s ease;
 }
 
 .resize-handle:hover {
   background-color: var(--primary-color);
+}
+
+.resize-handle:hover::before {
+  background-color: white;
+  height: 32px;
 }
 
 .loading {

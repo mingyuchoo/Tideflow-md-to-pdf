@@ -1,8 +1,12 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { EditorView, basicSetup } from 'codemirror';
 import { markdown } from '@codemirror/lang-markdown';
+import { keymap } from '@codemirror/view';
 import { useAppStore } from '../store';
-import { writeMarkdownFile, importImage, generateImageMarkdown, renderTypst } from '../api';
+import { writeMarkdownFile, importImage, generateImageMarkdown, renderTypst, setPreferences as savePreferences, applyPreferences } from '../api';
+// import MarkdownToolbar from './MarkdownToolbar';
+import { cmd } from './MarkdownCommands';
+import { FONT_OPTIONS } from './MarkdownToolbar';
 import './Editor.css';
 
 // Helper function to extract the current section around cursor position
@@ -71,6 +75,8 @@ const Editor: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [focusedPreviewMode, setFocusedPreviewMode] = useState(false);
   const [isActivelyTyping, setIsActivelyTyping] = useState(false);
+  const [fontMode, setFontMode] = useState<"Selection" | "Document">("Selection");
+  const [selectedFont, setSelectedFont] = useState<string>("New Computer Modern");
   const contentChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const typingDetectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isUserTypingRef = useRef(false); // Track if user is actively typing
@@ -82,17 +88,13 @@ const Editor: React.FC = () => {
     setContent,
     setModified,
     setCompileStatus,
-    preferences
+    preferences,
+    setPreferences
   } = useAppStore();
 
   // Smart auto-render function with focused preview support
   const handleAutoRender = useCallback(async (content: string, useFocusedMode: boolean = false) => {
     try {
-      console.log('⚡ Starting auto-render:', { 
-        contentLength: content.length, 
-        focusedMode: useFocusedMode,
-        debounceMs: preferences.render_debounce_ms 
-      });
       setCompileStatus({ status: 'running' });
       
       let renderContent = content;
@@ -102,29 +104,21 @@ const Editor: React.FC = () => {
         const cursorPos = editorViewRef.current.state.selection.main.from;
         const currentSection = getCurrentSection(content, cursorPos);
         renderContent = createFocusedPreview(currentSection, globalFrontMatterRef.current);
-        console.log('🎯 Using focused preview mode for current section');
       }
       
       const pdfPath = await renderTypst(renderContent, 'pdf');
-      console.log('✅ Auto-render completed:', pdfPath);
       setCompileStatus({ 
         status: 'ok', 
         pdf_path: pdfPath 
       });
     } catch (err) {
-      console.error('❌ Auto-render failed:', err);
-      console.error('Error details:', {
-        name: (err as Error).name,
-        message: (err as Error).message,
-        stack: (err as Error).stack
-      });
       setCompileStatus({ 
         status: 'error', 
         message: 'Auto-render failed', 
         details: String(err) 
       });
     }
-  }, [setCompileStatus, preferences.focused_preview_enabled, preferences.render_debounce_ms]);
+  }, [setCompileStatus, preferences.focused_preview_enabled]);
 
   // Extract global front matter for focused preview mode
   useEffect(() => {
@@ -144,6 +138,95 @@ const Editor: React.FC = () => {
         extensions: [
           basicSetup,
           markdown(),
+          EditorView.lineWrapping,
+          EditorView.theme({
+            '.cm-content': {
+              'white-space': 'pre-wrap',
+              'word-wrap': 'break-word',
+              'overflow-wrap': 'break-word'
+            },
+            '.cm-line': {
+              'white-space': 'pre-wrap',
+              'word-wrap': 'break-word',
+              'overflow-wrap': 'break-word'
+            }
+          }),
+          keymap.of([
+            // Text formatting shortcuts
+            {
+              key: "Ctrl-b",
+              run: (view) => { cmd.bold(view); return true; },
+              preventDefault: true
+            },
+            {
+              key: "Ctrl-i", 
+              run: (view) => { cmd.italic(view); return true; },
+              preventDefault: true
+            },
+            {
+              key: "Ctrl-`",
+              run: (view) => { cmd.codeInline(view); return true; },
+              preventDefault: true
+            },
+            {
+              key: "Ctrl-k",
+              run: (view) => { cmd.link(view); return true; },
+              preventDefault: true
+            },
+            // Heading shortcuts
+            {
+              key: "Ctrl-Alt-1",
+              run: (view) => { cmd.heading(view, 1); return true; },
+              preventDefault: true
+            },
+            {
+              key: "Ctrl-Alt-2",
+              run: (view) => { cmd.heading(view, 2); return true; },
+              preventDefault: true
+            },
+            {
+              key: "Ctrl-Alt-3",
+              run: (view) => { cmd.heading(view, 3); return true; },
+              preventDefault: true
+            },
+            // List shortcuts
+            {
+              key: "Ctrl-Shift-8",
+              run: (view) => { cmd.ul(view); return true; },
+              preventDefault: true
+            },
+            {
+              key: "Ctrl-Shift-7",
+              run: (view) => { cmd.ol(view); return true; },
+              preventDefault: true
+            },
+            {
+              key: "Ctrl-Shift-9",
+              run: (view) => { cmd.task(view); return true; },
+              preventDefault: true
+            },
+            // Other shortcuts
+            {
+              key: "Ctrl-Shift-q",
+              run: (view) => { cmd.quote(view); return true; },
+              preventDefault: true
+            },
+            {
+              key: "Ctrl-Shift-c",
+              run: (view) => { cmd.codeBlock(view); return true; },
+              preventDefault: true
+            },
+            {
+              key: "Ctrl-s",
+              run: () => { handleSave(); return true; },
+              preventDefault: true
+            },
+            {
+              key: "Ctrl-r",
+              run: () => { handleRender(); return true; },
+              preventDefault: true
+            }
+          ]),
           EditorView.updateListener.of(update => {
             if (update.docChanged) {
               isUserTypingRef.current = true; // Mark as user input
@@ -151,8 +234,6 @@ const Editor: React.FC = () => {
               const newContent = update.state.doc.toString();
               setContent(newContent);
               setModified(true);
-              
-              console.log('🔄 Content changed, scheduling smart auto-render...');
               
               // Clear existing timeouts
               if (contentChangeTimeoutRef.current) {
@@ -172,10 +253,6 @@ const Editor: React.FC = () => {
               const shouldUseFocusedMode = isActivelyTyping && preferences.focused_preview_enabled;
               
               contentChangeTimeoutRef.current = setTimeout(() => {
-                console.log('⚡ Starting smart auto-render...', { 
-                  focusedMode: shouldUseFocusedMode,
-                  debounceMs 
-                });
                 handleAutoRender(newContent, shouldUseFocusedMode);
                 isUserTypingRef.current = false; // Reset flag
                 
@@ -183,7 +260,6 @@ const Editor: React.FC = () => {
                 if (shouldUseFocusedMode) {
                   setTimeout(() => {
                     if (!isUserTypingRef.current) {
-                      console.log('🔄 Switching to full preview after focused mode');
                       handleAutoRender(newContent, false);
                     }
                   }, 2000); // 2 second pause before full render
@@ -217,12 +293,6 @@ const Editor: React.FC = () => {
   useEffect(() => {
     
     if (editorViewRef.current && (content !== lastLoadedContentRef.current || lastLoadedContentRef.current === '')) {
-      console.log('📄 File/content changed, updating editor content:', {
-        currentFile,
-        contentLength: content.length,
-        isUserTyping: isUserTypingRef.current
-      });
-      
       // Clear any pending timeouts
       if (contentChangeTimeoutRef.current) {
         clearTimeout(contentChangeTimeoutRef.current);
@@ -239,7 +309,6 @@ const Editor: React.FC = () => {
             }
           });
           lastLoadedContentRef.current = content;
-          console.log('✅ Editor content updated with:', content.substring(0, 100));
           
           // Auto-render the content when switching tabs
           if (currentFile) {
@@ -269,26 +338,61 @@ const Editor: React.FC = () => {
     }
   };
 
+  // Handle font changes
+  const handleFontChange = async (font: string) => {
+    if (!editorViewRef.current) {
+      return;
+    }
+
+    setSelectedFont(font);
+    
+    if (fontMode === "Document") {
+      // Update document font preference
+      const newPrefs = {
+        ...preferences,
+        fonts: {
+          ...preferences.fonts,
+          main: font
+        }
+      };
+      
+      // Save to backend first
+      try {
+        await savePreferences(newPrefs);
+        
+        // Update local state
+        setPreferences(newPrefs);
+        
+        // Apply preferences to generate prefs.json for Typst
+        await applyPreferences();
+        
+        // Re-render with new font
+        handleRender(); 
+      } catch (error) {
+        console.error('Failed to save preferences:', error);
+      }
+    } else {
+      // Apply to selection
+      cmd.fontLocal(editorViewRef.current, font);
+    }
+  };
+
+  // Handle font mode change
+  const handleFontModeChange = (mode: "Selection" | "Document") => {
+    setFontMode(mode);
+  };
+
   // Render the current content to PDF (not from file)
   const handleRender = async () => {
     try {
-      console.log('🔄 Manual render triggered with content length:', content.length);
-      console.log('📝 Content preview:', content.substring(0, 100) + '...');
       setCompileStatus({ status: 'running' });
       
       const pdfPath = await renderTypst(content, 'pdf');
-      console.log('✅ Manual render completed:', pdfPath);
       setCompileStatus({ 
         status: 'ok', 
         pdf_path: pdfPath 
       });
     } catch (err) {
-      console.error('❌ Manual render failed:', err);
-      console.error('Error details:', {
-        name: (err as Error).name,
-        message: (err as Error).message,
-        stack: (err as Error).stack
-      });
       setCompileStatus({ 
         status: 'error', 
         message: 'Rendering failed', 
@@ -412,18 +516,6 @@ const Editor: React.FC = () => {
                 🎯 Focused
               </button>
               <button 
-                onClick={() => insertSnippet('::: {pagebreak}\n:::\n')}
-                title="Insert Page Break"
-              >
-                Page Break
-              </button>
-              <button 
-                onClick={() => insertSnippet('| Left | Center | Right |\n|:-----|:------:|------:|\n| 1    | 2      | 3     |\n')}
-                title="Insert Table"
-              >
-                Table
-              </button>
-              <button 
                 onClick={handleSave} 
                 disabled={!modified || isSaving}
                 title="Save File"
@@ -438,6 +530,90 @@ const Editor: React.FC = () => {
               </button>
             </div>
           </div>
+          
+          {/* Simple Markdown Toolbar */}
+          <div className="simple-markdown-toolbar">
+            <button onClick={() => cmd.bold(editorViewRef.current!)} title="Bold (Ctrl+B)">
+              <strong>B</strong>
+            </button>
+            <button onClick={() => cmd.italic(editorViewRef.current!)} title="Italic (Ctrl+I)">
+              <em>I</em>
+            </button>
+            <button onClick={() => cmd.strike(editorViewRef.current!)} title="Strikethrough">
+              <s>S</s>
+            </button>
+            <button onClick={() => cmd.codeInline(editorViewRef.current!)} title="Inline Code (Ctrl+`)">
+              {'</>'}
+            </button>
+            <button onClick={() => cmd.link(editorViewRef.current!)} title="Link (Ctrl+K)">
+              🔗
+            </button>
+            <div className="toolbar-divider" />
+            <button onClick={() => cmd.heading(editorViewRef.current!, 1)} title="Heading 1 (Ctrl+Alt+1)">
+              H1
+            </button>
+            <button onClick={() => cmd.heading(editorViewRef.current!, 2)} title="Heading 2 (Ctrl+Alt+2)">
+              H2
+            </button>
+            <button onClick={() => cmd.heading(editorViewRef.current!, 3)} title="Heading 3 (Ctrl+Alt+3)">
+              H3
+            </button>
+            <button onClick={() => cmd.quote(editorViewRef.current!)} title="Blockquote (Ctrl+Shift+Q)">
+              ""
+            </button>
+            <div className="toolbar-divider" />
+            <button onClick={() => cmd.ul(editorViewRef.current!)} title="Bullet List (Ctrl+Shift+8)">
+              • List
+            </button>
+            <button onClick={() => cmd.ol(editorViewRef.current!)} title="Numbered List (Ctrl+Shift+7)">
+              1. List
+            </button>
+            <button onClick={() => cmd.task(editorViewRef.current!)} title="Task List (Ctrl+Shift+9)">
+              ☐ Task
+            </button>
+            <div className="toolbar-divider" />
+            <button onClick={() => cmd.table(editorViewRef.current!)} title="Insert Table">
+              ▦
+            </button>
+            <button onClick={() => cmd.hr(editorViewRef.current!)} title="Horizontal Rule">
+              —
+            </button>
+            <button onClick={() => cmd.pagebreak(editorViewRef.current!)} title="Page Break">
+              ⤓⤒
+            </button>
+            <div className="toolbar-divider" />
+            
+            {/* Font Controls */}
+            <div className="font-controls">
+              <div className="font-mode-selector">
+                <label>Apply:</label>
+                <select 
+                  value={fontMode} 
+                  onChange={(e) => handleFontModeChange(e.target.value as "Selection" | "Document")}
+                  title="Choose whether to apply font to selection or entire document"
+                >
+                  <option value="Selection">Selection</option>
+                  <option value="Document">Document</option>
+                </select>
+              </div>
+              
+              <div className="font-selector">
+                <label>Font:</label>
+                <select 
+                  value={selectedFont} 
+                  onChange={(e) => handleFontChange(e.target.value)}
+                  title="Select font family"
+                >
+                  {FONT_OPTIONS.map((font) => (
+                    <option key={font} value={font}>
+                      {font}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+          
           <div className="editor-content" ref={editorRef} />
         </>
       ) : (

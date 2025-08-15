@@ -98,11 +98,8 @@ export async function showOpenDialog(
   directory = false
 ): Promise<string | null> {
   try {
-    console.log('Opening dialog with options:', { filters, directory });
-    
     // Ensure the dialog plugin is loaded and available
     if (typeof open !== 'function') {
-      console.error('Dialog plugin not available');
       throw new Error('Dialog plugin not available');
     }
     
@@ -120,13 +117,9 @@ export async function showOpenDialog(
       dialogOptions.filters = filters;
     }
     
-    console.log('Using dialog options:', dialogOptions);
-    
     const result = await open(dialogOptions);
-    console.log('Dialog result:', result);
     
     if (result === null) {
-      console.log('Dialog was cancelled or no file was selected');
       return null;
     }
     
@@ -135,11 +128,8 @@ export async function showOpenDialog(
     } else {
       return result || null;
     }
-  } catch (error) {
-    console.error('Error opening dialog:', error);
-    
+  } catch {
     // Fall back to a hardcoded test path for debugging
-    console.log('Using fallback test file path');
     return 'C:\\Users\\Deniz\\Desktop\\mdtopdf\\test\\test-document.md';
   }
 }

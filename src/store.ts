@@ -14,7 +14,7 @@ const defaultPreferences: Preferences = {
   default_image_alignment: 'center',
   fonts: {
     main: 'New Computer Modern',
-    mono: 'New Computer Modern Mono',
+    mono: 'Liberation Mono',
   },
   // Preview optimization settings
   render_debounce_ms: 400,

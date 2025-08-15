@@ -18,43 +18,29 @@ const TabBar: React.FC = () => {
 
   const handleOpenFile = async () => {
     try {
-      console.log('🔍 Opening file dialog directly...');
       const result = await open({ multiple: false, filters: [{ name: 'Markdown Files', extensions: ['md'] }] });
-      console.log('🔍 Dialog result:', result, 'Type:', typeof result);
       
       const filePath = Array.isArray(result) ? result?.[0] : result;
-      console.log('🔍 Processed filePath:', filePath);
       
       if (filePath) {
-        console.log('📁 Selected file:', filePath);
         
         try {
-          console.log('🔍 About to read file...');
           const content = await readMarkdownFile(filePath);
-          console.log('📄 File content loaded:', { length: content.length, preview: content.substring(0, 100) });
           
           // Add to open files list and set as current
-          console.log('🔍 Adding to open files...');
           addOpenFile(filePath);
-          console.log('🔍 Setting current file...');
           setCurrentFile(filePath);
           
           // Set content with a delay to ensure proper state updates
-          console.log('🔍 Setting content with delay...');
           setTimeout(() => {
             setContent(content);
-            console.log('✅ State updated with file and content');
           }, 100);
           return;
         } catch (readError) {
-          console.error('❌ Failed to read file:', readError);
           alert(`Failed to read file: ${readError}`);
         }
-      } else {
-        console.log('❌ No file selected or dialog cancelled');
       }
-    } catch (err) {
-      console.error('❌ Plugin dialog failed, falling back to native input:', err);
+    } catch {
       // trigger fallback
       fileInputRef.current?.click();
     }

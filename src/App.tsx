@@ -85,19 +85,16 @@ Happy writing!
         await listenForFileChanges((filePath) => {
           if (filePath === editor.currentFile) {
             // Notify about file change if it's the current file
-            console.log('Current file changed:', filePath);
             // Could trigger reload or render here
           }
         });
 
         // Setup compile event listeners
-        const unlistenCompiled = await listen<string>("compiled", (event) => {
-          console.log('PDF compiled successfully:', event.payload);
+        const unlistenCompiled = await listen<string>("compiled", () => {
           // The PDFPreview component will pick this up via the store's compileStatus
         });
 
-        const unlistenCompileError = await listen<string>("compile-error", (event) => {
-          console.error('Compile error:', event.payload);
+        const unlistenCompileError = await listen<string>("compile-error", () => {
           // The PDFPreview component will show the error
         });
 
@@ -126,9 +123,14 @@ Happy writing!
       <TabBar />
       
       <div className="main-content">
-        <PanelGroup direction="horizontal">
+        <PanelGroup direction="horizontal" style={{ height: '100%', overflow: 'hidden' }}>
           {/* Editor Panel */}
-          <Panel defaultSize={previewVisible ? 50 : 100} minSize={30}>
+          <Panel 
+            defaultSize={previewVisible ? 50 : 100} 
+            minSize={25}
+            maxSize={previewVisible ? 75 : 100}
+            style={{ overflow: 'hidden', minWidth: 0 }}
+          >
             <Editor />
           </Panel>
           
@@ -137,7 +139,12 @@ Happy writing!
               <PanelResizeHandle className="resize-handle" />
               
               {/* PDF Preview Panel */}
-              <Panel defaultSize={50} minSize={30}>
+              <Panel 
+                defaultSize={50} 
+                minSize={25}
+                maxSize={75}
+                style={{ overflow: 'hidden', minWidth: 0 }}
+              >
                 <PDFPreview />
               </Panel>
             </>

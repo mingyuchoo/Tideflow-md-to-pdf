@@ -38,7 +38,6 @@ const PrefsModal: React.FC = () => {
     try {
       await clearRenderCache();
       await loadCacheStats(); // Refresh stats
-      console.log('Cache cleared successfully');
     } catch (error) {
       console.error('Failed to clear cache:', error);
     } finally {
