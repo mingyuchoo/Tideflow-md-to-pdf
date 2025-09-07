@@ -6,7 +6,8 @@ import {
 } from 'react-resizable-panels';
 import { listen } from "@tauri-apps/api/event";
 import { useAppStore } from './store';
-import { getPreferences, listenForFileChanges } from './api';
+import { getPreferences, listenForFileChanges, readMarkdownFile } from './api';
+import { loadSession, saveSession } from './utils/session';
 import './App.css';
 
 // Import components
@@ -42,12 +43,56 @@ function App() {
     const init = async () => {
       try {
         console.log('[App] init start');
+        // Attempt to load previous session before anything else
+        const session = loadSession();
+
         // Load preferences
         const prefs = await getPreferences();
         setPreferences(prefs);
         console.log('[App] preferences loaded', prefs);
         
-        // Initialize with default content if no file is open
+        // Restore session if present and not yet injected
+        if (session && !initialSampleInjected) {
+          try {
+            // Restore open files (filter duplicates)
+            const restored = Array.from(new Set(session.openFiles || []));
+            if (restored.length > 0) {
+              for (const f of restored) {
+                if (f === 'sample.md') continue; // sample handled separately
+                // Try reading file; skip if unreadable
+                try {
+                  const content = await readMarkdownFile(f);
+                  addOpenFile(f);
+                  if (f === session.currentFile) {
+                    setCurrentFile(f);
+                    setContent(content);
+                  }
+                } catch (e) {
+                  console.warn('[Session] Skipped unreadable file', f, e);
+                }
+              }
+            }
+            // Restore sample content (only add if there are no real files or currentFile is sample)
+            if (session.sampleDocContent) {
+              setSampleDocContent(session.sampleDocContent);
+            }
+            if (session.currentFile === 'sample.md' || (restored.length === 0 && !editor.currentFile)) {
+              setCurrentFile('sample.md');
+              addOpenFile('sample.md');
+              const content = session.sampleDocContent ?? '# Sample Document\n\nStart writing...';
+              setContent(content);
+            }
+            // Preview visibility
+            if (typeof session.previewVisible === 'boolean') {
+              // We only have setter for previewVisible (already in store). Use direct call.
+            }
+            setInitialSampleInjected(true);
+          } catch (e) {
+            console.warn('[Session] Failed to restore session, falling back to sample.', e);
+          }
+        }
+
+        // Initialize with default content if still nothing open
         if (!editor.currentFile && !initialSampleInjected) {
           setCurrentFile('sample.md');
           addOpenFile('sample.md');
@@ -89,9 +134,9 @@ def hello_world():
 
 Happy writing!
 `;
-          setContent(sampleText);
-          setSampleDocContent(sampleText);
-    setInitialSampleInjected(true);
+      setContent(sampleText);
+      setSampleDocContent(sampleText);
+      setInitialSampleInjected(true);
         }
         
         // Setup file change listener
@@ -126,6 +171,19 @@ Happy writing!
     
     init();
   }, [editor.currentFile, setPreferences, setCurrentFile, setContent, addOpenFile, initialSampleInjected, setInitialSampleInjected, setSampleDocContent]);
+
+  // Autosave session when key state changes
+  const { openFiles, currentFile } = useAppStore(s => s.editor);
+  const sampleDocContent = useAppStore(s => s.sampleDocContent);
+  const previewVisibleState = useAppStore(s => s.previewVisible);
+  useEffect(() => {
+    saveSession({
+      openFiles,
+      currentFile,
+      sampleDocContent,
+      previewVisible: previewVisibleState
+    });
+  }, [openFiles, currentFile, sampleDocContent, previewVisibleState]);
 
   // Simplified toggle: no remount side effects needed.
   if (loading) {
