@@ -292,7 +292,19 @@
   display: none;
 }
 
-.cm-scroller {
+ .cm-scroller {
   -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;     /* Firefox horizontal scrollbar */
+}
+
+/* Progressive enhancement: hide scrollbar in Firefox */
+@supports (scrollbar-width: none) {
+  .cm-scroller {
+    scrollbar-width: none;
+  }
+}
+
+/* Hide vertical & horizontal scrollbars in WebKit when we opt-out visually */
+.cm-scroller::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }

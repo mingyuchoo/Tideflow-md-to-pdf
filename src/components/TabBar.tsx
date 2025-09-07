@@ -11,7 +11,8 @@ const TabBar: React.FC = () => {
     setContent,
     addOpenFile,
     removeOpenFile,
-    closeAllFiles
+    closeAllFiles,
+    sampleDocContent
   } = useAppStore();
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -27,14 +28,10 @@ const TabBar: React.FC = () => {
         try {
           const content = await readMarkdownFile(filePath);
           
-          // Add to open files list and set as current
+          // Add to open files list and set as current then set content immediately
           addOpenFile(filePath);
           setCurrentFile(filePath);
-          
-          // Set content with a delay to ensure proper state updates
-          setTimeout(() => {
-            setContent(content);
-          }, 100);
+          setContent(content);
           return;
         } catch (readError) {
           alert(`Failed to read file: ${readError}`);
@@ -92,13 +89,16 @@ const TabBar: React.FC = () => {
     if (currentFile === filePath) return;
     
     try {
-      const content = await readMarkdownFile(filePath);
-      setCurrentFile(filePath);
-      
-      // Set content with a slight delay
-      setTimeout(() => {
+      if (filePath === 'sample.md') {
+        // Use in-memory sample content fallback or regenerate minimal sample if missing
+        const sample = sampleDocContent ?? '# Sample Document\n\nStart writing...';
+        setCurrentFile(filePath);
+        setContent(sample);
+      } else {
+        const content = await readMarkdownFile(filePath);
+        setCurrentFile(filePath);
         setContent(content);
-      }, 100);
+      }
     } catch (err) {
       console.error('Failed to switch to file:', err);
     }

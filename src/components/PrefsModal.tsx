@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../store';
-import { setPreferences, applyPreferences, getCacheStats, clearRenderCache } from '../api';
+import { setPreferences, applyPreferences, getCacheStats, clearRenderCache, renderTypst } from '../api';
 import type { Preferences } from '../types';
 import './PrefsModal.css';
 
@@ -106,7 +106,20 @@ const PrefsModal: React.FC = () => {
       // Apply preferences to generate prefs.json for Typst
       await applyPreferences();
       
-      // Close the modal
+      // Trigger re-render of current content so changes apply immediately
+      // We recompile the currently open document (if any) using store content
+      try {
+        // Access current editor content via store (avoid circular import by inline get)
+        const state = useAppStore.getState();
+        const { editor: { content } } = state;
+        if (content && content.length > 0) {
+          await renderTypst(content, 'pdf');
+        }
+      } catch (e) {
+        console.warn('Re-render after preferences failed (non-fatal):', e);
+      }
+
+      // Close the modal after attempting re-render
       setPrefsModalOpen(false);
     } catch (err) {
       console.error('Failed to save preferences:', err);

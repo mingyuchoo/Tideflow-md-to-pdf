@@ -207,26 +207,14 @@ pub async fn render_typst(app_handle: &AppHandle, content: &str, format: &str) -
         .map_err(|e| anyhow!("Failed to get preferences: {}", e))?;
     let prefs_json = serde_json::to_string(&prefs)?;
     
-    // Content + preferences based caching for identical documents + settings
+    // Previously: content + preferences based caching. Disabled to avoid accidental reuse across different open files
+    // (focused preview removed; correctness prioritized over caching). We still compute a hash for potential future use.
     let combined_content = format!("{}\n---PREFS---\n{}", content, prefs_json);
     let content_hash = calculate_content_hash(&combined_content);
     let content_dir = utils::get_content_dir(app_handle)?;
     let build_dir = content_dir.join(".build");
     
-    // Check for existing cached output with same content hash
-    let cached_file_name = format!("cached_{}_{}.{}", content_hash, format, 
-        match format {
-            "pdf" => "pdf",
-            "html" => "html",
-            "docx" => "docx",
-            _ => "pdf",
-        });
-    let cached_path = build_dir.join(&cached_file_name);
-    
-    if cached_path.exists() {
-        println!("📋 Using cached render for identical content + preferences (hash: {})", content_hash);
-        return Ok(cached_path.to_string_lossy().to_string());
-    }
+    // CACHING DISABLED: always perform a fresh render (avoid returning stale PDF for different files with same content)
 
     // Acquire render lock to prevent multiple simultaneous renders
     let _lock = RENDER_MUTEX.lock().await;
@@ -300,17 +288,6 @@ pub async fn render_typst(app_handle: &AppHandle, content: &str, format: &str) -
         return Err(anyhow!("Output file was not created: {}", output_path.display()));
     }
     
-    // Create cached copy for future reuse
-    let cached_file_name = format!("cached_{}_{}.{}", content_hash, format, output_ext);
-    let cached_path = build_dir.join(&cached_file_name);
-    
-    // Copy output to cached location
-    if let Err(e) = fs::copy(&output_path, &cached_path) {
-        println!("⚠️ Warning: Failed to create cache copy: {}", e);
-    } else {
-        println!("💾 Cached render result as: {}", cached_file_name);
-    }
-
     Ok(output_path.to_string_lossy().to_string())
 }
 

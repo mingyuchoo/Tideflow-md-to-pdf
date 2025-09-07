@@ -26,6 +26,7 @@ pub fn run() {
         commands::import_image,
         commands::render_markdown,
         commands::export_markdown,
+        commands::save_pdf_as,
         commands::render_typst,
         commands::get_pdf_path,
         commands::typst_diagnostics,

@@ -7,7 +7,10 @@
   align-items: center;
   justify-content: space-between;
   overflow-x: auto;
-  user-select: none;
+  /* Prevent text selection across all major engines */
+  -webkit-user-select: none; /* Safari */
+  -ms-user-select: none; /* Old Edge / IE (legacy) */
+  user-select: none; /* Standard */
 }
 
 .hidden-file-input {
@@ -29,8 +32,14 @@
 .tab-container {
   display: flex;
   overflow-x: auto;
-  scrollbar-width: thin;
   max-width: calc(100% - 120px);
+}
+
+/* Progressive enhancement: Only Firefox currently supports scrollbar-width */
+@supports (scrollbar-width: thin) {
+  .tab-container {
+    scrollbar-width: thin;
+  }
 }
 
 .tab {

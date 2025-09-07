@@ -26,22 +26,32 @@ function App() {
     editor,
     setCurrentFile,
     setContent,
-    addOpenFile
+    addOpenFile,
+    initialSampleInjected,
+    setInitialSampleInjected,
+    setSampleDocContent
   } = useAppStore();
+
+  // Simple collapse flag; no persistence
+  const previewCollapsed = !previewVisible;
+
+  // Removed all panel persistence logic for fixed layout.
 
   // Initialize app
   useEffect(() => {
     const init = async () => {
       try {
+        console.log('[App] init start');
         // Load preferences
         const prefs = await getPreferences();
         setPreferences(prefs);
+        console.log('[App] preferences loaded', prefs);
         
         // Initialize with default content if no file is open
-        if (!editor.currentFile) {
+        if (!editor.currentFile && !initialSampleInjected) {
           setCurrentFile('sample.md');
           addOpenFile('sample.md');
-          setContent(`# Welcome to MarkdownToPDF
+          const sampleText = `# Welcome to MarkdownToPDF
 
 This is a sample document to get you started.
 
@@ -78,7 +88,10 @@ def hello_world():
 \`\`\`
 
 Happy writing!
-`);
+`;
+          setContent(sampleText);
+          setSampleDocContent(sampleText);
+    setInitialSampleInjected(true);
         }
         
         // Setup file change listener
@@ -107,53 +120,54 @@ Happy writing!
         console.error('Failed to initialize app:', error);
       } finally {
         setLoading(false);
+        console.log('[App] init complete');
       }
     };
     
     init();
-  }, [editor.currentFile, setPreferences, setCurrentFile, setContent, addOpenFile]);
+  }, [editor.currentFile, setPreferences, setCurrentFile, setContent, addOpenFile, initialSampleInjected, setInitialSampleInjected, setSampleDocContent]);
 
+  // Simplified toggle: no remount side effects needed.
   if (loading) {
     return <div className="loading">Loading...</div>;
   }
+  // Compute default sizes: if collapsed -> editor 100%, else restored or fallback (55/45)
+  const defaultEditorSize = previewCollapsed ? 100 : 50;
+  const defaultPreviewSize = previewCollapsed ? 0 : 50;
+  const panelGroupKey = `pg-fixed-${previewCollapsed ? 'collapsed' : 'open'}`;
 
   return (
     <div className="app">
       <Toolbar />
       <TabBar />
-      
       <div className="main-content">
-        <PanelGroup direction="horizontal" style={{ height: '100%', overflow: 'hidden' }}>
-          {/* Editor Panel */}
-          <Panel 
-            defaultSize={previewVisible ? 50 : 100} 
+        <PanelGroup key={panelGroupKey} direction="horizontal" style={{ height: '100%', overflow: 'hidden' }}>
+          <Panel
+            defaultSize={defaultEditorSize}
             minSize={25}
-            maxSize={previewVisible ? 75 : 100}
+            maxSize={previewCollapsed ? 100 : 75}
             style={{ overflow: 'hidden', minWidth: 0 }}
           >
             <Editor />
           </Panel>
-          
-          {previewVisible && (
-            <>
-              <PanelResizeHandle className="resize-handle" />
-              
-              {/* PDF Preview Panel */}
-              <Panel 
-                defaultSize={50} 
-                minSize={25}
-                maxSize={75}
-                style={{ overflow: 'hidden', minWidth: 0 }}
-              >
-                <PDFPreview />
-              </Panel>
-            </>
-          )}
+          <PanelResizeHandle className="resize-handle" />
+          <Panel
+            // When collapsed, force a tiny size
+            defaultSize={defaultPreviewSize}
+            minSize={previewCollapsed ? 0 : 20}
+            maxSize={previewCollapsed ? 0 : 75}
+            style={{ 
+              overflow: 'hidden', 
+              minWidth: 0, 
+              display: previewCollapsed ? 'none' : 'block' 
+            }}
+          >
+            {/* Only mount PDFPreview when not collapsed to avoid wasted renders */}
+            {!previewCollapsed && <PDFPreview />}
+          </Panel>
         </PanelGroup>
       </div>
-      
       <StatusBar />
-      
       {prefsModalOpen && <PrefsModal />}
     </div>
   );

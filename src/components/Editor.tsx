@@ -9,71 +9,10 @@ import { cmd } from './MarkdownCommands';
 import { FONT_OPTIONS } from './MarkdownToolbar';
 import './Editor.css';
 
-// Helper function to extract the current section around cursor position
-const getCurrentSection = (content: string, cursorPosition: number): string => {
-  const lines = content.split('\n');
-  let totalChars = 0;
-  let currentLineIndex = 0;
-  
-  // Find which line the cursor is on
-  for (let i = 0; i < lines.length; i++) {
-    if (totalChars + lines[i].length >= cursorPosition) {
-      currentLineIndex = i;
-      break;
-    }
-    totalChars += lines[i].length + 1; // +1 for newline
-  }
-  
-  // Find the current section bounds (between headers)
-  let sectionStart = 0;
-  let sectionEnd = lines.length - 1;
-  
-  // Look backward for a header
-  for (let i = currentLineIndex; i >= 0; i--) {
-    if (lines[i].trim().startsWith('#')) {
-      sectionStart = i;
-      break;
-    }
-  }
-  
-  // Look forward for next header
-  for (let i = currentLineIndex + 1; i < lines.length; i++) {
-    if (lines[i].trim().startsWith('#')) {
-      sectionEnd = i - 1;
-      break;
-    }
-  }
-  
-  // Extract the section content
-  const sectionLines = lines.slice(sectionStart, sectionEnd + 1);
-  return sectionLines.join('\n');
-};
-
-// Wrap section content for focused preview
-const createFocusedPreview = (sectionContent: string, globalFrontMatter: string = ''): string => {
-  // Extract any front matter from global content
-  let frontMatter = globalFrontMatter;
-  if (!frontMatter && sectionContent.trim().startsWith('---')) {
-    const parts = sectionContent.split('---');
-    if (parts.length >= 3) {
-      frontMatter = `---${parts[1]}---`;
-      sectionContent = parts.slice(2).join('---');
-    }
-  }
-  
-  // If no front matter exists, create minimal one
-  if (!frontMatter) {
-    frontMatter = '---\nformat: pdf\ngeometry: margin=1in\n---';
-  }
-  
-  return `${frontMatter}\n\n${sectionContent}`;
-};
-
 const Editor: React.FC = () => {
   const editorRef = useRef<HTMLDivElement>(null);
   const editorViewRef = useRef<EditorView | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [focusedPreviewMode, setFocusedPreviewMode] = useState(false);
   const [isActivelyTyping, setIsActivelyTyping] = useState(false);
   const [fontMode, setFontMode] = useState<"Selection" | "Document">("Selection");
   const [selectedFont, setSelectedFont] = useState<string>("New Computer Modern");
@@ -81,32 +20,34 @@ const Editor: React.FC = () => {
   const typingDetectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isUserTypingRef = useRef(false); // Track if user is actively typing
   const lastLoadedContentRef = useRef<string>(''); // Track last loaded content
-  const globalFrontMatterRef = useRef<string>(''); // Cache front matter for focused mode
+  const prevFileRef = useRef<string | null>(null); // Track previously opened file to avoid resetting editor on each keystroke
+  const openFilesRef = useRef<string[]>([]);
   
   const { 
-    editor: { currentFile, content, modified },
+    editor: { currentFile, content, modified, openFiles },
     setContent,
     setModified,
     setCompileStatus,
     preferences,
-    setPreferences
+    setPreferences,
+    setEditorScrollRatio,
+    setSampleDocContent
   } = useAppStore();
 
-  // Smart auto-render function with focused preview support
-  const handleAutoRender = useCallback(async (content: string, useFocusedMode: boolean = false) => {
+  // Track openFiles to detect transition to zero and reset refs
+  useEffect(() => {
+    openFilesRef.current = openFiles;
+    if (openFiles.length === 0) {
+      // Clear previous file reference so next opened file dispatches content
+      prevFileRef.current = null;
+    }
+  }, [openFiles]);
+
+  // Auto-render function (always full content)
+  const handleAutoRender = useCallback(async (content: string) => {
     try {
       setCompileStatus({ status: 'running' });
-      
-      let renderContent = content;
-      
-      // Use focused preview if enabled and in focused mode
-      if (useFocusedMode && preferences.focused_preview_enabled && editorViewRef.current) {
-        const cursorPos = editorViewRef.current.state.selection.main.from;
-        const currentSection = getCurrentSection(content, cursorPos);
-        renderContent = createFocusedPreview(currentSection, globalFrontMatterRef.current);
-      }
-      
-      const pdfPath = await renderTypst(renderContent, 'pdf');
+      const pdfPath = await renderTypst(content, 'pdf');
       setCompileStatus({ 
         status: 'ok', 
         pdf_path: pdfPath 
@@ -118,17 +59,9 @@ const Editor: React.FC = () => {
         details: String(err) 
       });
     }
-  }, [setCompileStatus, preferences.focused_preview_enabled]);
+  }, [setCompileStatus]);
 
-  // Extract global front matter for focused preview mode
-  useEffect(() => {
-    if (content.trim().startsWith('---')) {
-      const parts = content.split('---');
-      if (parts.length >= 3) {
-        globalFrontMatterRef.current = `---${parts[1]}---`;
-      }
-    }
-  }, [content]);
+  // Focused preview removed: always render entire document
 
   // Initialize CodeMirror when the component mounts (once)
   useEffect(() => {
@@ -234,6 +167,9 @@ const Editor: React.FC = () => {
               const newContent = update.state.doc.toString();
               setContent(newContent);
               setModified(true);
+              if (currentFile === 'sample.md') {
+                setSampleDocContent(newContent);
+              }
               
               // Clear existing timeouts
               if (contentChangeTimeoutRef.current) {
@@ -250,21 +186,26 @@ const Editor: React.FC = () => {
               
               // Smart debounced render
               const debounceMs = preferences.render_debounce_ms;
-              const shouldUseFocusedMode = isActivelyTyping && preferences.focused_preview_enabled;
-              
               contentChangeTimeoutRef.current = setTimeout(() => {
-                handleAutoRender(newContent, shouldUseFocusedMode);
+                handleAutoRender(newContent);
                 isUserTypingRef.current = false; // Reset flag
-                
-                // If we used focused mode, schedule a full render after a pause
-                if (shouldUseFocusedMode) {
-                  setTimeout(() => {
-                    if (!isUserTypingRef.current) {
-                      handleAutoRender(newContent, false);
-                    }
-                  }, 2000); // 2 second pause before full render
-                }
               }, debounceMs);
+            }
+            // Track caret position (ignore large text highlight ranges to avoid jitter)
+            if (update.selectionSet || update.docChanged) {
+              const sel = update.state.selection.main;
+              if (sel.empty) {
+                const state = update.state;
+                const cursor = sel.head;
+                const line = state.doc.lineAt(cursor);
+                const lineNumber = line.number; // 1-based
+                const totalLines = state.doc.lines || 1;
+                const column = cursor - line.from;
+                const lineLength = Math.max(1, line.length);
+                const intraLine = column / lineLength; // 0..1 within line
+                const ratio = (lineNumber - 1 + intraLine) / totalLines;
+                setEditorScrollRatio(Math.min(1, Math.max(0, ratio)));
+              }
             }
           }),
         ],
@@ -289,35 +230,44 @@ const Editor: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Intentionally empty to prevent recreation
 
-  // Update editor content when currentFile changes or content is loaded
+  // Load file content ONLY when switching to a different file, not on every keystroke.
+  // Previous implementation re-dispatched the entire document on every content store update
+  // (which happens for each keystroke) causing the scroll position to jump to top and cursor flicker.
+  // We now detect file changes and only replace the document in that scenario.
   useEffect(() => {
-    
-    if (editorViewRef.current && (content !== lastLoadedContentRef.current || lastLoadedContentRef.current === '')) {
-      // Clear any pending timeouts
-      if (contentChangeTimeoutRef.current) {
-        clearTimeout(contentChangeTimeoutRef.current);
-      }
-      
-      // Force update with a slight delay to ensure state is settled
-      setTimeout(() => {
-        if (editorViewRef.current) {
-          editorViewRef.current.dispatch({
-            changes: {
-              from: 0,
-              to: editorViewRef.current.state.doc.length,
-              insert: content
-            }
-          });
-          lastLoadedContentRef.current = content;
-          
-          // Auto-render the content when switching tabs
-          if (currentFile) {
-            handleAutoRender(content, false);
-          }
+    if (!editorViewRef.current) return;
+    // When a new file is selected
+    if (currentFile && currentFile !== prevFileRef.current) {
+      // Replace document content with the file's content
+      editorViewRef.current.dispatch({
+        changes: {
+          from: 0,
+          to: editorViewRef.current.state.doc.length,
+          insert: content
         }
-      }, 50);
+      });
+      lastLoadedContentRef.current = content;
+      prevFileRef.current = currentFile;
+      handleAutoRender(content);
     }
   }, [currentFile, content, handleAutoRender]);
+
+  // If content in store changes for current file (e.g., loaded asynchronously) and differs from editor doc, update it.
+  useEffect(() => {
+    if (!editorViewRef.current) return;
+    if (!currentFile) return;
+    const currentDoc = editorViewRef.current.state.doc.toString();
+    if (content !== currentDoc && currentFile === prevFileRef.current) {
+      editorViewRef.current.dispatch({
+        changes: {
+          from: 0,
+          to: editorViewRef.current.state.doc.length,
+          insert: content
+        }
+      });
+      lastLoadedContentRef.current = content;
+    }
+  }, [content, currentFile]);
 
   // Save the file
   const handleSave = async () => {
@@ -486,8 +436,33 @@ const Editor: React.FC = () => {
     }
   };
 
+  // Force remount of the inner editor UI after a full close-all followed by opening a new file.
+  // We track a generation that increments when transitioning from no open files to having one again.
+  const generationRef = useRef(0);
+  const hadNoFilesRef = useRef(false);
+  useEffect(() => {
+    if (openFiles.length === 0) {
+      hadNoFilesRef.current = true;
+    } else if (hadNoFilesRef.current && openFiles.length === 1) {
+      // First file after close-all
+      generationRef.current += 1;
+      hadNoFilesRef.current = false;
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[Editor] Remounting editor after close-all. Generation =', generationRef.current);
+      }
+    }
+  }, [openFiles]);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[Editor] Mounted generation', generationRef.current);
+    }
+    // Run once per mount (keyed by generation via outer div key)
+  }, []);
+
   return (
     <div 
+      key={generationRef.current}
       className="editor-container" 
       onPaste={handlePaste}
       onDrop={handleDrop}
@@ -500,7 +475,7 @@ const Editor: React.FC = () => {
             <div className="editor-status">
               {isActivelyTyping && (
                 <span className="typing-indicator">
-                  {focusedPreviewMode ? '🎯 Focused' : '⌨️ Typing'}
+                  ⌨️ Typing
                 </span>
               )}
               <span className="debounce-info">
@@ -508,13 +483,6 @@ const Editor: React.FC = () => {
               </span>
             </div>
             <div className="editor-actions">
-              <button 
-                onClick={() => setFocusedPreviewMode(!focusedPreviewMode)}
-                className={`toggle-button ${focusedPreviewMode ? 'active' : ''}`}
-                title={`${focusedPreviewMode ? 'Disable' : 'Enable'} focused section preview for ultra-fast feedback`}
-              >
-                🎯 Focused
-              </button>
               <button 
                 onClick={handleSave} 
                 disabled={!modified || isSaving}

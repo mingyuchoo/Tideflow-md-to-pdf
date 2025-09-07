@@ -1,6 +1,8 @@
 import React from 'react';
 import { useAppStore } from '../store';
-import { showOpenDialog } from '../api';
+// Removed showOpenDialog (export now uses save dialog directly)
+import { invoke } from '@tauri-apps/api/core';
+import { save } from '@tauri-apps/plugin-dialog';
 import './Toolbar.css';
 
 const Toolbar: React.FC = () => {
@@ -20,23 +22,33 @@ const Toolbar: React.FC = () => {
   };
 
   const handleExportPDF = async () => {
-    if (!editor.compileStatus.pdf_path) {
-      alert('No PDF available to export. Please render a document first.');
-      return;
-    }
-
     try {
-      const savePath = await showOpenDialog(
-        [{ name: 'PDF Files', extensions: ['pdf'] }],
-        false
-      );
-      
-      if (savePath) {
-        // File save dialog will handle the actual saving
-        // In a real app, we would copy the PDF to the selected location
+      const pdfSource = editor.compileStatus.pdf_path;
+      if (!pdfSource) {
+        alert('No PDF available to export. Please render a document first.');
+        return;
       }
+
+      // Use save dialog (if available via plugin)
+      let dest = await save({
+        title: 'Save PDF As',
+        filters: [{ name: 'PDF', extensions: ['pdf'] }],
+        defaultPath: 'document.pdf'
+      }).catch(() => null);
+
+      if (!dest) {
+        // Fallback: open dialog hack (user selects folder and we append name) - skipped for now
+        return;
+      }
+      if (!dest.toLowerCase().endsWith('.pdf')) dest = dest + '.pdf';
+
+      // If source is a temp PDF from in-memory render, we can copy directly.
+      // Call backend command save_pdf_as which handles md->pdf export if needed.
+      await invoke('save_pdf_as', { filePath: pdfSource, destination: dest });
+      alert('Exported PDF to: ' + dest);
     } catch (err) {
       console.error('Failed to export PDF:', err);
+      alert('Export failed: ' + err);
     }
   };
 

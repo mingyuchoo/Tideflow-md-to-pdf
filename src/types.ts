@@ -25,7 +25,7 @@ export interface Preferences {
   fonts: Fonts;
   // Preview optimization settings
   render_debounce_ms: number;
-  focused_preview_enabled: boolean;
+  focused_preview_enabled?: boolean; // kept optional (removed in UI) for backend compatibility
   preserve_scroll_position: boolean;
 }
 

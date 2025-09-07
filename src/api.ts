@@ -37,7 +37,9 @@ export async function importImage(
   imageData: string,
   fileName?: string
 ): Promise<string> {
-  return invoke('import_image', { imageData, fileName });
+  // IMPORTANT: Rust command parameters are snake_case (image_data, file_name).
+  // Previous camelCase keys caused silent failure (no image inserted on drag/drop or paste).
+  return invoke('import_image', { image_data: imageData, file_name: fileName });
 }
 
 // Rendering operations

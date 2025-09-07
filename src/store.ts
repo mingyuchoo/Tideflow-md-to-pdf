@@ -18,7 +18,7 @@ const defaultPreferences: Preferences = {
   },
   // Preview optimization settings
   render_debounce_ms: 400,
-  focused_preview_enabled: true,
+  focused_preview_enabled: false,
   preserve_scroll_position: true,
 };
 
@@ -41,6 +41,9 @@ interface AppState {
   setContent: (content: string) => void;
   setModified: (modified: boolean) => void;
   setCompileStatus: (status: CompileStatus) => void;
+  // Scroll / cursor sync
+  editorScrollRatio: number; // 0..1 proportion of scroll/cursor position inside document
+  setEditorScrollRatio: (ratio: number) => void;
   
   // Tab management
   addOpenFile: (path: string) => void;
@@ -57,15 +60,24 @@ interface AppState {
   
   previewVisible: boolean;
   setPreviewVisible: (visible: boolean) => void;
+  // (Panel persistence removed)
   
   // Reset state
   resetState: () => void;
+  // Sample doc injection guard
+  initialSampleInjected: boolean;
+  setInitialSampleInjected: (v: boolean) => void;
+  // In-memory sample document content so we can return after switching files
+  sampleDocContent: string | null;
+  setSampleDocContent: (content: string) => void;
 }
 
 // Create store
 export const useAppStore = create<AppState>((set) => ({
   // Editor state
   editor: initialEditorState,
+  editorScrollRatio: 0,
+  setEditorScrollRatio: (ratio: number) => set({ editorScrollRatio: Math.min(1, Math.max(0, ratio)) }),
   setCurrentFile: (path: string | null) => set((state: AppState) => {
     return {
       editor: {
@@ -144,15 +156,20 @@ export const useAppStore = create<AppState>((set) => ({
     };
   }),
   
-  closeAllFiles: () => set((state: AppState) => ({
-    editor: {
-      ...state.editor,
-      openFiles: [],
-      currentFile: null,
-      content: '',
-      modified: false
-    }
-  })),
+  closeAllFiles: () => set((state: AppState) => {
+    // Return user to sample.md (in-memory). Ensure it's the only open file.
+    const sampleName = 'sample.md';
+    return {
+      editor: {
+        ...state.editor,
+        openFiles: [sampleName],
+        currentFile: sampleName,
+        content: state.sampleDocContent ?? '# Sample Document\n\nStart writing...\n',
+        modified: false,
+        compileStatus: { status: 'idle' } // Clear previous PDF so stale preview disappears
+      }
+    };
+  }),
   
   // Preferences state
   preferences: defaultPreferences,
@@ -164,6 +181,7 @@ export const useAppStore = create<AppState>((set) => ({
   
   previewVisible: true,
   setPreviewVisible: (visible: boolean) => set({ previewVisible: visible }),
+  // removed panelRestoreTick & previewRerenderTick
   
   // Reset state
   resetState: () => set({
@@ -171,5 +189,12 @@ export const useAppStore = create<AppState>((set) => ({
     preferences: defaultPreferences,
     prefsModalOpen: false,
     previewVisible: true,
+    initialSampleInjected: false,
+  sampleDocContent: null,
+  setSampleDocContent: (content: string) => set({ sampleDocContent: content }),
   }),
+  initialSampleInjected: false,
+  setInitialSampleInjected: (v: boolean) => set({ initialSampleInjected: v }),
+  sampleDocContent: null,
+  setSampleDocContent: (content: string) => set({ sampleDocContent: content }),
 }));
