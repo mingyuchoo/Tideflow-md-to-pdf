@@ -1,0 +1,4 @@
+.error-boundary { padding: 1rem; font-family: system-ui, sans-serif; }
+.error-boundary h2 { margin-top: 0; }
+.error-boundary-stack { white-space: pre-wrap; background: #222; color: #eee; padding: 0.75rem; border-radius: 4px; max-height: 300px; overflow: auto; }
+.error-boundary button { margin-top: 0.75rem; }

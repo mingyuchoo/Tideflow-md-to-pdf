@@ -1,112 +1,174 @@
-# Tideflow - Markdown to PDF Converter
+<div align="center">
 
-A modern desktop application that converts Markdown files to high-quality PDFs using Typst. Built with Tauri, React, and TypeScript.
+# Tideflow
+
+**Fast, offline-first Markdown → PDF desktop app powered by Typst**  
+Write on the left, get a beautifully typeset PDF on the right – instantly.
+
+</div>
+
+## Why I Built It
+I wanted a dead-simple, elegant writing tool that outputs print‑ready PDFs **without relying on a web service**, LaTeX toolchains, or heavy exports. Typst provides expressive, modern typesetting; Tauri keeps the footprint tiny; React + CodeMirror makes the editing experience fluid. Tideflow is the glue.
 
 ## Features
+* Real‑time PDF rendering (Typst under the hood)
+* Clean, distraction‑lite editor (CodeMirror 6) with smart debounced compilation
+* Automatic Table of Contents & optional section numbering
+* Image paste & drag‑drop (auto saves into managed assets directory)
+* Math (inline / block) via LaTeX-style syntax
+* Configurable paper size, margins, fonts, TOC, image defaults
+* Offline: once installed, **no network required**
+* Cross‑platform (Windows / macOS / Linux)
+* Fast startup: no giant runtime or Electron bloat
 
-- **Real-time PDF Preview**: See your document rendered as you type
-- **Markdown Editor**: Full-featured editor with syntax highlighting (CodeMirror 6)
-- **Image Support**: Drag & drop or paste images directly into documents
-- **Customizable Styling**: Adjust paper size, margins, fonts, and layout
-- **Table of Contents**: Automatic TOC generation with section numbering
-- **Cross-platform**: Works on Windows, macOS, and Linux
-- **Offline**: No internet connection required after installation
+## Demo (Preview Flow)
+1. Type Markdown
+2. App debounces & renders via Typst
+3. PDF preview refreshes in place
+4. Export when ready (or just copy the generated PDF path)
 
-## Technology Stack
+## Keyboard Shortcuts
+| Action | Shortcut |
+| ------ | -------- |
+| Bold | Ctrl+B |
+| Italic | Ctrl+I |
+| Inline Code | Ctrl+` |
+| Link | Ctrl+K |
+| Heading 1 / 2 / 3 | Ctrl+Alt+1 / 2 / 3 |
+| Bullet List | Ctrl+Shift+8 |
+| Numbered List | Ctrl+Shift+7 |
+| Task List | Ctrl+Shift+9 |
+| Quote | Ctrl+Shift+Q |
+| Code Block | Ctrl+Shift+C |
+| Save | Ctrl+S |
+| Force Render | Ctrl+R |
 
-- **Frontend**: React 19 + TypeScript + Vite
-- **Backend**: Tauri (Rust)
-- **PDF Engine**: Typst (bundled)
-- **Editor**: CodeMirror 6
-- **UI**: React Resizable Panels
+## Tech Stack
+**Core**
+* React 19 + TypeScript + Vite
+* Tauri (Rust) shell & command layer
+* Typst (bundled binary) for PDF
+
+**Editor**
+* CodeMirror 6 + custom Markdown commands (bold, headings, lists, etc.)
+
+**State & Logic**
+* Zustand store (single slice: editor state, preferences, UI flags)
+
+**UI & Layout**
+* react-resizable-panels (simplified fixed 50/50 split with optional preview toggle)
+
+**Rendering Flow**
+1. User edits Markdown → content in Zustand
+2. Debounced timer triggers `renderTypst(content)` (Tauri invoke)
+3. Rust backend writes temp markdown + preferences JSON
+4. Typst binary compiles → PDF path returned
+5. Store `compileStatus.pdf_path` updates → `PDFPreview` component reloads iframe (pdf.js optional later)
 
 ## Installation
-
 ### Prerequisites
+* Node.js 18+
+* Rust (stable)
+* Tauri CLI (`cargo install tauri-cli`)
 
-- Node.js 18+ 
-- Rust (latest stable)
-- Tauri CLI: `cargo install tauri-cli`
+### Clone & Run
+```bash
+git clone https://github.com/BDenizKoca/Md-to-PDF.git
+cd Md-to-PDF
+npm install
+npm run tauri:dev
+```
 
-### Development Setup
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/BDenizKoca/Md-to-PDF.git
-   cd Md-to-PDF
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Start development server:
-   ```bash
-   npm run tauri:dev
-   ```
-
-### Building for Production
-
+### Build (Release Bundle)
 ```bash
 npm run tauri:build
 ```
 
 ## Usage
+1. New / Open a file (or start with the sample)
+2. Write Markdown (math, code, images all supported)
+3. Watch instant PDF updates (debounce respects your preferences)
+4. Adjust fonts / page / TOC in Preferences
+5. Export or copy the generated PDF
 
-1. **Create/Open Documents**: Use the toolbar to create new files or open existing Markdown documents
-2. **Edit Content**: Write in the left panel using standard Markdown syntax
-3. **Preview**: Real-time PDF preview appears in the right panel
-4. **Customize**: Open preferences to adjust paper size, margins, fonts, and styling
-5. **Export**: Save your final PDF using the export button
+## Supported Markdown / Extras
+* Headings, emphasis, strike, code, block + inline math
+* Lists (ordered / unordered / tasks)
+* Tables
+* Images (auto asset management)
+* Horizontal rules, page breaks (custom command)
+* TOC + numbering (via Typst template)
 
-## Markdown Features Supported
+## Preferences
+Editable (persisted) settings surfaced through the Preferences modal:
+| Setting | Description |
+| ------- | ----------- |
+| Paper Size | a4, letter, etc. |
+| Margins | X/Y (cm) pair |
+| Fonts | Main + mono families |
+| TOC | Enable/disable + numbering |
+| Image width | Default figure width |
+| Image alignment | left / center / right |
+| Render debounce | ms delay before auto re-render |
+| Focused preview (future) | Planned partial render optimization |
 
-- Headers (H1-H6) with optional numbering
-- **Bold** and *italic* text
-- Code blocks with syntax highlighting
-- Tables
-- Lists (ordered and unordered)
-- Links and images
-- Blockquotes
-- Math expressions (LaTeX syntax)
-
-## Configuration
-
-Access preferences to customize:
-
-- **Paper Size**: A4, Letter, Legal, etc.
-- **Margins**: Adjustable page margins
-- **Fonts**: Main text and monospace fonts
-- **Table of Contents**: Enable/disable with numbering
-- **Image Defaults**: Default width and alignment for images
-
-## File Structure
-
+## Architecture Overview
 ```
-tideflow/
-├── src/                    # React frontend
-│   ├── components/         # UI components
-│   ├── store.ts           # State management (Zustand)
-│   └── api.ts             # Tauri API bindings
-├── src-tauri/             # Rust backend
-│   ├── src/               # Rust source code
-│   ├── content/           # Typst templates
-│   └── styles/            # Theme files
+┌────────────┐   keystrokes   ┌───────────────┐   invoke (IPC)   ┌────────────┐
+│ CodeMirror │ ─────────────▶ │  Zustand Store │ ───────────────▶ │  Rust/Tauri │
+└────────────┘    state set    └───────────────┘    spawn Typst    └─────┬──────┘
+       ▲                               │                             PDF path
+       │  iframe reload (pdf_path)     │ update compileStatus             │
+       └───────────────  PDFPreview ◀──┴──────────────────────────────────┘
+```
+
+## File Layout
+```
+Md-to-PDF/
+├── src/
+│   ├── components/        # Editor, PDFPreview, Toolbar, TabBar, etc.
+│   ├── store.ts           # Zustand app state
+│   ├── api.ts             # Tauri invoke bindings
+│   └── types.ts           # Shared TypeScript interfaces
+├── src-tauri/
+│   ├── src/               # Rust commands (render, export, prefs)
+│   ├── content/           # Templates (e.g. tideflow.typ, sample docs)
+│   ├── styles/            # Typst style files
+│   └── bin/typst/         # Bundled Typst binaries per platform
 └── public/                # Static assets
 ```
 
-## Contributing
+## Roadmap
+* [ ] PDF export dialog with destination picker
+* [ ] Dark theme + high-contrast mode
+* [ ] Incremental / partial rendering optimization
+* [ ] Built-in template gallery (report, memo, article)
+* [ ] Image optimization pipeline (resize/compress)
+* [ ] Spellcheck + grammar hooks
+* [ ] PDF annotation / outline navigation
+* [ ] Plugin system (postprocessors)
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
-3. Make changes and test
-4. Submit a pull request
+## Contributing
+PRs welcome. Please:
+1. Fork
+2. Branch: `feat/thing`
+3. Keep changes focused
+4. `npm run tauri:dev` for local testing
+5. Open PR with clear summary + screenshots if UI
+
+## Troubleshooting
+| Issue | Fix |
+| ----- | --- |
+| Blank PDF preview | Ensure Typst binary present in `src-tauri/bin/typst/<platform>` |
+| No re-render | Check debounce ms in Preferences, or hit Ctrl+R |
+| Fonts not applied | Save & Apply preferences (they regenerate `prefs.json`) |
 
 ## License
+MIT – use, modify, distribute with attribution.
 
-MIT License - see LICENSE file for details
+## Connect
+Email: **b.denizkoca@gmail.com**  
+GitHub: [@BDenizKoca](https://github.com/BDenizKoca)
 
-## Support
-
-For issues and questions, please use the GitHub Issues page.
+---
+If you build something cool with Tideflow or adapt the Typst pipeline, let me know!

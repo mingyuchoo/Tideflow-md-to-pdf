@@ -1,0 +1,44 @@
+import React from 'react';
+import './ErrorBoundary.css';
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  message?: string;
+  stack?: string;
+}
+
+export class ErrorBoundary extends React.Component<React.PropsWithChildren, ErrorBoundaryState> {
+  constructor(props: React.PropsWithChildren) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: unknown): ErrorBoundaryState {
+    return { hasError: true, message: error instanceof Error ? error.message : String(error) };
+  }
+
+  componentDidCatch(error: unknown, info: React.ErrorInfo) {
+    console.error('[ErrorBoundary] Caught error:', error, info);
+    this.setState({ stack: info.componentStack || undefined });
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="error-boundary">
+          <h2>Something went wrong</h2>
+          <p>{this.state.message}</p>
+          {this.state.stack && (
+            <pre className="error-boundary-stack">
+              {this.state.stack}
+            </pre>
+          )}
+          <button onClick={() => window.location.reload()}>Reload App</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export default ErrorBoundary;
