@@ -10,6 +10,12 @@
 .form-grid.two-col { grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); }
 .design-section label { font-size:.68rem; font-weight:600; display:flex; flex-direction:column; gap:.3rem; color:#222; letter-spacing:.02em; }
 .design-section input, .design-section select { padding:.42rem .55rem; border:1px solid #cdd3db; border-radius:6px; font-size:.72rem; background:#ffffff; color:#111; box-shadow:0 1px 0 rgba(0,0,0,0.04); }
+.design-section input[type="range"] { padding:0; height:1.2rem; background:transparent; box-shadow:none; }
+.design-section input[type="range"]::-webkit-slider-track { background:#e2e8f0; height:4px; border-radius:2px; }
+.design-section input[type="range"]::-webkit-slider-thumb { appearance:none; height:16px; width:16px; border-radius:50%; background:#2563eb; cursor:pointer; }
+.design-section input[type="range"]::-moz-range-track { background:#e2e8f0; height:4px; border-radius:2px; border:none; }
+.design-section input[type="range"]::-moz-range-thumb { height:16px; width:16px; border-radius:50%; background:#2563eb; cursor:pointer; border:none; }
+.range-value { font-size:0.7rem; color:#64748b; font-weight:500; margin-left:0.5rem; }
 .design-section input::placeholder { color:#9aa2af; }
 .design-section select { cursor:pointer; }
 .design-section input:focus, .design-section select:focus { outline:2px solid #2563eb; outline-offset:1px; border-color:#2563eb; background:#fff; }

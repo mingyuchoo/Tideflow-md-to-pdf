@@ -23,19 +23,25 @@
 
 #set page(paper: prefs.papersize, margin: (x: margin_x, y: margin_y))
 
+// CRITICAL: Disable any automatic outline generation by Typst or cmarker
+#set outline(title: none)
+
 // Read markdown content
 #let md_content = read("content.md")
 
-// Only add TOC if enabled in preferences - BEFORE rendering markdown content
+// Only add our controlled TOC if enabled in preferences
 #if prefs.toc [
   #let has_custom_title = "toc_title" in prefs and prefs.toc_title.trim() != ""
   #if has_custom_title [
     #text(size: 16pt, weight: 600)[#prefs.toc_title]
     #v(6pt)
   ]
-  #outline(title: none)
+  
+  // Generate outline explicitly here
+  #outline(title: none, depth: 3)
   #pagebreak()
 ]
 
-// Render markdown content AFTER TOC to prevent cmarker from injecting its own TOC
+// Render markdown content with explicit outline suppression
+#show outline: none
 #render(md_content)

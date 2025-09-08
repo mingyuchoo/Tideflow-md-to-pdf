@@ -202,10 +202,26 @@ const DesignModal: React.FC = () => {
               </select>
             </label>
             <label>Margin X (cm)
-              <input value={local.margin.x} onChange={e => mutate({ margin: { ...local.margin, x: e.target.value } })} />
+              <input 
+                type="range" 
+                min="1" 
+                max="5" 
+                step="0.25" 
+                value={parseFloat(local.margin.x.replace('cm', ''))} 
+                onChange={e => mutate({ margin: { ...local.margin, x: `${e.target.value}cm` } })} 
+              />
+              <span className="range-value">{local.margin.x}</span>
             </label>
             <label>Margin Y (cm)
-              <input value={local.margin.y} onChange={e => mutate({ margin: { ...local.margin, y: e.target.value } })} />
+              <input 
+                type="range" 
+                min="1" 
+                max="5" 
+                step="0.25" 
+                value={parseFloat(local.margin.y.replace('cm', ''))} 
+                onChange={e => mutate({ margin: { ...local.margin, y: `${e.target.value}cm` } })} 
+              />
+              <span className="range-value">{local.margin.y}</span>
             </label>
           </div>
         </div>
