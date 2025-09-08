@@ -42,8 +42,7 @@ export const TOOLBAR_CONFIG: ToolbarItem[] = [
   { type: "divider" },
   
   // Font and size
-  { type: "select", id: "fontMode", label: "Apply", options: ["Selection","Document"], tooltip: "Font apply mode" },
-  { type: "select", id: "font", label: "Font", options: [], tooltip: "Font family" }, // Will be populated at runtime
+  { type: "select", id: "font", label: "Font (Selection)", options: [], tooltip: "Apply font to selected text" }, // Will be populated at runtime
   { type: "select", id: "size", label: "Size", options: ["Normal","Small","Large"], tooltip: "Text size" },
   
   { type: "divider" },

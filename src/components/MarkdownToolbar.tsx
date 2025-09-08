@@ -3,8 +3,6 @@ import { EditorView } from "@codemirror/view";
 import { TOOLBAR_CONFIG, FONT_OPTIONS } from './MarkdownToolbar';
 import type { ToolbarItem } from './MarkdownToolbar';
 import { cmd, getImageAtCursor } from './MarkdownCommands';
-import { useAppStore } from '../store';
-import { setPreferences as savePreferences, applyPreferences } from '../api';
 import './MarkdownToolbar.css';
 
 interface MarkdownToolbarProps {
@@ -14,14 +12,11 @@ interface MarkdownToolbarProps {
 }
 
 const MarkdownToolbar: React.FC<MarkdownToolbarProps> = ({ editorView, onSave, onRender }) => {
-  const [fontMode, setFontMode] = useState<"Selection" | "Document">("Selection");
   const [selectedFont, setSelectedFont] = useState<string>("New Computer Modern");
   const [selectedSize, setSelectedSize] = useState<string>("Normal");
   const [selectedAlign, setSelectedAlign] = useState<string>("Left");
   const [selectedWidth, setSelectedWidth] = useState<string>("60%");
   const [paraStyle, setParaStyle] = useState<string>("Paragraph");
-  
-  const { preferences, setPreferences } = useAppStore();
 
   // Handle button clicks
   const handleButtonClick = (id: string) => {
@@ -106,9 +101,6 @@ const MarkdownToolbar: React.FC<MarkdownToolbarProps> = ({ editorView, onSave, o
         setSelectedWidth(value);
         handleWidth(value);
         break;
-      case "fontMode":
-        setFontMode(value as "Selection" | "Document");
-        break;
       case "font":
         console.log('🎯 Font select triggered, calling handleFont...');
         setSelectedFont(value);
@@ -178,48 +170,11 @@ const MarkdownToolbar: React.FC<MarkdownToolbarProps> = ({ editorView, onSave, o
 
   // Handle font changes
   const handleFont = async (font: string) => {
-    console.log('🎨 Font changed to:', font, 'Mode:', fontMode);
-    console.log('📋 Current preferences before change:', preferences);
+    console.log('🎨 Font changed to:', font, 'Mode: Selection');
     if (!editorView) return;
 
-    if (fontMode === "Document") {
-      // Update document font preference
-      const newPrefs = {
-        ...preferences,
-        fonts: {
-          ...preferences.fonts,
-          main: font
-        }
-      };
-      console.log('📝 New preferences to save:', newPrefs);
-      
-      try {
-        // Save to backend
-        console.log('💾 Calling savePreferences...');
-        await savePreferences(newPrefs);
-        console.log('✅ savePreferences completed');
-        
-        // Update local store
-        console.log('🔄 Updating local store...');
-        setPreferences(newPrefs);
-        console.log('✅ Local store updated');
-        
-        // Apply preferences to generate prefs.json for Typst
-        console.log('⚙️ Calling applyPreferences...');
-        await applyPreferences();
-        console.log('✅ applyPreferences completed');
-        
-        // Re-render with new font
-        console.log('🖨️ Triggering re-render...');
-        onRender?.();
-        console.log('✅ Re-render triggered');
-      } catch (error) {
-        console.error('❌ Failed to update font preferences:', error);
-      }
-    } else {
-      // Apply to selection
-      cmd.fontLocal(editorView, font);
-    }
+    // Apply to selection only - document font is changed through Design menu
+    cmd.fontLocal(editorView, font);
   };
 
   // Handle size changes
@@ -273,9 +228,6 @@ const MarkdownToolbar: React.FC<MarkdownToolbarProps> = ({ editorView, onSave, o
           options = FONT_OPTIONS;
           value = selectedFont;
           console.log('🎨 Rendering font dropdown with options:', options.length, 'selected:', value);
-          break;
-        case "fontMode":
-          value = fontMode;
           break;
         case "size":
           value = selectedSize;

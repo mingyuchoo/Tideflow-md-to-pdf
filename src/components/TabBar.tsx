@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { useAppStore } from '../store';
 import { readMarkdownFile, createFile, writeMarkdownFile } from '../api';
 import { open } from '@tauri-apps/plugin-dialog';
+import { handleError } from '../utils/errorHandler';
 import './TabBar.css';
 import { SAMPLE_DOC } from '../sampleDoc';
 
@@ -35,7 +36,7 @@ const TabBar: React.FC = () => {
           setContent(content);
           return;
         } catch (readError) {
-          alert(`Failed to read file: ${readError}`);
+          handleError(readError, { operation: 'read file', component: 'TabBar' });
         }
       }
     } catch {
@@ -58,8 +59,7 @@ const TabBar: React.FC = () => {
       setCurrentFile(newPath);
       setContent(text);
     } catch (e2) {
-      console.error('Fallback open failed:', e2);
-      alert('Failed to open file');
+      handleError(e2, { operation: 'open file', component: 'TabBar' });
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
@@ -82,7 +82,7 @@ const TabBar: React.FC = () => {
       setCurrentFile(filePath);
       setContent(newContent);
     } catch (err) {
-      console.error('Failed to create file:', err);
+      handleError(err, { operation: 'create file', component: 'TabBar' });
     }
   };
 
@@ -101,7 +101,7 @@ const TabBar: React.FC = () => {
         setContent(content);
       }
     } catch (err) {
-      console.error('Failed to switch to file:', err);
+      handleError(err, { operation: 'switch to file', component: 'TabBar' });
     }
   };
 

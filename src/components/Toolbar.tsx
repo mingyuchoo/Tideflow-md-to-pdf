@@ -5,6 +5,7 @@ import { clearSession } from '../utils/session';
 // Removed showOpenDialog (export now uses save dialog directly)
 import { invoke } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
+import { handleError, showSuccess } from '../utils/errorHandler';
 import './Toolbar.css';
 
 const Toolbar: React.FC = () => {
@@ -30,7 +31,8 @@ const Toolbar: React.FC = () => {
     try {
       const pdfSource = editor.compileStatus.pdf_path;
       if (!pdfSource) {
-        alert('No PDF available to export. Please render a document first.');
+        handleError(new Error('No PDF available to export'), 
+          { operation: 'export PDF', component: 'Toolbar' }, 'warning');
         return;
       }
 
@@ -50,10 +52,9 @@ const Toolbar: React.FC = () => {
       // If source is a temp PDF from in-memory render, we can copy directly.
       // Call backend command save_pdf_as which handles md->pdf export if needed.
       await invoke('save_pdf_as', { filePath: pdfSource, destination: dest });
-      alert('Exported PDF to: ' + dest);
+      showSuccess(`Exported PDF to: ${dest}`);
     } catch (err) {
-      console.error('Failed to export PDF:', err);
-      alert('Export failed: ' + err);
+      handleError(err, { operation: 'export PDF', component: 'Toolbar' });
     }
   };
 
@@ -63,8 +64,7 @@ const Toolbar: React.FC = () => {
       clearSession();
       clearCache();
     } catch (e) {
-      console.error('Reset failed', e);
-      alert('Failed to reset: ' + e);
+      handleError(e, { operation: 'reset session', component: 'Toolbar' });
     }
   };
 

@@ -28,7 +28,6 @@ pub fn run() {
         commands::export_markdown,
         commands::save_pdf_as,
         commands::render_typst,
-        commands::get_pdf_path,
         commands::typst_diagnostics,
         commands::get_cache_stats,
         commands::clear_render_cache,

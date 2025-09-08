@@ -41,13 +41,6 @@ export function toggleLinePrefix(view: EditorView, prefix: string) {
   view.dispatch({ changes });
 }
 
-// Get the current line text for context-aware operations
-export function getCurrentLineText(view: EditorView): string {
-  const sel = view.state.selection.main;
-  const line = view.state.doc.lineAt(sel.from);
-  return line.text;
-}
-
 // Check if current selection contains an image
 export function getImageAtCursor(view: EditorView): { path: string; line: number } | null {
   const sel = view.state.selection.main;

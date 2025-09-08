@@ -8,6 +8,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useAppStore } from './store';
 import { getPreferences, listenForFileChanges, readMarkdownFile } from './api';
 import { loadSession, saveSession } from './utils/session';
+import { handleError } from './utils/errorHandler';
 import './App.css';
 import { SAMPLE_DOC } from './sampleDoc';
 
@@ -159,7 +160,7 @@ function App() {
           unlistenPrefsRead();
         };
       } catch (error) {
-        console.error('Failed to initialize app:', error);
+        handleError(error, { operation: 'initialize app', component: 'App' });
       } finally {
         setLoading(false);
         console.log('[App] init complete');

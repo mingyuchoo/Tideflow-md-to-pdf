@@ -55,10 +55,6 @@ export async function exportMarkdown(filePath: string): Promise<string> {
   return invoke('export_markdown', { filePath });
 }
 
-export async function getPdfPath(filePath: string): Promise<string> {
-  return invoke('get_pdf_path', { filePath });
-}
-
 // Preferences operations
 interface BackendPreferences {
   papersize: string;

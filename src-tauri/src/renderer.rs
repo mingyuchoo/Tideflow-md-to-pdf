@@ -7,8 +7,6 @@ use tauri::{AppHandle, Emitter};
 use tokio::sync::Mutex;
 use std::sync::Arc;
 use std::time::SystemTime;
-use std::hash::{Hash, Hasher};
-use std::collections::hash_map::DefaultHasher;
 
 // A global mutex to ensure only one render happens at a time
 lazy_static::lazy_static! {
@@ -347,26 +345,4 @@ pub async fn render_typst(app_handle: &AppHandle, content: &str, _format: &str) 
     
     // Also emit compiled (already done in commands wrapper but ensure parity if path used directly)
     Ok(output_path.to_string_lossy().to_string())
-}
-
-/// Get the output PDF path for a file
-pub fn get_pdf_path(file_path: &str) -> Result<String> {
-    let path = Path::new(file_path);
-    let file_stem = path.file_stem()
-        .ok_or_else(|| anyhow!("Cannot determine file name"))?
-        .to_string_lossy();
-    
-    let parent = path.parent()
-        .ok_or_else(|| anyhow!("Cannot determine parent directory"))?;
-    
-    let pdf_path = parent.join(format!("{}.pdf", file_stem));
-    
-    Ok(pdf_path.to_string_lossy().to_string())
-}
-
-/// Calculate a hash of content for caching
-fn calculate_content_hash(content: &str) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    content.hash(&mut hasher);
-    hasher.finish()
 }

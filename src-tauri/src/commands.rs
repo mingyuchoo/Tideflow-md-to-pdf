@@ -332,26 +332,6 @@ pub async fn render_typst(
 }
 
 #[tauri::command]
-pub async fn get_pdf_path(file_path: &str) -> Result<String, String> {
-    let path = Path::new(file_path);
-    
-    if !path.exists() {
-        return Err("File does not exist".into());
-    }
-    
-    let file_stem = path.file_stem()
-        .ok_or_else(|| "Cannot determine file name".to_string())?
-        .to_string_lossy();
-    
-    let parent = path.parent()
-        .ok_or_else(|| "Cannot determine parent directory".to_string())?;
-    
-    let pdf_path = parent.join(format!("{}.pdf", file_stem));
-    
-    Ok(pdf_path.to_string_lossy().to_string())
-}
-
-#[tauri::command]
 pub async fn typst_diagnostics(app_handle: AppHandle) -> Result<TypstDiagnostics, String> {
     let mut attempted_paths: Vec<String> = Vec::new();
     let (detected, err_msg) = match utils::get_typst_path(&app_handle) {

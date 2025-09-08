@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { mapEditorToPdfRatio } from '../utils/scrollMapping';
 import { useAppStore } from '../store';
+import { handleError } from '../utils/errorHandler';
 import './PDFPreview.css';
 import * as pdfjsLib from 'pdfjs-dist';
 import { convertFileSrc } from '@tauri-apps/api/core';
@@ -29,7 +30,7 @@ try {
 }
 
 const PDFPreview: React.FC = () => {
-  const { editor, editorScrollRatio } = useAppStore();
+  const { editor, editorScrollRatio, preferences } = useAppStore();
   const { compileStatus } = editor;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const lastAppliedRatioRef = useRef<number>(-1);
@@ -47,7 +48,10 @@ const PDFPreview: React.FC = () => {
   const applyScrollRatio = useCallback((force = false) => {
     if (!containerRef.current) return;
   // Adaptive mapping: smaller base bias, gamma=1 (linear), tapered, clamped near bottom.
-  const ratio = mapEditorToPdfRatio(editorScrollRatio, { baseBias: 0.06, taper: true, gamma: 1 });
+  // If TOC is enabled, add offset to skip TOC pages
+  // 0.12 (12%) typically covers 1-2 TOC pages in most documents
+  const tocOffset = preferences.toc ? 0.12 : 0;
+  const ratio = mapEditorToPdfRatio(editorScrollRatio, { baseBias: 0.06, taper: true, gamma: 1, tocOffset });
     const el = containerRef.current;
     const currentScrollHeight = el.scrollHeight;
     const heightChanged = currentScrollHeight !== lastScrollHeightRef.current;
@@ -60,7 +64,7 @@ const PDFPreview: React.FC = () => {
     if (maxScroll > 2) {
       el.scrollTop = maxScroll * ratio;
     }
-  }, [editorScrollRatio]);
+  }, [editorScrollRatio, preferences.toc]);
   
   // Render PDF pages when compile status signals a new PDF
   useEffect(() => {
@@ -117,7 +121,7 @@ const PDFPreview: React.FC = () => {
         console.log('[PDFPreview] finished render total pages:', doc.numPages);
         requestAnimationFrame(() => requestAnimationFrame(() => applyScrollRatio(true)));
       } catch (e) {
-        console.error('[PDFPreview] Failed to render PDF:', e);
+        handleError(e, { operation: 'render PDF', component: 'PDFPreview' });
         setPdfError(e instanceof Error ? e.message : String(e));
         setRendering(false);
       }

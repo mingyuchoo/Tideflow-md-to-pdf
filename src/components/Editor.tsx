@@ -3,10 +3,11 @@ import { EditorView, basicSetup } from 'codemirror';
 import { markdown } from '@codemirror/lang-markdown';
 import { keymap } from '@codemirror/view';
 import { useAppStore } from '../store';
-import { writeMarkdownFile, importImage, generateImageMarkdown, renderTypst, setPreferences as savePreferences, applyPreferences } from '../api';
+import { writeMarkdownFile, importImage, generateImageMarkdown, renderTypst } from '../api';
 // import MarkdownToolbar from './MarkdownToolbar';
 import { cmd } from './MarkdownCommands';
 import { FONT_OPTIONS } from './MarkdownToolbar';
+import { handleError } from '../utils/errorHandler';
 import './Editor.css';
 
 const Editor: React.FC = () => {
@@ -14,7 +15,6 @@ const Editor: React.FC = () => {
   const editorViewRef = useRef<EditorView | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isActivelyTyping, setIsActivelyTyping] = useState(false);
-  const [fontMode, setFontMode] = useState<"Selection" | "Document">("Selection");
   const [selectedFont, setSelectedFont] = useState<string>("New Computer Modern");
   const contentChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const typingDetectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -29,7 +29,6 @@ const Editor: React.FC = () => {
     setModified,
     setCompileStatus,
     preferences,
-    setPreferences,
     setEditorScrollRatio,
     setSampleDocContent
   } = useAppStore();
@@ -281,8 +280,7 @@ const Editor: React.FC = () => {
       // After saving, render the file
       await handleRender();
     } catch (err) {
-      console.error('Failed to save file:', err);
-      // Show error to user
+      handleError(err, { operation: 'save file', component: 'Editor' });
     } finally {
       setIsSaving(false);
     }
@@ -296,40 +294,8 @@ const Editor: React.FC = () => {
 
     setSelectedFont(font);
     
-    if (fontMode === "Document") {
-      // Update document font preference
-      const newPrefs = {
-        ...preferences,
-        fonts: {
-          ...preferences.fonts,
-          main: font
-        }
-      };
-      
-      // Save to backend first
-      try {
-        await savePreferences(newPrefs);
-        
-        // Update local state
-        setPreferences(newPrefs);
-        
-        // Apply preferences to generate prefs.json for Typst
-        await applyPreferences();
-        
-        // Re-render with new font
-        handleRender(); 
-      } catch (error) {
-        console.error('Failed to save preferences:', error);
-      }
-    } else {
-      // Apply to selection
-      cmd.fontLocal(editorViewRef.current, font);
-    }
-  };
-
-  // Handle font mode change
-  const handleFontModeChange = (mode: "Selection" | "Document") => {
-    setFontMode(mode);
+    // Apply to selection only - document font is changed through Design menu
+    cmd.fontLocal(editorViewRef.current, font);
   };
 
   // Render the current content to PDF (not from file)
@@ -395,7 +361,7 @@ const Editor: React.FC = () => {
           
           reader.readAsDataURL(blob);
         } catch (err) {
-          console.error('Failed to process pasted image:', err);
+          handleError(err, { operation: 'process pasted image', component: 'Editor' });
         }
       }
     }
@@ -430,7 +396,7 @@ const Editor: React.FC = () => {
           
           reader.readAsDataURL(file);
         } catch (err) {
-          console.error('Failed to process dropped image:', err);
+          handleError(err, { operation: 'process dropped image', component: 'Editor' });
         }
       }
     }
@@ -552,25 +518,13 @@ const Editor: React.FC = () => {
             <div className="toolbar-divider" />
             
             {/* Font Controls */}
-            <div className="font-controls">
-              <div className="font-mode-selector">
-                <label>Apply:</label>
-                <select 
-                  value={fontMode} 
-                  onChange={(e) => handleFontModeChange(e.target.value as "Selection" | "Document")}
-                  title="Choose whether to apply font to selection or entire document"
-                >
-                  <option value="Selection">Selection</option>
-                  <option value="Document">Document</option>
-                </select>
-              </div>
-              
+            <div className="font-controls">              
               <div className="font-selector">
-                <label>Font:</label>
+                <label>Font (Selection):</label>
                 <select 
                   value={selectedFont} 
                   onChange={(e) => handleFontChange(e.target.value)}
-                  title="Select font family"
+                  title="Apply font to selected text"
                 >
                   {FONT_OPTIONS.map((font) => (
                     <option key={font} value={font}>

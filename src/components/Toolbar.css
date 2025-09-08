@@ -82,7 +82,7 @@
 @media (forced-colors: active) {
   .toolbar-actions button,
   .toolbar-actions button:focus-visible {
-    forced-color-adjust: none;
+    /* forced-color-adjust: none; - Removed for Safari compatibility */
     background: ButtonFace;
     color: ButtonText;
     border-color: ButtonText;
