@@ -3,6 +3,7 @@ import { useAppStore } from '../store';
 import { readMarkdownFile, createFile, writeMarkdownFile } from '../api';
 import { open } from '@tauri-apps/plugin-dialog';
 import './TabBar.css';
+import { SAMPLE_DOC } from '../sampleDoc';
 
 const TabBar: React.FC = () => {
   const { 
@@ -91,7 +92,7 @@ const TabBar: React.FC = () => {
     try {
       if (filePath === 'sample.md') {
         // Use in-memory sample content fallback or regenerate minimal sample if missing
-        const sample = sampleDocContent ?? '# Sample Document\n\nStart writing...';
+        const sample = sampleDocContent ?? SAMPLE_DOC;
         setCurrentFile(filePath);
         setContent(sample);
       } else {
@@ -102,6 +103,15 @@ const TabBar: React.FC = () => {
     } catch (err) {
       console.error('Failed to switch to file:', err);
     }
+  };
+
+  // Explicitly (re)open the in-memory sample document
+  const handleOpenSample = () => {
+    const sampleName = 'sample.md';
+    const sample = sampleDocContent ?? SAMPLE_DOC;
+    addOpenFile(sampleName);
+    setCurrentFile(sampleName);
+    setContent(sample);
   };
 
   const handleCloseTab = (e: React.MouseEvent, filePath: string) => {
@@ -134,10 +144,11 @@ const TabBar: React.FC = () => {
             onClick={() => handleTabClick(file)}
           >
             <span className="tab-name">{getFileName(file)}</span>
-            <button 
-              className="close-tab" 
+            {/* Allow closing sample.md, but user can now reopen via Sample button */}
+            <button
+              className="close-tab"
               onClick={(e) => handleCloseTab(e, file)}
-              title="Close tab"
+              title={file === 'sample.md' ? 'Close sample (you can reopen with Sample button)' : 'Close tab'}
             >
               ×
             </button>
@@ -145,6 +156,16 @@ const TabBar: React.FC = () => {
         ))}
       </div>
       <div className="tab-actions">
+        {/* Reopen sample.md if it's not currently open */}
+        {!openFiles.includes('sample.md') && (
+          <button
+            onClick={handleOpenSample}
+            className="tab-button"
+            title="Open sample document"
+          >
+            Sample
+          </button>
+        )}
         <button 
           onClick={handleNewFile}
           className="tab-button"

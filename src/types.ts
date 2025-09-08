@@ -19,6 +19,7 @@ export interface Preferences {
   papersize: string;  // Changed from paper_size to papersize for Typst compatibility
   margin: Margins;    // Changed from margins to margin for Typst compatibility
   toc: boolean;
+  toc_title: string; // empty string => no heading
   number_sections: boolean;
   default_image_width: string;
   default_image_alignment: string;

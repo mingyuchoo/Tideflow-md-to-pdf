@@ -1,14 +1,16 @@
 import { create } from 'zustand';
 import type { CompileStatus, EditorState, Preferences } from './types';
+import { SAMPLE_DOC } from './sampleDoc';
 
 // Initial preferences
-const defaultPreferences: Preferences = {
+export const defaultPreferences: Preferences = {
   papersize: 'a4',  // Changed from paper_size to papersize
   margin: {         // Changed from margins to margin
     x: '2cm',
     y: '2.5cm',
   },
-  toc: true,
+  toc: false, // default changed to false (no table of contents unless user enables)
+  toc_title: '',
   number_sections: true,
   default_image_width: '60%',
   default_image_alignment: 'center',
@@ -53,10 +55,14 @@ interface AppState {
   // Preferences state
   preferences: Preferences;
   setPreferences: (preferences: Preferences) => void;
+  // Theme selection & design modal
+  themeSelection: string; // 'default' | 'classic' | 'mono' | 'serif' | 'custom'
+  setThemeSelection: (theme: string) => void;
+  designModalOpen: boolean;
+  setDesignModalOpen: (open: boolean) => void;
+  lastCustomPreferences: Preferences; // snapshot of preferences when user last entered custom path
   
-  // UI state
-  prefsModalOpen: boolean;
-  setPrefsModalOpen: (open: boolean) => void;
+  // UI state (design/preferences UI removed)
   
   previewVisible: boolean;
   setPreviewVisible: (visible: boolean) => void;
@@ -70,6 +76,7 @@ interface AppState {
   // In-memory sample document content so we can return after switching files
   sampleDocContent: string | null;
   setSampleDocContent: (content: string) => void;
+  clearCache: () => void;
 }
 
 // Create store
@@ -164,7 +171,7 @@ export const useAppStore = create<AppState>((set) => ({
         ...state.editor,
         openFiles: [sampleName],
         currentFile: sampleName,
-        content: state.sampleDocContent ?? '# Sample Document\n\nStart writing...\n',
+        content: state.sampleDocContent ?? SAMPLE_DOC,
         modified: false,
         compileStatus: { status: 'idle' } // Clear previous PDF so stale preview disappears
       }
@@ -174,20 +181,35 @@ export const useAppStore = create<AppState>((set) => ({
   // Preferences state
   preferences: defaultPreferences,
   setPreferences: (preferences: Preferences) => set({ preferences }),
+  themeSelection: 'default',
+  setThemeSelection: (theme: string) => set({ themeSelection: theme }),
+  designModalOpen: false,
+  setDesignModalOpen: (open: boolean) => set({ designModalOpen: open }),
+  lastCustomPreferences: defaultPreferences,
   
   // UI state
-  prefsModalOpen: false,
-  setPrefsModalOpen: (open: boolean) => set({ prefsModalOpen: open }),
   
   previewVisible: true,
   setPreviewVisible: (visible: boolean) => set({ previewVisible: visible }),
+  // Provide cache clear early so type checker sees it (ordering not required but for clarity)
+  clearCache: () => set(() => ({
+    editor: {
+      currentFile: 'sample.md',
+      openFiles: ['sample.md'],
+      content: SAMPLE_DOC,
+      modified: false,
+      compileStatus: { status: 'idle' }
+    },
+    sampleDocContent: SAMPLE_DOC,
+    editorScrollRatio: 0,
+    previewVisible: true,
+  })),
   // removed panelRestoreTick & previewRerenderTick
   
   // Reset state
   resetState: () => set({
     editor: initialEditorState,
     preferences: defaultPreferences,
-    prefsModalOpen: false,
     previewVisible: true,
     initialSampleInjected: false,
   sampleDocContent: null,

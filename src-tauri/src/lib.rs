@@ -32,6 +32,8 @@ pub fn run() {
         commands::typst_diagnostics,
         commands::get_cache_stats,
         commands::clear_render_cache,
+    commands::debug_paths,
+    commands::get_runtime_files,
         preferences::get_preferences,
         preferences::set_preferences,
         preferences::apply_preferences

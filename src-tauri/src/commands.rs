@@ -1,5 +1,6 @@
 use crate::renderer;
 use crate::utils;
+use crate::preferences;
 use anyhow::Result;
 use base64::Engine;
 use serde::{Deserialize, Serialize};
@@ -444,4 +445,70 @@ pub async fn clear_render_cache(app_handle: AppHandle) -> Result<(), String> {
     
     println!("🧹 Render cache cleared");
     Ok(())
+}
+
+#[derive(Debug, Serialize)]
+pub struct DebugPathsResponse {
+    content_dir: String,
+    build_dir: String,
+    prefs_path: String,
+    build_prefs_path: String,
+    prefs_json: serde_json::Value,
+    build_prefs_json: Option<serde_json::Value>,
+}
+
+/// Debug helper: inspect where preferences are stored and what the renderer likely used last.
+#[tauri::command]
+pub async fn debug_paths(app_handle: AppHandle) -> Result<DebugPathsResponse, String> {
+    let content_dir = utils::get_content_dir(&app_handle)
+        .map_err(|e| e.to_string())?;
+    let build_dir = content_dir.join(".build");
+    let prefs_path = content_dir.join("prefs.json");
+    let build_prefs_path = build_dir.join("prefs.json");
+
+    // Load current logical preferences via API (source of truth at time of call)
+    let prefs_struct = preferences::get_preferences(app_handle.clone()).await
+        .map_err(|e| e)?;
+    let prefs_json = serde_json::to_value(&prefs_struct)
+        .map_err(|e| e.to_string())?;
+
+    // Attempt to read build prefs (may not exist if no render yet)
+    let build_prefs_json = if build_prefs_path.exists() {
+        match std::fs::read_to_string(&build_prefs_path) {
+            Ok(txt) => serde_json::from_str(&txt).ok(),
+            Err(_) => None,
+        }
+    } else { None };
+
+    Ok(DebugPathsResponse {
+        content_dir: content_dir.to_string_lossy().to_string(),
+        build_dir: build_dir.to_string_lossy().to_string(),
+        prefs_path: prefs_path.to_string_lossy().to_string(),
+        build_prefs_path: build_prefs_path.to_string_lossy().to_string(),
+        prefs_json,
+        build_prefs_json,
+    })
+}
+
+#[derive(Debug, Serialize)]
+pub struct RuntimeFilesResponse {
+    prefs_json_raw: Option<String>,
+    template_raw: Option<String>,
+    prefs_path: String,
+    template_path: String,
+}
+
+#[tauri::command]
+pub async fn get_runtime_files(app_handle: AppHandle) -> Result<RuntimeFilesResponse, String> {
+    let content_dir = utils::get_content_dir(&app_handle).map_err(|e| e.to_string())?;
+    let prefs_path = content_dir.join("prefs.json");
+    let template_path = content_dir.join("tideflow.typ");
+    let prefs_json_raw = std::fs::read_to_string(&prefs_path).ok();
+    let template_raw = std::fs::read_to_string(&template_path).ok();
+    Ok(RuntimeFilesResponse {
+        prefs_json_raw,
+        template_raw,
+        prefs_path: prefs_path.to_string_lossy().to_string(),
+        template_path: template_path.to_string_lossy().to_string(),
+    })
 }

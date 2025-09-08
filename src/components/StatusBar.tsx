@@ -59,7 +59,6 @@ const StatusBar: React.FC = () => {
           TOC: {preferences.toc ? 'On' : 'Off'}
         </span>
         <span className="status-item">
-          Numbered Sections: {preferences.number_sections ? 'On' : 'Off'}
         </span>
       </div>
     </div>

@@ -121,34 +121,58 @@ pub fn initialize_app_directories(app_handle: &AppHandle) -> Result<()> {
         copy_directory_contents(&app_templates_dir, &templates_dir)?;
     }
     
-    // Copy Typst template(s) from resources/content to user content dir if missing
+    // Copy Typst template(s) from resources/content to user content dir, updating if different
     let user_typst_template = content_dir.join("tideflow.typ");
-    if !user_typst_template.exists() {
-        println!("🔍 Looking for tideflow.typ template...");
-        
-        // Try different possible locations for the template
-        let mut template_sources = Vec::new();
-        
-        // 1. Try resource directory (for production builds)
-        let resource_content_dir = resource_dir.join("content");
-        template_sources.push(resource_content_dir.join("tideflow.typ"));
-        
-        // 2. Try relative to current directory (for development)
-        if let Ok(current_dir) = std::env::current_dir() {
-            template_sources.push(current_dir.join("src-tauri").join("content").join("tideflow.typ"));
-            template_sources.push(current_dir.join("content").join("tideflow.typ"));
-        }
-        
-        // 3. Try relative to executable directory
-        if let Ok(exe_dir) = std::env::current_exe().and_then(|p| Ok(p.parent().unwrap().to_path_buf())) {
-            template_sources.push(exe_dir.join("content").join("tideflow.typ"));
-            template_sources.push(exe_dir.join("..").join("content").join("tideflow.typ"));
-        }
-        
-        let mut copied = false;
-        for src in &template_sources {
-            println!("🔍 Checking template source: {}", src.display());
-            if src.exists() {
+    
+    println!("🔍 Looking for tideflow.typ template...");
+    
+    // Try different possible locations for the template
+    let mut template_sources = Vec::new();
+    
+    // 1. Try resource directory (for production builds)
+    let resource_content_dir = resource_dir.join("content");
+    template_sources.push(resource_content_dir.join("tideflow.typ"));
+    
+    // 2. Try relative to current directory (for development)
+    if let Ok(current_dir) = std::env::current_dir() {
+        template_sources.push(current_dir.join("src-tauri").join("content").join("tideflow.typ"));
+        template_sources.push(current_dir.join("content").join("tideflow.typ"));
+    }
+    
+    // 3. Try relative to executable directory
+    if let Ok(exe_dir) = std::env::current_exe().and_then(|p| Ok(p.parent().unwrap().to_path_buf())) {
+        template_sources.push(exe_dir.join("content").join("tideflow.typ"));
+        template_sources.push(exe_dir.join("..").join("content").join("tideflow.typ"));
+    }
+    
+    let mut copied = false;
+    for src in &template_sources {
+        println!("🔍 Checking template source: {}", src.display());
+        if src.exists() {
+            // Check if we need to copy/update the template
+            let should_copy = if !user_typst_template.exists() {
+                println!("📄 Template doesn't exist, will copy");
+                true
+            } else {
+                // Check if source is different from destination
+                match (fs::read_to_string(src), fs::read_to_string(&user_typst_template)) {
+                    (Ok(src_content), Ok(dst_content)) => {
+                        if src_content != dst_content {
+                            println!("🔄 Template content differs, will update");
+                            true
+                        } else {
+                            println!("✅ Template is up to date");
+                            false
+                        }
+                    }
+                    _ => {
+                        println!("⚠️ Could not compare templates, will copy");
+                        true
+                    }
+                }
+            };
+            
+            if should_copy {
                 match fs::copy(src, &user_typst_template) {
                     Ok(_) => {
                         println!("✅ Copied tideflow.typ from {} to {}", src.display(), user_typst_template.display());
@@ -159,17 +183,18 @@ pub fn initialize_app_directories(app_handle: &AppHandle) -> Result<()> {
                         println!("❌ Failed to copy template from {}: {}", src.display(), e);
                     }
                 }
+            } else {
+                copied = true; // Don't need to copy, but mark as successful
+                break;
             }
         }
-        
-        if !copied {
-            println!("⚠️ Could not find tideflow.typ template in any location. Searched:");
-            for src in &template_sources {
-                println!("   - {}", src.display());
-            }
+    }
+    
+    if !copied {
+        println!("⚠️ Could not find tideflow.typ template in any location. Searched:");
+        for src in &template_sources {
+            println!("   - {}", src.display());
         }
-    } else {
-        println!("✅ tideflow.typ already exists at {}", user_typst_template.display());
     }
 
     // Copy all .typ style files from resources/styles to user styles dir if missing
@@ -220,17 +245,27 @@ fn copy_directory_contents(from: &Path, to: &Path) -> Result<()> {
 /// Create default configuration files
 fn create_default_config_files(app_handle: &AppHandle) -> Result<()> {
     let content_dir = get_content_dir(app_handle)?;
-    let prefs_json_path = content_dir.join("_prefs.json");
-    
-    // Create default _prefs.json if it doesn't exist
-    if !prefs_json_path.exists() {
+        let legacy_path = content_dir.join("_prefs.json");
+        let prefs_json_path = content_dir.join("prefs.json");
+
+        // Migrate legacy file if present and new one missing
+        if legacy_path.exists() && !prefs_json_path.exists() {
+                if let Err(e) = std::fs::copy(&legacy_path, &prefs_json_path) {
+                        println!("⚠️ Failed to migrate legacy _prefs.json: {}", e);
+                } else {
+                        println!("✅ Migrated legacy _prefs.json to prefs.json");
+                }
+        }
+
+        // Create default prefs.json if it doesn't exist
+        if !prefs_json_path.exists() {
         let default_prefs_json = r#"{
   "papersize": "a4",
   "margin": {
     "x": "2cm",
     "y": "2.5cm"
   },
-  "toc": true,
+    "toc": false,
   "numberSections": true,
   "default_image_width": "60%",
   "default_image_alignment": "center",

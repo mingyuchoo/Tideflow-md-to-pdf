@@ -16,7 +16,7 @@ I wanted a dead-simple, elegant writing tool that outputs print‑ready PDFs **w
 * Automatic Table of Contents & optional section numbering
 * Image paste & drag‑drop (auto saves into managed assets directory)
 * Math (inline / block) via LaTeX-style syntax
-* Configurable paper size, margins, fonts, TOC, image defaults
+* Theme dropdown (placeholders) + Design modal with core layout & image settings (auto-applies)
 * Offline: once installed, **no network required**
 * Cross‑platform (Windows / macOS / Linux)
 * Fast startup: no giant runtime or Electron bloat
@@ -88,8 +88,7 @@ npm run tauri:build
 1. New / Open a file (or start with the sample)
 2. Write Markdown (math, code, images all supported)
 3. Watch instant PDF updates (debounce respects your preferences)
-4. Adjust fonts / page / TOC in Preferences
-5. Export or copy the generated PDF
+4. Export or copy the generated PDF (Save As coming soon)
 
 ## Supported Markdown / Extras
 * Headings, emphasis, strike, code, block + inline math
@@ -99,18 +98,8 @@ npm run tauri:build
 * Horizontal rules, page breaks (custom command)
 * TOC + numbering (via Typst template)
 
-## Preferences
-Editable (persisted) settings surfaced through the Preferences modal:
-| Setting | Description |
-| ------- | ----------- |
-| Paper Size | a4, letter, etc. |
-| Margins | X/Y (cm) pair |
-| Fonts | Main + mono families |
-| TOC | Enable/disable + numbering |
-| Image width | Default figure width |
-| Image alignment | left / center / right |
-| Render debounce | ms delay before auto re-render |
-| Focused preview (future) | Planned partial render optimization |
+## Preferences / Configuration
+A lightweight Design modal now provides basic editable settings (paper size, margins, fonts, TOC, numbering, default image width/alignment, debounce). A theme dropdown lists placeholder presets (Classic, Mono, Serif) plus Custom. Selecting or editing any field auto-applies and switches the selection to Custom. Planned tokens (accent color, heading scale, metadata) appear as placeholders.
 
 ## Architecture Overview
 ```
@@ -142,6 +131,7 @@ Md-to-PDF/
 * [ ] PDF export dialog with destination picker
 * [ ] Dark theme + high-contrast mode
 * [ ] Incremental / partial rendering optimization
+* [ ] Minimal config surface (fonts / page / debounce)
 * [ ] Built-in template gallery (report, memo, article)
 * [ ] Image optimization pipeline (resize/compress)
 * [ ] Spellcheck + grammar hooks
@@ -160,8 +150,8 @@ PRs welcome. Please:
 | Issue | Fix |
 | ----- | --- |
 | Blank PDF preview | Ensure Typst binary present in `src-tauri/bin/typst/<platform>` |
-| No re-render | Check debounce ms in Preferences, or hit Ctrl+R |
-| Fonts not applied | Save & Apply preferences (they regenerate `prefs.json`) |
+| No re-render | Force render with Ctrl+R (debounce is internal for now) |
+| Fonts not applied | Currently fixed defaults; customization not yet reintroduced |
 
 ## License
 MIT – use, modify, distribute with attribution.

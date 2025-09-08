@@ -1,5 +1,4 @@
 use crate::utils;
-use crate::preferences;
 use anyhow::{anyhow, Context, Result};
 use std::fs;
 use std::path::Path;
@@ -43,14 +42,9 @@ pub async fn render_markdown(app_handle: &AppHandle, file_path: &str) -> Result<
     let metadata = fs::metadata(file_path)?;
     let mod_time = metadata.modified()?;
     
+    // NOTE: Removed optimization that skipped rendering when file timestamp unchanged.
+    // Preferences can change without touching the markdown file; we still need a fresh render.
     let mut last_render_times = LAST_RENDER_TIMES.lock().await;
-    
-    if let Some(last_time) = last_render_times.get(file_path) {
-        if *last_time >= mod_time {
-            // File hasn't been modified, return the existing PDF path
-            return get_pdf_path(file_path);
-        }
-    }
     
     // Use Typst to render for preview
     let content_dir = utils::get_content_dir(app_handle)?;
@@ -58,10 +52,26 @@ pub async fn render_markdown(app_handle: &AppHandle, file_path: &str) -> Result<
     fs::create_dir_all(&build_dir)?;
 
     // 1) Get preferences and write prefs.json for the template
-    let prefs = preferences::get_preferences(app_handle.clone()).await
-        .map_err(|e| anyhow!("Failed to get preferences: {}", e))?;
-    let prefs_json = serde_json::to_string_pretty(&prefs)?;
-    fs::write(build_dir.join("prefs.json"), prefs_json)?;
+    // Copy canonical prefs.json into build directory (single source of truth)
+    let canonical_prefs = utils::get_content_dir(app_handle)?.join("prefs.json");
+    if canonical_prefs.exists() {
+        std::fs::copy(&canonical_prefs, build_dir.join("prefs.json"))?;
+        if let Ok(txt) = std::fs::read_to_string(&canonical_prefs) {
+            app_handle.emit("prefs-dump", &txt).ok();
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&txt) {
+                let toc_flag = val.get("toc").and_then(|v| v.as_bool()).unwrap_or(true);
+                let num_flag = val.get("numberSections").and_then(|v| v.as_bool()).unwrap_or(true);
+                let dbg = serde_json::json!({
+                    "path_type": "markdown",
+                    "toc": toc_flag,
+                    "numberSections": num_flag,
+                    "papersize": val.get("papersize"),
+                    "timestamp": chrono::Utc::now().to_rfc3339(),
+                });
+                app_handle.emit("render-debug", dbg).ok();
+            }
+        }
+    }
 
     // 2) Copy the markdown content to build/content.md
     let md_content = fs::read_to_string(path)?;
@@ -72,6 +82,26 @@ pub async fn render_markdown(app_handle: &AppHandle, file_path: &str) -> Result<
     let template_dst = build_dir.join("tideflow.typ");
     if template_src.exists() {
         fs::copy(&template_src, &template_dst)?;
+        if let Ok(tpl_txt) = fs::read_to_string(&template_src) {
+            let snippet: String = tpl_txt.chars().take(400).collect();
+            let has_conditional = tpl_txt.contains("#if prefs.toc");
+            let evt = serde_json::json!({
+                "path_type": "markdown",
+                "template_path": template_src.to_string_lossy(),
+                "has_conditional": has_conditional,
+                "snippet": snippet,
+                "timestamp": chrono::Utc::now().to_rfc3339()
+            });
+            app_handle.emit("template-inspect", evt).ok();
+            if !has_conditional {
+                let warn = serde_json::json!({
+                    "warning": "Template missing '#if prefs.toc' conditional; TOC will always show.",
+                    "template_path": template_src.to_string_lossy(),
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                });
+                app_handle.emit("template-warning", warn).ok();
+            }
+        }
     } else {
         return Err(anyhow!("tideflow.typ template not found at {}", template_src.display()));
     }
@@ -142,10 +172,13 @@ pub async fn export_markdown(app_handle: &AppHandle, file_path: &str) -> Result<
     fs::create_dir_all(&build_dir)?;
 
     // 1) Get preferences and write prefs.json for the template
-    let prefs = preferences::get_preferences(app_handle.clone()).await
-        .map_err(|e| anyhow!("Failed to get preferences: {}", e))?;
-    let prefs_json = serde_json::to_string_pretty(&prefs)?;
-    fs::write(build_dir.join("prefs.json"), prefs_json)?;
+    let canonical_prefs = utils::get_content_dir(app_handle)?.join("prefs.json");
+    if canonical_prefs.exists() {
+        std::fs::copy(&canonical_prefs, build_dir.join("prefs.json"))?;
+        if let Ok(txt) = std::fs::read_to_string(&canonical_prefs) {
+            app_handle.emit("prefs-dump", txt).ok();
+        }
+    }
 
     // 2) Copy the markdown content to build/content.md
     let md_content = fs::read_to_string(path)?;
@@ -201,20 +234,7 @@ pub async fn export_markdown(app_handle: &AppHandle, file_path: &str) -> Result<
 }
 
 /// Renders Typst content directly to PDF (always full render)
-pub async fn render_typst(app_handle: &AppHandle, content: &str, format: &str) -> Result<String> {
-    // Get preferences to include in cache hash
-    let prefs = preferences::get_preferences(app_handle.clone()).await
-        .map_err(|e| anyhow!("Failed to get preferences: {}", e))?;
-    let prefs_json = serde_json::to_string(&prefs)?;
-    
-    // Previously: content + preferences based caching. Disabled to avoid accidental reuse across different open files
-    // (focused preview removed; correctness prioritized over caching). We still compute a hash for potential future use.
-    let combined_content = format!("{}\n---PREFS---\n{}", content, prefs_json);
-    let content_hash = calculate_content_hash(&combined_content);
-    let content_dir = utils::get_content_dir(app_handle)?;
-    let build_dir = content_dir.join(".build");
-    
-    // CACHING DISABLED: always perform a fresh render (avoid returning stale PDF for different files with same content)
+pub async fn render_typst(app_handle: &AppHandle, content: &str, _format: &str) -> Result<String> {
 
     // Acquire render lock to prevent multiple simultaneous renders
     let _lock = RENDER_MUTEX.lock().await;
@@ -236,11 +256,28 @@ pub async fn render_typst(app_handle: &AppHandle, content: &str, format: &str) -
     // Write the content to temporary markdown file (no preprocessing needed for raw Typst)
     fs::write(&temp_content_path, content)?;
     
-    // Get preferences and write prefs.json
-    let prefs = preferences::get_preferences(app_handle.clone()).await
-        .map_err(|e| anyhow!("Failed to get preferences: {}", e))?;
-    let prefs_json = serde_json::to_string_pretty(&prefs)?;
-    fs::write(build_dir.join("prefs.json"), prefs_json)?;
+    // Copy canonical prefs.json (single source of truth) & emit dump
+    let canonical_prefs = content_dir.join("prefs.json");
+    if canonical_prefs.exists() {
+        fs::copy(&canonical_prefs, build_dir.join("prefs.json"))?;
+        if let Ok(txt) = fs::read_to_string(&canonical_prefs) {
+            // Emit prefs-dump without moving the String so we can still parse it
+            app_handle.emit("prefs-dump", &txt).ok();
+            // Emit render-debug event for tracing toc issues
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&txt) {
+                let toc_flag = val.get("toc").and_then(|v| v.as_bool()).unwrap_or(true);
+                let num_flag = val.get("numberSections").and_then(|v| v.as_bool()).unwrap_or(true);
+                let dbg = serde_json::json!({
+                    "path_type": "typst-temp",
+                    "toc": toc_flag,
+                    "numberSections": num_flag,
+                    "papersize": val.get("papersize"),
+                    "timestamp": chrono::Utc::now().to_rfc3339(),
+                });
+                app_handle.emit("render-debug", dbg).ok();
+            }
+        }
+    }
 
     // Ensure the content is available as content.md (required by template)
     fs::copy(&temp_content_path, build_dir.join("content.md"))?;
@@ -250,6 +287,26 @@ pub async fn render_typst(app_handle: &AppHandle, content: &str, format: &str) -
     let template_dst = build_dir.join("tideflow.typ");
     if template_src.exists() {
         fs::copy(&template_src, &template_dst)?;
+        if let Ok(tpl_txt) = fs::read_to_string(&template_src) {
+            let snippet: String = tpl_txt.chars().take(400).collect();
+            let has_conditional = tpl_txt.contains("#if prefs.toc");
+            let evt = serde_json::json!({
+                "path_type": "typst-temp",
+                "template_path": template_src.to_string_lossy(),
+                "has_conditional": has_conditional,
+                "snippet": snippet,
+                "timestamp": chrono::Utc::now().to_rfc3339()
+            });
+            app_handle.emit("template-inspect", evt).ok();
+            if !has_conditional {
+                let warn = serde_json::json!({
+                    "warning": "Template missing '#if prefs.toc' conditional; TOC will always show.",
+                    "template_path": template_src.to_string_lossy(),
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                });
+                app_handle.emit("template-warning", warn).ok();
+            }
+        }
     } else {
         return Err(anyhow!("tideflow.typ template not found at {}", template_src.display()));
     }
@@ -288,6 +345,7 @@ pub async fn render_typst(app_handle: &AppHandle, content: &str, format: &str) -
         return Err(anyhow!("Output file was not created: {}", output_path.display()));
     }
     
+    // Also emit compiled (already done in commands wrapper but ensure parity if path used directly)
     Ok(output_path.to_string_lossy().to_string())
 }
 

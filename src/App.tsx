@@ -9,13 +9,13 @@ import { useAppStore } from './store';
 import { getPreferences, listenForFileChanges, readMarkdownFile } from './api';
 import { loadSession, saveSession } from './utils/session';
 import './App.css';
+import { SAMPLE_DOC } from './sampleDoc';
 
 // Import components
 import TabBar from './components/TabBar';
 import Editor from './components/Editor';
 import PDFPreview from './components/PDFPreview';
 import Toolbar from './components/Toolbar';
-import PrefsModal from './components/PrefsModal';
 import StatusBar from './components/StatusBar';
 
 function App() {
@@ -23,7 +23,7 @@ function App() {
   const { 
     setPreferences, 
     previewVisible, 
-    prefsModalOpen,
+  
     editor,
     setCurrentFile,
     setContent,
@@ -96,46 +96,8 @@ function App() {
         if (!editor.currentFile && !initialSampleInjected) {
           setCurrentFile('sample.md');
           addOpenFile('sample.md');
-          const sampleText = `# Welcome to MarkdownToPDF
-
-This is a sample document to get you started.
-
-## Features
-
-- **Real-time PDF rendering**: Changes automatically render to PDF
-- **Markdown support**: Full CommonMark and extended syntax
-- **Image support**: Drag & drop or paste images
-- **Tables**: Easy table creation and editing
-
-## Getting Started
-
-1. Start typing in this editor
-2. Watch the PDF preview update automatically
-3. Use the toolbar buttons for common elements
-4. Save your work with Ctrl+S
-
-## Math Support
-
-You can include mathematical expressions:
-
-Inline math: $E = mc^2$
-
-Block math:
-$$
-\\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}
-$$
-
-## Code Blocks
-
-\`\`\`python
-def hello_world():
-    print("Hello, World!")
-\`\`\`
-
-Happy writing!
-`;
-      setContent(sampleText);
-      setSampleDocContent(sampleText);
+    setContent(SAMPLE_DOC);
+    setSampleDocContent(SAMPLE_DOC);
       setInitialSampleInjected(true);
         }
         
@@ -148,18 +110,53 @@ Happy writing!
         });
 
         // Setup compile event listeners
-        const unlistenCompiled = await listen<string>("compiled", () => {
-          // The PDFPreview component will pick this up via the store's compileStatus
+        const unlistenCompiled = await listen<string>("compiled", (evt) => {
+          useAppStore.getState().setCompileStatus({ status: 'ok', pdf_path: evt.payload });
         });
 
-        const unlistenCompileError = await listen<string>("compile-error", () => {
-          // The PDFPreview component will show the error
+        const unlistenCompileError = await listen<string>("compile-error", (evt) => {
+          useAppStore.getState().setCompileStatus({ status: 'error', message: 'Compile failed', details: evt.payload });
+        });
+
+        const unlistenPrefsDump = await listen<string>("prefs-dump", (evt) => {
+          try {
+            const json = JSON.parse(evt.payload);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            console.log('[PrefsDump] toc:', (json as any).toc, 'numberSections:', (json as any).numberSections, 'papersize:', (json as any).papersize, 'margin:', (json as any).margin);
+          } catch {
+            console.log('[PrefsDump] raw:', evt.payload);
+          }
+        });
+
+        const unlistenRenderDebug = await listen<string>("render-debug", (evt) => {
+          console.log('[RenderDebug]', evt.payload);
+        });
+
+        const unlistenTemplateInspect = await listen<string>("template-inspect", (evt) => {
+          console.log('[TemplateInspect]', evt.payload);
+        });
+        const unlistenTemplateWarning = await listen<string>("template-warning", (evt) => {
+          console.warn('[TemplateWarning]', evt.payload);
+        });
+
+        const unlistenPrefsWrite = await listen<string>("prefs-write", (evt) => {
+          console.log('[PrefsWrite]', evt.payload);
+        });
+
+        const unlistenPrefsRead = await listen<string>("prefs-read", (evt) => {
+          console.log('[PrefsRead]', evt.payload);
         });
 
         // Cleanup listeners on component unmount
         return () => {
           unlistenCompiled();
           unlistenCompileError();
+          unlistenPrefsDump();
+          unlistenRenderDebug();
+          unlistenTemplateInspect();
+          unlistenTemplateWarning();
+          unlistenPrefsWrite();
+          unlistenPrefsRead();
         };
       } catch (error) {
         console.error('Failed to initialize app:', error);
@@ -226,7 +223,6 @@ Happy writing!
         </PanelGroup>
       </div>
       <StatusBar />
-      {prefsModalOpen && <PrefsModal />}
     </div>
   );
 }

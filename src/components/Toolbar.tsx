@@ -1,5 +1,7 @@
 import React from 'react';
 import { useAppStore } from '../store';
+import DesignModal from './DesignModal';
+import { clearSession } from '../utils/session';
 // Removed showOpenDialog (export now uses save dialog directly)
 import { invoke } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
@@ -8,17 +10,20 @@ import './Toolbar.css';
 const Toolbar: React.FC = () => {
   const { 
     previewVisible, 
-    setPreviewVisible, 
-    setPrefsModalOpen,
-    editor
+    setPreviewVisible,
+    editor,
+    designModalOpen, setDesignModalOpen,
+    themeSelection, setThemeSelection
   } = useAppStore();
+  const { clearCache } = useAppStore.getState();
 
   const handleTogglePreview = () => {
     setPreviewVisible(!previewVisible);
   };
 
-  const handleOpenPreferences = () => {
-    setPrefsModalOpen(true);
+  const handleThemeSelect = (value: string) => {
+    setThemeSelection(value);
+    if (value === 'custom') setDesignModalOpen(true);
   };
 
   const handleExportPDF = async () => {
@@ -52,6 +57,17 @@ const Toolbar: React.FC = () => {
     }
   };
 
+  const handleReset = () => {
+    if (!confirm('Reset session? This will close open tabs, clear the current PDF, and restore the sample document. Preferences stay intact.')) return;
+    try {
+      clearSession();
+      clearCache();
+    } catch (e) {
+      console.error('Reset failed', e);
+      alert('Failed to reset: ' + e);
+    }
+  };
+
   return (
     <div className="toolbar">
       <div className="toolbar-logo">
@@ -59,7 +75,19 @@ const Toolbar: React.FC = () => {
       </div>
       
       <div className="toolbar-actions">
-        <button 
+        <select
+          value={themeSelection}
+          onChange={(e) => handleThemeSelect(e.target.value)}
+          title="Theme (placeholders)"
+        >
+          <option value="default">Default</option>
+          <option value="classic">Classic</option>
+          <option value="mono">Mono</option>
+          <option value="serif">Serif</option>
+          <option value="custom">Custom…</option>
+        </select>
+
+        <button
           onClick={handleTogglePreview}
           className={previewVisible ? 'active' : ''}
           title={previewVisible ? 'Hide Preview' : 'Show Preview'}
@@ -74,14 +102,16 @@ const Toolbar: React.FC = () => {
         >
           📄 Export PDF
         </button>
-        
-        <button 
-          onClick={handleOpenPreferences}
-          title="Preferences"
-        >
-          ⚙️ Preferences
-        </button>
+        <button
+          onClick={() => setDesignModalOpen(true)}
+          title="Open Design & Layout"
+        >🎨 Design</button>
+        <button
+          onClick={handleReset}
+          title="Clear session and restore sample document"
+        >♻ Reset</button>
       </div>
+      {designModalOpen && <DesignModal />}
     </div>
   );
 };

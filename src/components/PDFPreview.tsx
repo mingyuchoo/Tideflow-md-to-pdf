@@ -46,7 +46,8 @@ const PDFPreview: React.FC = () => {
   // Adaptive bias handled by mapping util
   const applyScrollRatio = useCallback((force = false) => {
     if (!containerRef.current) return;
-    const ratio = mapEditorToPdfRatio(editorScrollRatio, { baseBias: 0.08, taper: true, gamma: 1 });
+  // Adaptive mapping: smaller base bias, gamma=1 (linear), tapered, clamped near bottom.
+  const ratio = mapEditorToPdfRatio(editorScrollRatio, { baseBias: 0.06, taper: true, gamma: 1 });
     const el = containerRef.current;
     const currentScrollHeight = el.scrollHeight;
     const heightChanged = currentScrollHeight !== lastScrollHeightRef.current;
@@ -88,8 +89,9 @@ const PDFPreview: React.FC = () => {
       cancelRenderRef.current.canceled = false;
       const localCancelToken = cancelRenderRef.current;
       try {
-  const fileUrl = convertFileSrc(compileStatus.pdf_path);
-  const doc = await pdfjsLib.getDocument({ url: fileUrl }).promise;
+        const bust = Date.now();
+        const fileUrl = convertFileSrc(compileStatus.pdf_path) + `?v=${bust}`;
+        const doc = await pdfjsLib.getDocument({ url: fileUrl }).promise;
         if (localCancelToken.canceled) return;
         // Clear previous pages
         containerRef.current.innerHTML = '';

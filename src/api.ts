@@ -60,12 +60,53 @@ export async function getPdfPath(filePath: string): Promise<string> {
 }
 
 // Preferences operations
+interface BackendPreferences {
+  papersize: string;
+  margin: { x: string; y: string };
+  toc: boolean;
+  toc_title?: string;
+  numberSections?: boolean; // backend serialized camelCase
+  number_sections?: boolean; // tolerate snake just in case
+  default_image_width: string;
+  default_image_alignment: string;
+  fonts: { main: string; mono: string };
+  render_debounce_ms: number;
+  focused_preview_enabled?: boolean;
+  preserve_scroll_position: boolean;
+}
+
 export async function getPreferences(): Promise<Preferences> {
-  return invoke('get_preferences');
+  const raw = await invoke<BackendPreferences>('get_preferences');
+  return {
+    papersize: raw.papersize,
+    margin: raw.margin,
+    toc: raw.toc,
+    toc_title: raw.toc_title ?? '',
+    number_sections: raw.numberSections ?? raw.number_sections ?? true,
+    default_image_width: raw.default_image_width,
+    default_image_alignment: raw.default_image_alignment,
+    fonts: raw.fonts,
+    render_debounce_ms: raw.render_debounce_ms,
+    focused_preview_enabled: raw.focused_preview_enabled,
+    preserve_scroll_position: raw.preserve_scroll_position,
+  };
 }
 
 export async function setPreferences(preferences: Preferences): Promise<void> {
-  return invoke('set_preferences', { preferences });
+  const outbound: BackendPreferences = {
+    papersize: preferences.papersize,
+    margin: preferences.margin,
+    toc: preferences.toc,
+    toc_title: preferences.toc_title,
+    numberSections: false, // numbering removed
+    default_image_width: preferences.default_image_width,
+    default_image_alignment: preferences.default_image_alignment,
+    fonts: preferences.fonts,
+    render_debounce_ms: preferences.render_debounce_ms,
+    focused_preview_enabled: preferences.focused_preview_enabled,
+    preserve_scroll_position: preferences.preserve_scroll_position,
+  };
+  await invoke('set_preferences', { preferences: outbound });
 }
 
 export async function applyPreferences(): Promise<void> {
@@ -84,6 +125,20 @@ export async function getCacheStats(): Promise<{
 
 export async function clearRenderCache(): Promise<void> {
   return invoke('clear_render_cache');
+}
+
+// Debug operations
+export interface DebugPathsInfo {
+  content_dir: string;
+  build_dir: string;
+  prefs_path: string;
+  build_prefs_path: string;
+  prefs_json: unknown;
+  build_prefs_json?: unknown;
+}
+
+export async function debugPaths(): Promise<DebugPathsInfo> {
+  return invoke('debug_paths');
 }
 
 export async function typstDiagnostics(): Promise<{

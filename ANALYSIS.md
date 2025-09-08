@@ -1,11 +1,11 @@
 # Tideflow Codebase Analysis & Modernization Plan
 
-_Last updated: 2025-09-06_
+_Last updated: 2025-09-07_
 
 ## 1. Project Snapshot
 - Stack: React + Vite + TypeScript (frontend), Tauri 2 (Rust backend), Typst for PDF generation, pdf.js for in-app preview.
-- Current Focus: Stabilize core markdown -> live PDF preview pipeline, then introduce themes & unified design controls.
-- Key Pain Points: Export flow, preview toggle reliability, scroll sync in long docs, UX fragmentation (Preferences vs prospective Theme system), file lifecycle (New / Save As), perceived inert controls.
+- Current Focus: Stabilize core markdown -> live PDF preview pipeline; finalize Phase 0 reliability work (export Save As, preview toggle, scroll sync refinement, file lifecycle) after removal of legacy preferences/design UI.
+- Key Pain Points: Export flow, preview toggle reliability, scroll sync in long docs, file lifecycle (New / Save As), temp file cleanup.
 
 ## 2. Existing Architecture Overview
 ### Rendering Paths
@@ -20,11 +20,8 @@ _Last updated: 2025-09-06_
 - Applies: page size, margins, font families, TOC, section numbering.
 - Missing: color palette, theme-level styling, typographic scale, custom tokens.
 
-### Preferences Flow
-1. Frontend store holds `preferences` (mirrors backend).  
-2. `PrefsModal` edits a copy and on save calls backend `set_preferences` then `apply_preferences`.  
-3. Live content not auto re-rendered (gap).  
-4. Field naming mismatch bridged via serde rename (`number_sections` -> JSON `numberSections`).
+### Preferences Flow (Removed UI)
+Legacy preferences / design modals were removed. A static default preferences object in the store feeds Typst; no runtime editing surface is currently exposed. Minimal configuration may return later (JSON edit or very small panel) but is out of immediate scope.
 
 ### Scroll Sync
 - Ratio derived from (line + intraLine)/totalLines.
@@ -70,48 +67,13 @@ _Last updated: 2025-09-06_
 | Unified design panel | Replace preferences modal with side drawer segmented by: Theme, Typography, Layout, Images, Advanced | Live preview sampling + reset to preset, import/export theme JSON |
 | Dark mode | CSS variables + prefers-color-scheme; invert panel backgrounds | Theme-level distinct palettes |
 
-## 5. Unified Design Panel Concept
-### Goals
-- Consolidate all "design & behavior" knobs in one coherent surface.
-- Reduce cognitive load vs scattered modals.
-- Provide immediate visual feedback (auto re-render with debounce & optimistic UI state).
-
-### Sections (Proposed)
-1. Theme Presets (select + description)  
-2. Typography (main font, mono font, line height, heading scale)  
-3. Colors (accent, link, code background)  
-4. Layout (paper size, margins, TOC, numbering)  
-5. Images (default width, alignment)  
-6. Advanced (render debounce, scroll behavior)  
-7. Export Options (future: cover page, metadata)
-
-### Interaction Model
-- Left navigation list; right pane form groups.
-- Dirty indicator per section; Apply All vs Auto-Apply toggle.
-- Diff view: show deviations from selected preset (highlight changed tokens).
-
-### Data Model Additions
-```ts
-interface ThemeTokens {
-  accent_color: string;
-  link_color: string;
-  code_bg: string;
-  heading_font?: string;
-  line_height?: string; // e.g. '1.3'
-  heading_scale?: { h1: string; h2: string; h3: string };
-}
-interface Preferences { /* existing */ theme?: string; tokens?: ThemeTokens; }
-```
-
-### Typst Integration
-- Base template loads theme partial: `#import "themes/base.typ"` then conditional include: `themes/${prefs.theme}.typ`.
-- Token overrides emitted as a `tokens.json` or embedded inside `prefs.json` consumed via Typst `json("prefs.json")`.
-- Partial applies tokens with fallback: `#let accent = prefs.tokens.accent_color ?? theme.accent_color`.
+## 5. (Historical) Unified Design Panel
+Earlier concepts for a comprehensive design/prefs panel (themes, typography, colors, tokens) were intentionally shelved to keep scope lean. The implementation roadmap no longer includes this feature in the near term; git history retains the details.
 
 ## 6. Implementation Phasing
 | Phase | Focus | Deliverables |
 |-------|-------|--------------|
-| 0 | Critical bug fixes | Scroll fix, export Save As, preview toggle reliability, close/open stability, preferences auto re-render |
+| 0 | Critical bug fixes | Scroll fix, export Save As, preview toggle reliability, close/open stability |
 | 1 | Image insertion UI + cleanup | Toolbar button, width/alignment prompt, temp PDF cleanup | 
 | 2 | Theme MVP | `theme` field, 3-4 preset theme partials, dropdown selector |
 | 3 | Unified design panel (replace PrefsModal) | New component, state wiring, optimistic apply, remove old modal |
@@ -153,7 +115,7 @@ interface Preferences { /* existing */ theme?: string; tokens?: ThemeTokens; }
 | Export Save As | `Toolbar.tsx`, new Rust command `save_pdf_as` in `commands.rs` |
 | Scroll sync | `PDFPreview.tsx` bias logic tweak |
 | Close/open stability | `Editor.tsx` (reset refs), `store.ts` (maybe flag) |
-| Prefs auto render | `PrefsModal.tsx` (or eventual removal) + call to `renderTypst` with current content |
+| (Removed) Prefs auto render | UI deleted – not applicable |
 | Image insertion | `Editor.tsx` toolbar + small dialog component |
 | Theme MVP | `src-tauri/content/themes/*.typ`, modify `tideflow.typ`, extend `Preferences` schema |
 | Unified panel | New `DesignPanel.tsx`, CSS, removal of `PrefsModal.tsx` |
@@ -165,7 +127,7 @@ interface Preferences { /* existing */ theme?: string; tokens?: ThemeTokens; }
 - [ ] Reset refs & sample init guard
 - [ ] Export Save As flow
 - [ ] Preview re-mount force render
-- [ ] Preferences auto re-render + success feedback
+- [ ] (Removed) Preferences auto re-render (no UI)
 - [ ] Temp file cleanup utility stub (optional early)
 
 ## 14. Acceptance Criteria (Phase 0)
