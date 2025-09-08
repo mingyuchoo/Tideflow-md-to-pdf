@@ -47,8 +47,110 @@ export async function renderMarkdown(filePath: string): Promise<string> {
   return invoke('render_markdown', { filePath });
 }
 
-export async function renderTypst(content: string, format: string): Promise<string> {
-  return invoke('render_typst', { content, format });
+// Latest-wins coalesced render queue for Typst
+// If multiple renderTypst calls happen rapidly, coalesce them so only the latest
+// content is rendered. All callers receive the final output path.
+type RenderArgs = { content: string; format: string };
+let typstRenderInFlight = false;
+let typstPending: RenderArgs | null = null;
+let typstSharedPromise: Promise<string> | null = null;
+let typstSharedResolve: ((path: string) => void) | null = null;
+let typstSharedReject: ((err: unknown) => void) | null = null;
+
+async function invokeRenderTypst(args: RenderArgs): Promise<string> {
+  return invoke('render_typst', args);
+}
+
+export function renderTypst(content: string, format: string): Promise<string> {
+  const nextArgs: RenderArgs = { content, format };
+  if (typstRenderInFlight) {
+    // Replace any previously pending args with the latest
+    typstPending = nextArgs;
+    // Return a shared promise that resolves when the final render completes
+    if (!typstSharedPromise) {
+      typstSharedPromise = new Promise<string>((resolve, reject) => {
+        typstSharedResolve = resolve;
+        typstSharedReject = reject;
+      });
+    }
+    return typstSharedPromise;
+  }
+
+  // Start a rendering loop processing the initial args and any pending ones
+  typstRenderInFlight = true;
+  return new Promise<string>((resolve, reject) => {
+    let current: RenderArgs = nextArgs;
+    // Ensure a shared promise exists so concurrent callers during the loop get the final path
+    if (!typstSharedPromise) {
+      typstSharedPromise = new Promise<string>((res, rej) => {
+        typstSharedResolve = res;
+        typstSharedReject = rej;
+      });
+    }
+    (async () => {
+      try {
+  // Loop processes current request and any queued latest args; last one wins
+  // We break explicitly when no pending is left
+  for (;;) {
+          const path = await invokeRenderTypst(current);
+          // If a newer request was queued during this render, render that next
+          if (typstPending) {
+            current = typstPending;
+            typstPending = null;
+            continue;
+          }
+          // No more pending: finalize and resolve
+          typstRenderInFlight = false;
+          const finalPath = path;
+          // Resolve both the shared and this specific promise
+          if (typstSharedResolve) typstSharedResolve(finalPath);
+          // Reset shared handles after settling
+          typstSharedPromise = null;
+          typstSharedResolve = null;
+          typstSharedReject = null;
+          resolve(finalPath);
+          break;
+        }
+      } catch (err) {
+        // If there was a failure but another request arrived, try that next
+        if (typstPending) {
+          const retryArgs = typstPending;
+          typstPending = null;
+          try {
+            const path = await invokeRenderTypst(retryArgs);
+            // Drain any additional pending
+            while (typstPending) {
+              const next = typstPending;
+              typstPending = null;
+              await invokeRenderTypst(next);
+            }
+            typstRenderInFlight = false;
+            if (typstSharedResolve) typstSharedResolve(path);
+            typstSharedPromise = null;
+            typstSharedResolve = null;
+            typstSharedReject = null;
+            resolve(path);
+            return;
+          } catch (err2) {
+            typstRenderInFlight = false;
+            if (typstSharedReject) typstSharedReject(err2);
+            typstSharedPromise = null;
+            typstSharedResolve = null;
+            typstSharedReject = null;
+            reject(err2);
+            return;
+          }
+        }
+        // No pending retry available; fail the queue
+        typstRenderInFlight = false;
+        if (typstSharedReject) typstSharedReject(err);
+        typstSharedPromise = null;
+        typstSharedResolve = null;
+        typstSharedReject = null;
+        reject(err);
+      }
+    })();
+  });
 }
 
 export async function exportMarkdown(filePath: string): Promise<string> {
@@ -205,4 +307,12 @@ export function generateImageMarkdown(
   altText: string = ''
 ): string {
   return `![${altText}](${path}){fig-align="${alignment}" width="${width}"}`;
+}
+
+// Cleanup operations
+export async function cleanupTempPdfs(keepLastN?: number): Promise<{
+  files_removed: number;
+  total_space_freed: number;
+}> {
+  return invoke('cleanup_temp_pdfs', { keepLastN });
 }

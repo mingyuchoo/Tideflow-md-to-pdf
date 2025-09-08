@@ -3,7 +3,7 @@ import { EditorView, basicSetup } from 'codemirror';
 import { markdown } from '@codemirror/lang-markdown';
 import { keymap } from '@codemirror/view';
 import { useAppStore } from '../store';
-import { writeMarkdownFile, importImage, generateImageMarkdown, renderTypst } from '../api';
+import { writeMarkdownFile, importImage, generateImageMarkdown, renderTypst, showOpenDialog, cleanupTempPdfs } from '../api';
 // import MarkdownToolbar from './MarkdownToolbar';
 import { cmd } from './MarkdownCommands';
 import { FONT_OPTIONS } from './MarkdownToolbar';
@@ -18,6 +18,8 @@ const Editor: React.FC = () => {
   const [selectedFont, setSelectedFont] = useState<string>("New Computer Modern");
   const contentChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const typingDetectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollIdleTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Debounce editor scroll
+  const scrollSyncRafRef = useRef<number | null>(null);
   const isUserTypingRef = useRef(false); // Track if user is actively typing
   const lastLoadedContentRef = useRef<string>(''); // Track last loaded content
   const prevFileRef = useRef<string | null>(null); // Track previously opened file to avoid resetting editor on each keystroke
@@ -30,7 +32,9 @@ const Editor: React.FC = () => {
     setCompileStatus,
     preferences,
     setEditorScrollRatio,
-    setSampleDocContent
+    setSampleDocContent,
+    isTyping,
+    setIsTyping
   } = useAppStore();
 
   // Track openFiles to detect transition to zero and reset refs
@@ -43,20 +47,45 @@ const Editor: React.FC = () => {
   }, [openFiles]);
 
   // Auto-render function (always full content)
+  const autoRenderInFlightRef = useRef(false);
+  const pendingRenderRef = useRef<string | null>(null);
   const handleAutoRender = useCallback(async (content: string) => {
     try {
+      if (autoRenderInFlightRef.current) {
+        // A render is already in progress; remember the latest content to render afterwards.
+        pendingRenderRef.current = content;
+        return;
+      }
+      autoRenderInFlightRef.current = true;
       setCompileStatus({ status: 'running' });
       const pdfPath = await renderTypst(content, 'pdf');
       setCompileStatus({ 
         status: 'ok', 
         pdf_path: pdfPath 
       });
+      
+      // Clean up old temp PDFs after successful render
+      try {
+        await cleanupTempPdfs(10); // Keep last 10 temp PDFs
+      } catch (err) {
+        // Don't fail the render if cleanup fails
+        console.warn('Failed to cleanup temp PDFs:', err);
+      }
     } catch (err) {
       setCompileStatus({ 
         status: 'error', 
         message: 'Auto-render failed', 
         details: String(err) 
       });
+    } finally {
+      autoRenderInFlightRef.current = false;
+      // If there is a pending update queued during render, render once more with latest snapshot
+      const pending = pendingRenderRef.current;
+      pendingRenderRef.current = null;
+      if (pending) {
+        // Fire-and-forget; guard will re-enter to in-flight again
+        handleAutoRender(pending);
+      }
     }
   }, [setCompileStatus]);
 
@@ -163,6 +192,7 @@ const Editor: React.FC = () => {
             if (update.docChanged) {
               isUserTypingRef.current = true; // Mark as user input
               setIsActivelyTyping(true);
+              setIsTyping(true);
               const newContent = update.state.doc.toString();
               setContent(newContent);
               setModified(true);
@@ -178,53 +208,80 @@ const Editor: React.FC = () => {
                 clearTimeout(typingDetectionTimeoutRef.current);
               }
               
-              // Typing detection timeout (shorter)
+              // Typing detection timeout (longer to avoid inter-keystroke sync)
               typingDetectionTimeoutRef.current = setTimeout(() => {
                 setIsActivelyTyping(false);
-              }, 150);
+                setIsTyping(false);
+              }, 1200); // Increased idle threshold further to reduce premature sync while typing
               
-              // Smart debounced render
+              // Smart trailing-only debounced render: one render after the last change
               const debounceMs = preferences.render_debounce_ms;
               contentChangeTimeoutRef.current = setTimeout(() => {
                 handleAutoRender(newContent);
                 isUserTypingRef.current = false; // Reset flag
               }, debounceMs);
             }
-            // Track caret position (ignore large text highlight ranges to avoid jitter)
-            if (update.selectionSet || update.docChanged) {
-              const sel = update.state.selection.main;
-              if (sel.empty) {
-                const state = update.state;
-                const cursor = sel.head;
-                const line = state.doc.lineAt(cursor);
-                const lineNumber = line.number; // 1-based
-                const totalLines = state.doc.lines || 1;
-                const column = cursor - line.from;
-                const lineLength = Math.max(1, line.length);
-                const intraLine = column / lineLength; // 0..1 within line
-                const ratio = (lineNumber - 1 + intraLine) / totalLines;
-                setEditorScrollRatio(Math.min(1, Math.max(0, ratio)));
-              }
-            }
+            // Remove caret-based scroll sync; handled by scroll listener below
           }),
         ],
         parent: editorRef.current
       });
       
       editorViewRef.current = view;
+
+      // Add scroll listener for ratio based on actual scroll position
+  const scrollEl = (view as unknown as { scrollDOM: HTMLElement }).scrollDOM;
+      const handleScroll = () => {
+        if (!scrollEl) return;
+        if (isUserTypingRef.current || isTyping) return; // Suppress during active typing
+  // Do NOT auto-resume allowAutoSync here; user must click Resume Sync explicitly
+        const maxScroll = scrollEl.scrollHeight - scrollEl.clientHeight;
+        if (maxScroll <= 0) {
+          if (scrollIdleTimeoutRef.current) clearTimeout(scrollIdleTimeoutRef.current);
+          scrollIdleTimeoutRef.current = setTimeout(() => setEditorScrollRatio(0), 120);
+          return;
+        }
+        const ratio = scrollEl.scrollTop / maxScroll;
+        // Debounce to only publish after user pauses scrolling ~120ms
+        if (scrollIdleTimeoutRef.current) clearTimeout(scrollIdleTimeoutRef.current);
+        scrollIdleTimeoutRef.current = setTimeout(() => {
+          setEditorScrollRatio(ratio);
+        }, 120);
+      };
+      scrollEl.addEventListener('scroll', handleScroll, { passive: true });
+      // Initial ratio
+      handleScroll();
+      // Attach handler symbolically for cleanup
+      (scrollEl as unknown as { _tideflowScrollHandler?: () => void })._tideflowScrollHandler = handleScroll;
     }
     
     return () => {
+      // Capture refs locally (lint appeasement; values only used for clearing primitives)
+      const timeoutId = contentChangeTimeoutRef.current;
+      const typingId = typingDetectionTimeoutRef.current;
+  const rafId = scrollSyncRafRef.current;
+  const scrollIdleId = scrollIdleTimeoutRef.current;
+
       if (editorViewRef.current) {
+        // Remove scroll listener before destroy
+        try {
+          const ev = editorViewRef.current as unknown as { scrollDOM?: (HTMLElement & { _tideflowScrollHandler?: () => void }) };
+          const el = ev?.scrollDOM;
+          if (el && el._tideflowScrollHandler) {
+            el.removeEventListener('scroll', el._tideflowScrollHandler);
+            delete el._tideflowScrollHandler;
+          }
+        } catch { /* ignore */ }
         editorViewRef.current.destroy();
         editorViewRef.current = null;
       }
-      if (contentChangeTimeoutRef.current) {
-        clearTimeout(contentChangeTimeoutRef.current);
+      if (timeoutId) clearTimeout(timeoutId);
+      if (typingId) clearTimeout(typingId);
+      if (rafId !== null) {
+        try { cancelAnimationFrame(rafId); } catch { /* ignore */ }
       }
-      if (typingDetectionTimeoutRef.current) {
-        clearTimeout(typingDetectionTimeoutRef.current);
-      }
+      if (scrollIdleId) clearTimeout(scrollIdleId);
+      scrollSyncRafRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Intentionally empty to prevent recreation
@@ -296,6 +353,49 @@ const Editor: React.FC = () => {
     
     // Apply to selection only - document font is changed through Design menu
     cmd.fontLocal(editorViewRef.current, font);
+  };
+
+  // Handle image insertion from file picker
+  const handleImageInsert = async () => {
+    try {
+      // Open file picker for images
+      const selectedFile = await showOpenDialog([{
+        name: 'Images',
+        extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg']
+      }]);
+
+      if (!selectedFile) return; // User cancelled
+
+      // Read the file as base64
+      const response = await fetch(`file://${selectedFile}`);
+      const blob = await response.blob();
+      
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        if (!event.target?.result) return;
+        
+        try {
+          const base64data = event.target.result.toString();
+          const assetPath = await importImage(base64data);
+          
+          // For now, use default preferences - Phase 2 will add dialog
+          const imageMarkdown = generateImageMarkdown(
+            assetPath,
+            preferences.default_image_width,
+            preferences.default_image_alignment
+          );
+          
+          insertSnippet(imageMarkdown);
+          handleError(null, { operation: 'insert image', component: 'Editor' }, 'info');
+        } catch (err) {
+          handleError(err, { operation: 'import image file', component: 'Editor' });
+        }
+      };
+      
+      reader.readAsDataURL(blob);
+    } catch (err) {
+      handleError(err, { operation: 'open image file picker', component: 'Editor' });
+    }
   };
 
   // Render the current content to PDF (not from file)
@@ -514,6 +614,9 @@ const Editor: React.FC = () => {
             </button>
             <button onClick={() => cmd.pagebreak(editorViewRef.current!)} title="Page Break">
               ⤓⤒
+            </button>
+            <button onClick={handleImageInsert} title="Insert Image">
+              🖼️
             </button>
             <div className="toolbar-divider" />
             

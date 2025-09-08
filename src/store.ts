@@ -46,6 +46,9 @@ interface AppState {
   // Scroll / cursor sync
   editorScrollRatio: number; // 0..1 proportion of scroll/cursor position inside document
   setEditorScrollRatio: (ratio: number) => void;
+  // Typing state (suppresses aggressive scroll sync while user is entering text)
+  isTyping: boolean;
+  setIsTyping: (v: boolean) => void;
   
   // Tab management
   addOpenFile: (path: string) => void;
@@ -85,6 +88,8 @@ export const useAppStore = create<AppState>((set) => ({
   editor: initialEditorState,
   editorScrollRatio: 0,
   setEditorScrollRatio: (ratio: number) => set({ editorScrollRatio: Math.min(1, Math.max(0, ratio)) }),
+  isTyping: false,
+  setIsTyping: (v: boolean) => set({ isTyping: v }),
   setCurrentFile: (path: string | null) => set((state: AppState) => {
     return {
       editor: {

@@ -42,6 +42,16 @@
   background: #cdd5de;
 }
 
+.sync-paused-badge {
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  background-color: #fde68a;
+  color: #92400e;
+  border-radius: 4px;
+  font-weight: 500;
+  margin-left: 4px;
+}
+
 .pdf-preview-header h3 {
   margin: 0;
   font-size: 1rem;
@@ -75,7 +85,6 @@
   overflow-y: auto;
   padding: 16px;
   box-sizing: border-box;
-  scroll-behavior: smooth;
 }
 
 .pdfjs-page-canvas {
@@ -187,3 +196,8 @@
   max-height: 300px;
   overflow-y: auto;
 }
+
+/* Sync Controls */
+.pdf-preview-actions.sync-controls { gap: 0.5rem; }
+.sync-toggle.on { background: #444; color: #fff; }
+.sync-toggle.off { background: #666; color: #fff; opacity: 0.85; }
