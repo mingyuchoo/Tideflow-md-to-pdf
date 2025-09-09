@@ -1,0 +1,22 @@
+# Normalize all text files, default to LF in repo
+* text=auto eol=lf
+
+# Explicit LF for common source/configs
+*.rs text eol=lf
+*.toml text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.css text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.typ text eol=lf
+
+# Keep binary assets untouched
+*.png -text
+*.ico -text
+*.icns -text
+*.svg -text
