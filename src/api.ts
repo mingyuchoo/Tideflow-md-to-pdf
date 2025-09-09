@@ -312,7 +312,10 @@ export function generateImageMarkdown(
   alignment: string = 'center',
   altText: string = ''
 ): string {
-  return `![${altText}](${path}){fig-align="${alignment}" width="${width}"}`;
+  // Use HTML <img> so our Typst template's cmarker html override can apply width and alignment.
+  // Alignment is provided via data-align to avoid conflicting with HTML align defaults.
+  const alt = altText.replace(/"/g, '\\"');
+  return `<img src="${path}" alt="${alt}" width="${width}" data-align="${alignment}" />`;
 }
 
 // Cleanup operations

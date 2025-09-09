@@ -12,7 +12,7 @@ export const defaultPreferences: Preferences = {
   toc: false, // default changed to false (no table of contents unless user enables)
   toc_title: '',
   number_sections: true,
-  default_image_width: '60%',
+  default_image_width: '80%',
   default_image_alignment: 'center',
   fonts: {
     main: 'New Computer Modern',

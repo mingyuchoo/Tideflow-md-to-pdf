@@ -10,6 +10,8 @@ import { cmd } from './MarkdownCommands';
 import { FONT_OPTIONS } from './MarkdownToolbar';
 import { handleError } from '../utils/errorHandler';
 import './Editor.css';
+import ImagePropsModal, { type ImageProps } from './ImagePropsModal';
+import ImagePlusModal, { type ImagePlusChoice } from './ImagePlusModal';
 
 const Editor: React.FC = () => {
   const editorRef = useRef<HTMLDivElement>(null);
@@ -25,6 +27,23 @@ const Editor: React.FC = () => {
   const lastLoadedContentRef = useRef<string>(''); // Track last loaded content
   const prevFileRef = useRef<string | null>(null); // Track previously opened file to avoid resetting editor on each keystroke
   const openFilesRef = useRef<string[]>([]);
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const imageModalResolveRef = useRef<((props: ImageProps | null) => void) | null>(null);
+  const [calloutType, setCalloutType] = useState<'box' | 'info' | 'tip' | 'warn'>('box');
+  const [imagePlusOpen, setImagePlusOpen] = useState(false);
+  const [imagePlusPath, setImagePlusPath] = useState('assets/');
+
+  // Helper: open image modal and resolve with chosen values or null on cancel
+  const promptImageProps = useCallback((initial: ImageProps): Promise<ImageProps | null> => {
+    return new Promise((resolve) => {
+      imageModalResolveRef.current = resolve;
+      setImageModalOpen(true);
+      // store initial via state in modal props below
+      setImageInitial(initial);
+    });
+  }, []);
+
+  const [imageInitial, setImageInitial] = useState<ImageProps>({ width: '60%', alignment: 'center' });
   
   const { 
     editor: { currentFile, content, modified, openFiles },
@@ -370,12 +389,21 @@ const Editor: React.FC = () => {
       // Copy the selected file into the app's assets directory via backend
       try {
         const assetPath = await importImageFromPath(selectedFile);
+        // Ask for width/alignment before inserting
+        const initial: ImageProps = {
+          width: preferences.default_image_width,
+          alignment: preferences.default_image_alignment as ImageProps['alignment']
+        };
+        const chosen = await promptImageProps(initial);
+        if (!chosen) return; // cancelled
         const imageMarkdown = generateImageMarkdown(
           assetPath,
-          preferences.default_image_width,
-          preferences.default_image_alignment
+          chosen.width,
+          chosen.alignment
         );
         insertSnippet(imageMarkdown);
+        // Seed Image+ modal path for convenience
+        setImagePlusPath(assetPath);
         console.info('[Editor] Inserted image asset path:', assetPath);
         showSuccess(`Inserted image: ${assetPath}`);
       } catch (err) {
@@ -385,6 +413,7 @@ const Editor: React.FC = () => {
       handleError(err, { operation: 'open image file picker', component: 'Editor' });
     }
   };
+  // Regex helpers to parse markdown image at cursor
 
   // Render the current content to PDF (not from file)
   const handleRender = async () => {
@@ -603,8 +632,74 @@ const Editor: React.FC = () => {
             <button onClick={() => cmd.pagebreak(editorViewRef.current!)} title="Page Break">
               ⤓⤒
             </button>
+            <button onClick={() => cmd.vspace(editorViewRef.current!, '8pt')} title="Vertical Space">
+              ↕
+            </button>
             <button onClick={handleImageInsert} title="Insert Image">
               🖼️
+            </button>
+            <button
+              onClick={() => setImagePlusOpen(true)}
+              title="Image+ (Figure / Image + Text)"
+            >
+              🖼️+
+            </button>
+            {/* Quick image width selector: updates nearest <img> before the cursor */}
+            <label className="inline-label">Img W:</label>
+            <select
+              className="inline-select"
+              onChange={(e) => {
+                const value = e.target.value;
+                if (editorViewRef.current) {
+                  cmd.imageWidth(editorViewRef.current, value);
+                }
+              }}
+              defaultValue={preferences.default_image_width || '80%'}
+              title="Quick image width: updates the nearest <img> before the cursor"
+            >
+              <option value="25%">25%</option>
+              <option value="40%">40%</option>
+              <option value="60%">60%</option>
+              <option value="80%">80%</option>
+              <option value="100%">100%</option>
+            </select>
+            {/* Callout variants: choose type, then click Insert */}
+            <label className="inline-label">Callout:</label>
+            <select
+              className="inline-select"
+              onChange={(e) => {
+                const v = e.target.value as 'box' | 'info' | 'tip' | 'warn';
+                setCalloutType(v || 'box');
+              }}
+              value={calloutType}
+              title="Choose a callout type"
+            >
+              <option value="box">Note</option>
+              <option value="info">Info</option>
+              <option value="tip">Tip</option>
+              <option value="warn">Warn</option>
+            </select>
+            <button
+              title="Insert callout"
+              onClick={() => {
+                if (!editorViewRef.current) return;
+                const t = calloutType;
+                if (t === 'box') cmd.noteBox(editorViewRef.current);
+                else if (t === 'info') cmd.noteInfo(editorViewRef.current);
+                else if (t === 'tip') cmd.noteTip(editorViewRef.current);
+                else if (t === 'warn') cmd.noteWarn(editorViewRef.current);
+              }}
+            >
+              ☰
+            </button>
+            <button onClick={() => cmd.footnote(editorViewRef.current!)} title="Footnote">
+              ⁵
+            </button>
+            <button onClick={() => cmd.columnsNoBorder(editorViewRef.current!)} title="Insert 2 Columns (no border)">
+              ⫴ Columns
+            </button>
+            <button onClick={() => cmd.alignBlock(editorViewRef.current!, 'center')} title="Center Align Block">
+              ⊕
             </button>
             <div className="toolbar-divider" />
             
@@ -628,6 +723,45 @@ const Editor: React.FC = () => {
           </div>
           
           <div className="editor-content" ref={editorRef} />
+          {/* Image properties modal */}
+          <ImagePropsModal
+            open={imageModalOpen}
+            initial={imageInitial}
+            onCancel={() => {
+              setImageModalOpen(false);
+              imageModalResolveRef.current?.(null);
+              imageModalResolveRef.current = null;
+            }}
+            onSave={(props) => {
+              setImageModalOpen(false);
+              imageModalResolveRef.current?.(props);
+              imageModalResolveRef.current = null;
+            }}
+          />
+          {/* Image+ modal */}
+          <ImagePlusModal
+            open={imagePlusOpen}
+            initialPath={imagePlusPath}
+            defaultWidth={preferences.default_image_width}
+            defaultAlignment={preferences.default_image_alignment as ImageProps['alignment']}
+            onCancel={() => setImagePlusOpen(false)}
+            onChoose={(choice: ImagePlusChoice) => {
+              setImagePlusOpen(false);
+              if (!editorViewRef.current) return;
+              if (choice.kind === 'figure') {
+                const { path, width, alignment, caption } = choice.data;
+                // Insert Typst figure with caption
+                cmd.figureWithCaption(editorViewRef.current, path, width, alignment, caption);
+              } else {
+                const { path, width, alignment, rightText, alt, leftText, position } = choice.data;
+                // Insert HTML table with image + text columns (optional left text under image) and layout position
+                cmd.imageWithTextColumns(editorViewRef.current, path, width, alignment, rightText, alt, leftText, position);
+              }
+              // seed future openings
+              if (choice.kind === 'figure') setImagePlusPath(choice.data.path);
+              if (choice.kind === 'columns') setImagePlusPath(choice.data.path);
+            }}
+          />
         </>
       ) : (
         <div className="no-file-message">

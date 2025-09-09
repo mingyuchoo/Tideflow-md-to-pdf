@@ -115,7 +115,11 @@ pub async fn render_markdown(app_handle: &AppHandle, file_path: &str) -> Result<
     fs::write(build_dir.join("content.md"), md_content)?;
 
     // 3) Ensure tideflow.typ is available in build directory
-    let template_src = content_dir.join("tideflow.typ");
+    // Prefer workspace template during dev, fall back to user content template
+    let template_src = if let Ok(cwd) = std::env::current_dir() {
+        let dev_tpl = cwd.join("src-tauri").join("content").join("tideflow.typ");
+        if dev_tpl.exists() { dev_tpl } else { content_dir.join("tideflow.typ") }
+    } else { content_dir.join("tideflow.typ") };
     let template_dst = build_dir.join("tideflow.typ");
     if template_src.exists() {
         fs::copy(&template_src, &template_dst)?;
@@ -228,7 +232,10 @@ pub async fn export_markdown(app_handle: &AppHandle, file_path: &str) -> Result<
     fs::write(build_dir.join("content.md"), md_content)?;
 
     // 3) Ensure tideflow.typ is available in build directory
-    let template_src = content_dir.join("tideflow.typ");
+    let template_src = if let Ok(cwd) = std::env::current_dir() {
+        let dev_tpl = cwd.join("src-tauri").join("content").join("tideflow.typ");
+        if dev_tpl.exists() { dev_tpl } else { content_dir.join("tideflow.typ") }
+    } else { content_dir.join("tideflow.typ") };
     let template_dst = build_dir.join("tideflow.typ");
     if template_src.exists() {
         fs::copy(&template_src, &template_dst)?;
@@ -332,7 +339,10 @@ pub async fn render_typst(app_handle: &AppHandle, content: &str, _format: &str) 
     fs::copy(&temp_content_path, build_dir.join("content.md"))?;
 
     // Ensure tideflow.typ is available in build directory
-    let template_src = content_dir.join("tideflow.typ");
+    let template_src = if let Ok(cwd) = std::env::current_dir() {
+        let dev_tpl = cwd.join("src-tauri").join("content").join("tideflow.typ");
+        if dev_tpl.exists() { dev_tpl } else { content_dir.join("tideflow.typ") }
+    } else { content_dir.join("tideflow.typ") };
     let template_dst = build_dir.join("tideflow.typ");
     if template_src.exists() {
         fs::copy(&template_src, &template_dst)?;

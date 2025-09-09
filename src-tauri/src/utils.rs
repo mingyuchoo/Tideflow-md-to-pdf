@@ -268,7 +268,7 @@ fn create_default_config_files(app_handle: &AppHandle) -> Result<()> {
   },
     "toc": false,
   "numberSections": true,
-  "default_image_width": "60%",
+    "default_image_width": "80%",
   "default_image_alignment": "center",
   "fonts": {
     "main": "New Computer Modern",

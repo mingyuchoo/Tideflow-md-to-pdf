@@ -53,7 +53,7 @@ impl Default for Preferences {
             toc: false, // default disabled
             toc_title: String::new(),
             number_sections: true,
-            default_image_width: "60%".to_string(),
+            default_image_width: "80%".to_string(),
             default_image_alignment: "center".to_string(),
             fonts: Fonts {
                 main: "New Computer Modern".to_string(),

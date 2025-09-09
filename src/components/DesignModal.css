@@ -1,5 +1,6 @@
 .design-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); display:flex; align-items:flex-start; justify-content:center; padding:4rem 1rem 2rem; z-index:1000; }
 .design-modal { background:#ffffff; color:#111; width:840px; max-width:100%; max-height:85vh; overflow-y:auto; border-radius:12px; box-shadow:0 6px 28px -4px rgba(0,0,0,0.35); padding:1.5rem 1.85rem 2.4rem; font-family: system-ui, sans-serif; border:1px solid #d9dce2; }
+.design-modal.image-modal { width:520px; padding:1rem 1.25rem 1.25rem; }
 .design-modal-header { display:flex; align-items:center; justify-content:space-between; gap:.75rem; margin-bottom:.75rem; }
 .design-modal-header h2 { margin:0; font-size:1.25rem; }
 .theme-select-row { display:flex; gap:1rem; align-items:center; }
@@ -8,6 +9,7 @@
 .design-section h3 { margin:.1rem 0 .75rem; font-size:.85rem; text-transform:uppercase; letter-spacing:.06em; font-weight:600; color:#333; }
 .form-grid { display:grid; gap:.9rem; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); }
 .form-grid.two-col { grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); }
+.form-grid.one-col { grid-template-columns: 1fr; }
 .design-section label { font-size:.68rem; font-weight:600; display:flex; flex-direction:column; gap:.3rem; color:#222; letter-spacing:.02em; }
 .design-section input, .design-section select { padding:.42rem .55rem; border:1px solid #cdd3db; border-radius:6px; font-size:.72rem; background:#ffffff; color:#111; box-shadow:0 1px 0 rgba(0,0,0,0.04); }
 .design-section input[type="range"] { padding:0; height:1.2rem; background:transparent; box-shadow:none; }

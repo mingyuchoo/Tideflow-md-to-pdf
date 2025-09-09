@@ -7,9 +7,14 @@
 #set text(font: prefs.fonts.main, size: 11pt, lang: "en")
 #show raw: set text(font: prefs.fonts.mono)
 
+// Capture built-in image to avoid recursive overrides
+#let builtin-image = image
+
 // Safe margin parsing (supports cm/mm/in/pt or numeric fallback)
 #let parse-length = it => if type(it) == str {
-  if it.ends-with("cm") { float(it.slice(0, -2)) * 1cm }
+  if it.ends-with("%") { float(it.slice(0, -1)) * 1% }
+  else if it.ends-with("px") { float(it.slice(0, -2)) * 0.75pt } // approx CSS px→pt at 96dpi
+  else if it.ends-with("cm") { float(it.slice(0, -2)) * 1cm }
   else if it.ends-with("mm") { float(it.slice(0, -2)) * 1mm }
   else if it.ends-with("in") { float(it.slice(0, -2)) * 1in }
   else if it.ends-with("pt") { float(it.slice(0, -2)) * 1pt }
@@ -44,8 +49,26 @@
 
 // Render markdown content with explicit outline suppression
 #show outline: none
-#render(md_content, scope: (
-  // Ensure image paths resolve relative to our project/build directory,
-  // not the cmarker package root. See cmarker docs: "Resolving Paths Correctly".
-  image: (path, alt: none) => image(path, alt: alt)
-))
+#render(md_content,
+  html: (
+    // Handle <img src width data-align> so we can control size and alignment
+    img: ("void", attrs => {
+      // Use safe dictionary access for HTML attributes
+      let path = attrs.at("src")
+      // Read width safely; consider empty string as none
+      let wraw = attrs.at("width", default: none)
+      let w = if type(wraw) == str and wraw.trim() != "" { wraw } else { none }
+      let im = if w != none { builtin-image(path, width: parse-length(w)) } else { builtin-image(path) }
+      // Alignment: data-align takes precedence, then align, default to center
+      let a = attrs.at("data-align", default: attrs.at("align", default: "center"))
+      if a == "center" { align(center, im) }
+      else if a == "right" { align(right, im) }
+      else { im }
+    })
+  ),
+  scope: (
+    // Ensure image paths resolve relative to our project/build directory,
+    // not the cmarker package root. See cmarker docs: "Resolving Paths Correctly".
+    image: (path, alt: none, ..n) => builtin-image(path, alt: alt, ..n)
+  )
+)
