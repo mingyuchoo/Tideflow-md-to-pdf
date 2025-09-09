@@ -44,4 +44,8 @@
 
 // Render markdown content with explicit outline suppression
 #show outline: none
-#render(md_content)
+#render(md_content, scope: (
+  // Ensure image paths resolve relative to our project/build directory,
+  // not the cmarker package root. See cmarker docs: "Resolving Paths Correctly".
+  image: (path, alt: none) => image(path, alt: alt)
+))

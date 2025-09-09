@@ -42,6 +42,12 @@ export async function importImage(
   return invoke('import_image', { image_data: imageData, file_name: fileName });
 }
 
+// Import an image from a filesystem path by copying it into the app's assets directory.
+export async function importImageFromPath(sourcePath: string): Promise<string> {
+  // Send both camelCase and snake_case to be safe across bindings
+  return invoke('import_image_from_path', { sourcePath, source_path: sourcePath });
+}
+
 // Rendering operations
 export async function renderMarkdown(filePath: string): Promise<string> {
   return invoke('render_markdown', { filePath });

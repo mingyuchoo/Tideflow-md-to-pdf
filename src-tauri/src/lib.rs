@@ -24,6 +24,7 @@ pub fn run() {
         commands::delete_file,
         commands::rename_file,
         commands::import_image,
+        commands::import_image_from_path,
         commands::render_markdown,
         commands::export_markdown,
         commands::save_pdf_as,

@@ -7,6 +7,7 @@ use tauri::{AppHandle, Emitter};
 use tokio::sync::Mutex;
 use std::sync::Arc;
 use std::time::SystemTime;
+use std::io::Write;
 
 // A global mutex to ensure only one render happens at a time
 lazy_static::lazy_static! {
@@ -17,6 +18,39 @@ lazy_static::lazy_static! {
 lazy_static::lazy_static! {
     static ref LAST_RENDER_TIMES: Arc<Mutex<std::collections::HashMap<String, SystemTime>>> = 
         Arc::new(Mutex::new(std::collections::HashMap::new()));
+}
+
+/// Ensure a required cmarker asset exists in the user's Typst package cache on Windows.
+/// Some environments end up with an incomplete package cache missing `assets/camkale.png`,
+/// which causes markdown rendering to fail. We synthesize a tiny 1x1 PNG placeholder.
+fn ensure_cmarker_asset_camkale_png() {
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(local) = std::env::var("LOCALAPPDATA") {
+            let assets_dir = std::path::Path::new(&local)
+                .join("typst")
+                .join("packages")
+                .join("preview")
+                .join("cmarker")
+                .join("0.1.6")
+                .join("assets");
+            let target = assets_dir.join("camkale.png");
+            if !target.exists() {
+                let _ = std::fs::create_dir_all(&assets_dir);
+                // Minimal valid 1x1 PNG (transparent)
+                let png_bytes: [u8; 67] = [
+                    0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A,0x00,0x00,0x00,0x0D,0x49,0x48,0x44,0x52,
+                    0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,0x08,0x06,0x00,0x00,0x00,0x1F,0x15,0xC4,
+                    0x89,0x00,0x00,0x00,0x0A,0x49,0x44,0x41,0x54,0x78,0x9C,0x63,0x00,0x01,0x00,0x00,
+                    0x05,0x00,0x01,0x0D,0x0A,0x2D,0xB4,0x00,0x00,0x00,0x00,0x49,0x45,0x4E,0x44,0xAE,
+                    0x42,0x60,0x82
+                ];
+                if let Ok(mut f) = std::fs::File::create(&target) {
+                    let _ = f.write_all(&png_bytes);
+                }
+            }
+        }
+    }
 }
 
 /// Renders a Markdown file to PDF using Typst
@@ -71,8 +105,13 @@ pub async fn render_markdown(app_handle: &AppHandle, file_path: &str) -> Result<
         }
     }
 
-    // 2) Copy the markdown content to build/content.md
-    let md_content = fs::read_to_string(path)?;
+    // 2) Copy the markdown content to build/content.md (with image path rewrites)
+    let md_content_raw = fs::read_to_string(path)?;
+    let base_dir = path.parent().unwrap_or(Path::new("."));
+    // Resolve assets/ paths to the global content/assets directory so images work from any doc folder
+    let assets_root = utils::get_assets_dir(app_handle).ok();
+    let assets_root_ref = assets_root.as_deref();
+    let md_content = utils::rewrite_image_paths_in_markdown(&md_content_raw, base_dir, assets_root_ref);
     fs::write(build_dir.join("content.md"), md_content)?;
 
     // 3) Ensure tideflow.typ is available in build directory
@@ -109,10 +148,12 @@ pub async fn render_markdown(app_handle: &AppHandle, file_path: &str) -> Result<
         .context("Typst binary not found. Download and place Typst binary in bin/typst/<platform>/ directory.")?;
 
     // 5) Compile preview PDF
+    // Work around missing cmarker asset on some systems
+    ensure_cmarker_asset_camkale_png();
     let preview_pdf = build_dir.join("preview.pdf");
     let status = Command::new(&typst_path)
         .current_dir(&build_dir)
-        .args(["compile", "tideflow.typ", "preview.pdf"])
+        .args(["compile", "--root", content_dir.to_string_lossy().as_ref(), "tideflow.typ", "preview.pdf"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .status()?;
@@ -120,7 +161,7 @@ pub async fn render_markdown(app_handle: &AppHandle, file_path: &str) -> Result<
     if !status.success() {
         let output = Command::new(&typst_path)
             .current_dir(&build_dir)
-            .args(["compile", "tideflow.typ", "preview.pdf"])
+            .args(["compile", "--root", content_dir.to_string_lossy().as_ref(), "tideflow.typ", "preview.pdf"])
             .output()?;
         
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -178,8 +219,12 @@ pub async fn export_markdown(app_handle: &AppHandle, file_path: &str) -> Result<
         }
     }
 
-    // 2) Copy the markdown content to build/content.md
-    let md_content = fs::read_to_string(path)?;
+    // 2) Copy the markdown content to build/content.md (with image path rewrites)
+    let md_content_raw = fs::read_to_string(path)?;
+    let base_dir = path.parent().unwrap_or(Path::new("."));
+    let assets_root = utils::get_assets_dir(app_handle).ok();
+    let assets_root_ref = assets_root.as_deref();
+    let md_content = utils::rewrite_image_paths_in_markdown(&md_content_raw, base_dir, assets_root_ref);
     fs::write(build_dir.join("content.md"), md_content)?;
 
     // 3) Ensure tideflow.typ is available in build directory
@@ -196,10 +241,12 @@ pub async fn export_markdown(app_handle: &AppHandle, file_path: &str) -> Result<
         .context("Typst binary not found. Download and place Typst binary in bin/typst/<platform>/ directory.")?;
 
     // 5) Compile to final PDF next to source file
+    // Work around missing cmarker asset on some systems
+    ensure_cmarker_asset_camkale_png();
     let final_pdf = Path::new(file_path).with_extension("pdf");
     let status = Command::new(&typst_path)
         .current_dir(&build_dir)
-        .args(["compile", "tideflow.typ", final_pdf.to_string_lossy().as_ref()])
+        .args(["compile", "--root", content_dir.to_string_lossy().as_ref(), "tideflow.typ", final_pdf.to_string_lossy().as_ref()])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .status()?;
@@ -207,7 +254,7 @@ pub async fn export_markdown(app_handle: &AppHandle, file_path: &str) -> Result<
     if !status.success() {
         let output = Command::new(&typst_path)
             .current_dir(&build_dir)
-            .args(["compile", "tideflow.typ", final_pdf.to_string_lossy().as_ref()])
+            .args(["compile", "--root", content_dir.to_string_lossy().as_ref(), "tideflow.typ", final_pdf.to_string_lossy().as_ref()])
             .output()?;
         
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -251,8 +298,12 @@ pub async fn render_typst(app_handle: &AppHandle, content: &str, _format: &str) 
     let temp_content_name = format!("temp_{}.md", uuid);
     let temp_content_path = build_dir.join(&temp_content_name);
     
-    // Write the content to temporary markdown file (no preprocessing needed for raw Typst)
-    fs::write(&temp_content_path, content)?;
+    // Preprocess content to rewrite image paths so Typst/cmarker can resolve them properly
+    let base_dir = &content_dir; // live preview has no specific file path; use content root
+    let assets_root = utils::get_assets_dir(app_handle).ok();
+    let assets_root_ref = assets_root.as_deref();
+    let preprocessed = utils::rewrite_image_paths_in_markdown(content, base_dir.as_path(), assets_root_ref);
+    fs::write(&temp_content_path, preprocessed)?;
     
     // Copy canonical prefs.json (single source of truth) & emit dump
     let canonical_prefs = content_dir.join("prefs.json");
@@ -315,9 +366,11 @@ pub async fn render_typst(app_handle: &AppHandle, content: &str, _format: &str) 
     let output_path = build_dir.join(&output_file_name);
     
     // Run Typst to compile the file
+    // Work around missing cmarker asset on some systems
+    ensure_cmarker_asset_camkale_png();
     let output = Command::new(&typst_path)
         .current_dir(&build_dir)
-        .args(["compile", "tideflow.typ", &output_file_name])
+        .args(["compile", "--root", content_dir.to_string_lossy().as_ref(), "tideflow.typ", &output_file_name])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()

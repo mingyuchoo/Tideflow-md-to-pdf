@@ -3,7 +3,8 @@ import { EditorView, basicSetup } from 'codemirror';
 import { markdown } from '@codemirror/lang-markdown';
 import { keymap } from '@codemirror/view';
 import { useAppStore } from '../store';
-import { writeMarkdownFile, importImage, generateImageMarkdown, renderTypst, showOpenDialog, cleanupTempPdfs } from '../api';
+import { writeMarkdownFile, importImage, importImageFromPath, generateImageMarkdown, renderTypst, showOpenDialog, cleanupTempPdfs } from '../api';
+import { showSuccess } from '../utils/errorHandler';
 // import MarkdownToolbar from './MarkdownToolbar';
 import { cmd } from './MarkdownCommands';
 import { FONT_OPTIONS } from './MarkdownToolbar';
@@ -365,34 +366,21 @@ const Editor: React.FC = () => {
       }]);
 
       if (!selectedFile) return; // User cancelled
-
-      // Read the file as base64
-      const response = await fetch(`file://${selectedFile}`);
-      const blob = await response.blob();
       
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        if (!event.target?.result) return;
-        
-        try {
-          const base64data = event.target.result.toString();
-          const assetPath = await importImage(base64data);
-          
-          // For now, use default preferences - Phase 2 will add dialog
-          const imageMarkdown = generateImageMarkdown(
-            assetPath,
-            preferences.default_image_width,
-            preferences.default_image_alignment
-          );
-          
-          insertSnippet(imageMarkdown);
-          handleError(null, { operation: 'insert image', component: 'Editor' }, 'info');
-        } catch (err) {
-          handleError(err, { operation: 'import image file', component: 'Editor' });
-        }
-      };
-      
-      reader.readAsDataURL(blob);
+      // Copy the selected file into the app's assets directory via backend
+      try {
+        const assetPath = await importImageFromPath(selectedFile);
+        const imageMarkdown = generateImageMarkdown(
+          assetPath,
+          preferences.default_image_width,
+          preferences.default_image_alignment
+        );
+        insertSnippet(imageMarkdown);
+        console.info('[Editor] Inserted image asset path:', assetPath);
+        showSuccess(`Inserted image: ${assetPath}`);
+      } catch (err) {
+        handleError(err, { operation: 'import image file', component: 'Editor' });
+      }
     } catch (err) {
       handleError(err, { operation: 'open image file picker', component: 'Editor' });
     }

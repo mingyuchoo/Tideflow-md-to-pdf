@@ -153,6 +153,7 @@ PRs welcome. Please:
 | No re-render | Force render with Ctrl+R (debounce is internal for now) |
 | Fonts not applied | Currently fixed defaults; customization not yet reintroduced |
 
+
 ## License
 MIT – use, modify, distribute with attribution.
 
