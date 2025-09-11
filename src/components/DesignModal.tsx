@@ -1,18 +1,9 @@
-// Touch comment to force rebuild (clearing stale HMR state)
 import React, { useEffect, useRef, useState } from 'react';
 import { useAppStore, defaultPreferences } from '../store';
 import { setPreferences as persistPreferences, renderMarkdown, renderTypst, debugPaths } from '../api';
 import type { Preferences } from '../types';
+import { themePresets } from '../themes'; // Import themes
 import './DesignModal.css';
-
-interface ThemePresetDef { name: string; description: string; apply: (base: Preferences)=>Partial<Preferences>; }
-const THEME_PRESETS: Record<string, ThemePresetDef> = {
-  default: { name: 'Default', description: 'Balanced defaults', apply: () => ({}) },
-  classic: { name: 'Classic', description: 'Serif body (placeholder)', apply: (b) => ({ fonts: { ...b.fonts, main: 'Times New Roman' } }) },
-  mono: { name: 'Mono', description: 'Monospaced look (placeholder)', apply: (b) => ({ fonts: { ...b.fonts, main: b.fonts.mono } }) },
-  serif: { name: 'Serif Wide', description: 'Wider margins (placeholder)', apply: () => ({ margin: { x: '3cm', y: '3cm' } }) },
-  custom: { name: 'Custom', description: 'Your overrides', apply: () => ({}) }
-};
 
 const DesignModal: React.FC = () => {
   const { preferences, setPreferences, designModalOpen, setDesignModalOpen, themeSelection, setThemeSelection, lastCustomPreferences } = useAppStore();
@@ -112,21 +103,21 @@ const DesignModal: React.FC = () => {
       scheduleApply(lastCustomPreferences);
       return;
     }
-    const base = { ...preferences };
-    const preset = THEME_PRESETS[id];
+    const preset = themePresets[id];
     if (preset) {
-      const merged: Preferences = { ...base, ...preset.apply(base) } as Preferences;
+      const merged: Preferences = { ...preset.preferences };
       setLocal(merged);
-      setPreferences(merged);
+      setPreferences(merged); // Directly update preferences
+      scheduleApply(merged);
     }
   };
 
   const handleSave = async () => {
     try {
       setCompileStatus({ status: 'running' });
-  setPreferences(local);             // update store
-  await persistPreferences(local);    // API handles backend field mapping
-  debugPaths().then(info => console.log('[DesignModal][save]', info)).catch(()=>{});
+      setPreferences(local);             // update store
+      await persistPreferences(local);    // API handles backend field mapping
+      debugPaths().then(info => console.log('[DesignModal][save]', info)).catch(()=>{});
       await rerenderCurrent();
       originalRef.current = local;
       setDirty(false);
@@ -149,13 +140,13 @@ const DesignModal: React.FC = () => {
     const base = { ...defaultPreferences };
     setLocal(base);
     setDirty(true);
-    if (themeSelection !== 'custom') setThemeSelection('custom');
+    setThemeSelection('default'); // Reset theme to default
     if (autoApply) {
       try {
         setCompileStatus({ status: 'running' });
-  setPreferences(base);
-  await persistPreferences(base);
-  debugPaths().then(info => console.log('[DesignModal][reset]', info)).catch(()=>{});
+        setPreferences(base);
+        await persistPreferences(base);
+        debugPaths().then(info => console.log('[DesignModal][reset]', info)).catch(()=>{});
         await rerenderCurrent();
         setDirty(false); // since applied immediately
       } catch (e) {
@@ -163,6 +154,7 @@ const DesignModal: React.FC = () => {
       }
     }
   };
+
 
   if (!designModalOpen) return null;
 
@@ -175,10 +167,9 @@ const DesignModal: React.FC = () => {
             <label>
               Theme:
               <select value={themeSelection} onChange={(e) => handlePresetSelect(e.target.value)}>
-                <option value="default">Default</option>
-                <option value="classic">Classic (placeholder)</option>
-                <option value="mono">Mono (placeholder)</option>
-                <option value="serif">Serif (placeholder)</option>
+                {Object.entries(themePresets).map(([id, theme]) => (
+                  <option key={id} value={id}>{theme.name}</option>
+                ))}
                 <option value="custom">Custom</option>
               </select>
             </label>
@@ -197,8 +188,8 @@ const DesignModal: React.FC = () => {
             <label>Paper Size
               <select value={local.papersize} onChange={e => mutate({ papersize: e.target.value })}>
                 <option value="a4">A4</option>
-                <option value="letter">Letter</option>
-                <option value="legal">Legal</option>
+                <option value="us-letter">US Letter</option>
+                <option value="us-legal">US Legal</option>
               </select>
             </label>
             <label>Margin X (cm)
@@ -207,8 +198,8 @@ const DesignModal: React.FC = () => {
                 min="1" 
                 max="5" 
                 step="0.25" 
-                value={parseFloat(local.margin.x.replace('cm', ''))} 
-                onChange={e => mutate({ margin: { ...local.margin, x: `${e.target.value}cm` } })} 
+                value={parseFloat(local.margin.x.replace('cm', '').replace('in',''))}
+                onChange={e => mutate({ margin: { ...local.margin, x: `${e.target.value}cm` } })}
               />
               <span className="range-value">{local.margin.x}</span>
             </label>
@@ -218,8 +209,8 @@ const DesignModal: React.FC = () => {
                 min="1" 
                 max="5" 
                 step="0.25" 
-                value={parseFloat(local.margin.y.replace('cm', ''))} 
-                onChange={e => mutate({ margin: { ...local.margin, y: `${e.target.value}cm` } })} 
+                value={parseFloat(local.margin.y.replace('cm', '').replace('in',''))}
+                onChange={e => mutate({ margin: { ...local.margin, y: `${e.target.value}cm` } })}
               />
               <span className="range-value">{local.margin.y}</span>
             </label>
@@ -234,18 +225,19 @@ const DesignModal: React.FC = () => {
                 value={local.fonts.main}
                 onChange={e => mutate({ fonts: { ...local.fonts, main: e.target.value } })}
               >
-                <option value="system-ui">System UI</option>
+                <option value="Segoe UI">Segoe UI</option>
                 <option value="Arial">Arial</option>
-                <option value="Helvetica">Helvetica</option>
-                <option value="Verdana">Verdana</option>
+                <option value="Calibri">Calibri</option>
+                <option value="Cambria">Cambria</option>
+                <option value="Candara">Candara</option>
+                <option value="Constantia">Constantia</option>
+                <option value="Corbel">Corbel</option>
+                <option value="Georgia">Georgia</option>
+                <option value="Palatino Linotype">Palatino Linotype</option>
                 <option value="Tahoma">Tahoma</option>
                 <option value="Times New Roman">Times New Roman</option>
-                <option value="Georgia">Georgia</option>
-                <option value="Garamond">Garamond</option>
-                <option value="Palatino">Palatino</option>
                 <option value="Trebuchet MS">Trebuchet MS</option>
-                <option value="Courier New">Courier New</option>
-                <option value="Segoe UI">Segoe UI</option>
+                <option value="Verdana">Verdana</option>
               </select>
               <div className="helper-text">Widely available cross‑platform fonts.</div>
               <div className="font-preview" data-font-role="body" data-font-value={local.fonts.main}>{`Aa Bb Cc 123 — preview (${local.fonts.main})`}</div>
@@ -255,14 +247,9 @@ const DesignModal: React.FC = () => {
                 value={local.fonts.mono}
                 onChange={e => mutate({ fonts: { ...local.fonts, mono: e.target.value } })}
               >
-                <option value="Courier New">Courier New</option>
                 <option value="Consolas">Consolas</option>
+                <option value="Courier New">Courier New</option>
                 <option value="Lucida Console">Lucida Console</option>
-                <option value="Monaco">Monaco</option>
-                <option value="Menlo">Menlo</option>
-                <option value="DejaVu Sans Mono">DejaVu Sans Mono</option>
-                <option value="Source Code Pro">Source Code Pro</option>
-                <option value="ui-monospace">ui-monospace</option>
               </select>
               <div className="helper-text">Used for code blocks / fixed width text.</div>
               <div className="font-preview" data-font-role="mono" data-font-value={local.fonts.mono}>{`code {sample} <tag/> (${local.fonts.mono})`}</div>

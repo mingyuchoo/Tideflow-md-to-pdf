@@ -6,6 +6,8 @@ import { clearSession } from '../utils/session';
 import { invoke } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
 import { handleError, showSuccess } from '../utils/errorHandler';
+import { themePresets } from '../themes';
+import { setPreferences as persistPreferences, renderMarkdown, renderTypst } from '../api';
 import './Toolbar.css';
 
 const Toolbar: React.FC = () => {
@@ -14,7 +16,9 @@ const Toolbar: React.FC = () => {
     setPreviewVisible,
     editor,
     designModalOpen, setDesignModalOpen,
-    themeSelection, setThemeSelection
+    themeSelection, setThemeSelection,
+    setPreferences,
+    setCompileStatus
   } = useAppStore();
   const { clearCache } = useAppStore.getState();
 
@@ -22,9 +26,38 @@ const Toolbar: React.FC = () => {
     setPreviewVisible(!previewVisible);
   };
 
-  const handleThemeSelect = (value: string) => {
+  // Unified re-render that supports the in-memory sample document (which has no on-disk path)
+  const rerenderCurrent = async () => {
+    const { editor: { currentFile, content } } = useAppStore.getState();
+    if (!currentFile) return;
+    // Detect virtual sample file (no path separators) or explicit 'sample.md'
+    const isVirtual = currentFile === 'sample.md' || (!currentFile.includes('/') && !currentFile.includes('\\'));
+    if (isVirtual) {
+      await renderTypst(content, 'pdf');
+    } else {
+      await renderMarkdown(currentFile);
+    }
+  };
+
+  const handleThemeSelect = async (value: string) => {
     setThemeSelection(value);
-    if (value === 'custom') setDesignModalOpen(true);
+    if (value === 'custom') {
+      setDesignModalOpen(true);
+      return;
+    }
+    
+    // Apply theme immediately like the design modal does
+    const preset = themePresets[value];
+    if (preset) {
+      try {
+        setCompileStatus({ status: 'running' });
+        setPreferences(preset.preferences); // Update in-memory store
+        await persistPreferences(preset.preferences); // Persist to backend _prefs.json
+        await rerenderCurrent(); // Trigger re-render
+      } catch (e) {
+        console.warn('[Toolbar] theme apply failed', e);
+      }
+    }
   };
 
   const handleExportPDF = async () => {
@@ -78,12 +111,11 @@ const Toolbar: React.FC = () => {
         <select
           value={themeSelection}
           onChange={(e) => handleThemeSelect(e.target.value)}
-          title="Theme (placeholders)"
+          title="Select Theme"
         >
-          <option value="default">Default</option>
-          <option value="classic">Classic</option>
-          <option value="mono">Mono</option>
-          <option value="serif">Serif</option>
+          {Object.entries(themePresets).map(([id, theme]) => (
+            <option key={id} value={id}>{theme.name}</option>
+          ))}
           <option value="custom">Custom…</option>
         </select>
 

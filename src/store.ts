@@ -15,8 +15,8 @@ export const defaultPreferences: Preferences = {
   default_image_width: '80%',
   default_image_alignment: 'center',
   fonts: {
-    main: 'New Computer Modern',
-    mono: 'Liberation Mono',
+    main: 'Times New Roman',
+    mono: 'Courier New',
   },
   // Preview optimization settings
   render_debounce_ms: 400,
