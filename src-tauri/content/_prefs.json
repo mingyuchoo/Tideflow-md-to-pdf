@@ -4,7 +4,7 @@
     "x": "2cm",
     "y": "2.5cm"
   },
-  "toc": true,
+  "toc": false,
   "numberSections": true,
   "default_image_width": "60%",
   "default_image_alignment": "center",
