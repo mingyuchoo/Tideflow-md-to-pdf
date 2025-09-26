@@ -63,6 +63,49 @@ export function insertAtCursor(view: EditorView, text: string) {
   });
 }
 
+function escapeTypstString(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function htmlFromText(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return '';
+
+  return trimmed
+    .split(/\n{2,}/)
+    .map((paragraph) => {
+      const lines = paragraph
+        .split(/\n/)
+        .map((line) => escapeHtml(line.trim()))
+        .join('<br />');
+      return `<p>${lines}</p>`;
+    })
+    .join('\n');
+}
+
+function insertAdmonition(view: EditorView, kind: string, fallback: string) {
+  const sel = view.state.selection.main;
+  const raw = view.state.sliceDoc(sel.from, sel.to) || fallback;
+  const lines = raw.split('\n');
+  const quoted = lines
+    .map((line) => {
+      const trimmed = line.trim();
+      return trimmed.length > 0 ? `> ${trimmed}` : '>';
+    })
+    .join('\n');
+  const block = `> [!${kind.toUpperCase()}]\n${quoted}\n`;
+  view.dispatch({ changes: { from: sel.from, to: sel.to, insert: block } });
+}
+
 // All markdown editing commands
 export const cmd = {
   // Text formatting
@@ -81,11 +124,42 @@ export const cmd = {
     });
   },
 
-  // Insert figure with caption using Typst fig via raw-typst
-  figureWithCaption: (view: EditorView, path: string, width: string, _align: 'left' | 'center' | 'right', caption: string) => {
+  // Insert figure with caption using Typst figure helper and optional alignment/alt text
+  figureWithCaption: (
+    view: EditorView,
+    path: string,
+    width: string,
+    align: 'left' | 'center' | 'right',
+    caption: string,
+    alt = ''
+  ) => {
     const s = view.state.selection.main;
-    const safeCaption = caption.replace(/\n/g, ' ').replace(/\]/g, ')');
-    const block = `\n<!--raw-typst #figure(caption: [${safeCaption}])[#image("${path}", width: ${width})] -->\n`;
+    const sanitizedCaption = caption.trim().replace(/\n+/g, ' ');
+    const captionBlock = sanitizedCaption.length > 0
+      ? `caption: [${sanitizedCaption.replace(/\[/g, '(').replace(/\]/g, ')')}]`
+      : '';
+
+    const normalizedWidth = width.trim();
+    let widthArg = '';
+    if (normalizedWidth) {
+      if (normalizedWidth.toLowerCase() === 'auto') {
+        widthArg = ', width: auto';
+      } else {
+        widthArg = `, width: parse-length("${escapeTypstString(normalizedWidth)}")`;
+      }
+    }
+
+    const altArg = alt.trim().length > 0 ? `, alt: "${escapeTypstString(alt.trim())}"` : '';
+    const imageCall = `#image("${escapeTypstString(path)}"${widthArg}${altArg})`;
+    const figurePrefix = captionBlock ? `#figure(${captionBlock})` : '#figure';
+    const figure = `${figurePrefix}[${imageCall}]`;
+    const aligned = align === 'center'
+      ? `#align(center, ${figure})`
+      : align === 'right'
+        ? `#align(right, ${figure})`
+        : figure;
+
+    const block = `\n<!--raw-typst ${aligned} -->\n`;
     view.dispatch({ changes: { from: s.from, to: s.to, insert: block } });
   },
 
@@ -95,21 +169,24 @@ export const cmd = {
     path: string,
     width: string,
     align: 'left' | 'center' | 'right',
-    rightText: string,
+    columnText: string,
     alt = '',
-    leftText: string = '',
+    underText: string = '',
     position: 'image-left' | 'image-right' = 'image-left'
   ) => {
     const s = view.state.selection.main;
     const alignAttr = ` data-align="${align}"`;
-    const img = `<img src="${path}" alt="${alt.replace(/"/g, '\\"')}" width="${width}"${alignAttr} />`;
-    const imageWithUnder = leftText && leftText.trim().length > 0
-      ? `${img}\n      <div>${leftText}</div>`
-      : `${img}`;
-    const firstCell = position === 'image-left' ? imageWithUnder : rightText;
-    const secondCell = position === 'image-left' ? rightText : imageWithUnder;
+    const widthAttr = width.trim().length > 0 ? ` width="${escapeHtml(width.trim())}"` : '';
+    const img = `<img src="${escapeHtml(path)}" alt="${escapeHtml(alt.trim())}"${widthAttr}${alignAttr} />`;
+    const underHtml = htmlFromText(underText);
+    const imageBlock = underHtml
+      ? `${img}\n<div data-role="image-under-text">${underHtml}</div>`
+      : img;
+    const columnHtml = htmlFromText(columnText) || '&nbsp;';
+    const firstCell = position === 'image-left' ? imageBlock : columnHtml;
+    const secondCell = position === 'image-left' ? columnHtml : imageBlock;
     // Emit a plain HTML table with explicit borderless hints on table and cells
-    const block = `\n<table border="0" cellspacing="0" cellpadding="0" role="presentation" data-borderless="1" style="border-collapse: collapse; border: 0">\n  <tr>\n    <td style="border: 0">${firstCell}</td>\n    <td style="border: 0">${secondCell}</td>\n  </tr>\n</table>\n\n`;
+    const block = `\n<table border="0" cellspacing="0" cellpadding="0" role="presentation" data-borderless="1" data-layout="${position}" style="border-collapse: collapse; border: 0">\n  <tr>\n    <td style="border: 0; vertical-align: top;">${firstCell}</td>\n    <td style="border: 0; vertical-align: top;">${secondCell}</td>\n  </tr>\n</table>\n\n`;
     view.dispatch({ changes: { from: s.from, to: s.to, insert: block } });
   },
 
@@ -246,30 +323,18 @@ export const cmd = {
 
   // Callout/Note box (Typst block)
   noteBox: (view: EditorView) => {
-    const s = view.state.selection.main;
-    const text = view.state.sliceDoc(s.from, s.to) || "Note content";
-    const block = `<!--raw-typst #block(fill: luma(245), inset: 8pt, radius: 6pt, stroke: 0.5pt + luma(200))[\n${text}\n] -->`;
-    view.dispatch({ changes: { from: s.from, to: s.to, insert: block } });
+    insertAdmonition(view, 'note', 'Note content');
   },
 
   // Callout variants
   noteInfo: (view: EditorView) => {
-    const s = view.state.selection.main;
-    const text = view.state.sliceDoc(s.from, s.to) || "Info";
-    const block = `<!--raw-typst #block(fill: rgb(224,242,254), inset: 8pt, radius: 6pt, stroke: 0.5pt + rgb(186,230,253))[\n${text}\n] -->`;
-    view.dispatch({ changes: { from: s.from, to: s.to, insert: block } });
+    insertAdmonition(view, 'info', 'Additional information');
   },
   noteTip: (view: EditorView) => {
-    const s = view.state.selection.main;
-    const text = view.state.sliceDoc(s.from, s.to) || "Tip";
-    const block = `<!--raw-typst #block(fill: rgb(220,252,231), inset: 8pt, radius: 6pt, stroke: 0.5pt + rgb(187,247,208))[\n${text}\n] -->`;
-    view.dispatch({ changes: { from: s.from, to: s.to, insert: block } });
+    insertAdmonition(view, 'tip', 'Helpful tip');
   },
   noteWarn: (view: EditorView) => {
-    const s = view.state.selection.main;
-    const text = view.state.sliceDoc(s.from, s.to) || "Warning";
-    const block = `<!--raw-typst #block(fill: rgb(254,249,195), inset: 8pt, radius: 6pt, stroke: 0.5pt + rgb(253,224,71))[\n${text}\n] -->`;
-    view.dispatch({ changes: { from: s.from, to: s.to, insert: block } });
+    insertAdmonition(view, 'warning', 'Warning details');
   },
 
   // Layout helpers (Typst blocks)

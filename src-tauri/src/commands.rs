@@ -1,4 +1,4 @@
-use crate::renderer;
+use crate::renderer::{self, RenderedDocument};
 use crate::utils;
 use crate::preferences;
 use anyhow::Result;
@@ -288,15 +288,13 @@ pub async fn import_image_from_path(
 pub async fn render_markdown(
     app_handle: AppHandle,
     file_path: &str,
-) -> Result<String, String> {
+) -> Result<RenderedDocument, String> {
     match renderer::render_markdown(&app_handle, file_path).await {
-        Ok(pdf_path) => {
-            // Emit the compiled event with the PDF path
-            let _ = app_handle.emit("compiled", &pdf_path);
-            Ok(pdf_path)
+        Ok(document) => {
+            let _ = app_handle.emit("compiled", &document);
+            Ok(document)
         }
         Err(e) => {
-            // Emit compile error event
             let _ = app_handle.emit("compile-error", e.to_string());
             Err(e.to_string())
         }
@@ -367,15 +365,13 @@ pub async fn render_typst(
     app_handle: AppHandle,
     content: &str,
     format: &str,
-) -> Result<String, String> {
+) -> Result<RenderedDocument, String> {
     match renderer::render_typst(&app_handle, content, format).await {
-        Ok(output_path) => {
-            // Emit the compiled event with the output path
-            let _ = app_handle.emit("compiled", &output_path);
-            Ok(output_path)
+        Ok(document) => {
+            let _ = app_handle.emit("compiled", &document);
+            Ok(document)
         }
         Err(e) => {
-            // Emit compile error event
             let _ = app_handle.emit("compile-error", e.to_string());
             Err(e.to_string())
         }

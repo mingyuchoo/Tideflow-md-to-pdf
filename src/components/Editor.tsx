@@ -3,12 +3,21 @@ import { EditorView, basicSetup } from 'codemirror';
 import { markdown } from '@codemirror/lang-markdown';
 import { keymap } from '@codemirror/view';
 import { useAppStore } from '../store';
-import { writeMarkdownFile, importImage, importImageFromPath, generateImageMarkdown, renderTypst, showOpenDialog, cleanupTempPdfs } from '../api';
+import {
+  writeMarkdownFile,
+  importImage,
+  importImageFromPath,
+  generateImageMarkdown,
+  renderTypst,
+  showOpenDialog,
+  cleanupTempPdfs,
+} from '../api';
 import { showSuccess } from '../utils/errorHandler';
-// import MarkdownToolbar from './MarkdownToolbar';
 import { cmd } from './MarkdownCommands';
 import { FONT_OPTIONS } from './MarkdownToolbar';
+import type { SourceAnchor, SourceMap, SyncMode } from '../types';
 import { handleError } from '../utils/errorHandler';
+import { deriveAltFromPath } from '../utils/image';
 import './Editor.css';
 import ImagePropsModal, { type ImageProps } from './ImagePropsModal';
 import ImagePlusModal, { type ImagePlusChoice } from './ImagePlusModal';
@@ -22,7 +31,11 @@ const Editor: React.FC = () => {
   const contentChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const typingDetectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const scrollIdleTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Debounce editor scroll
-  const scrollSyncRafRef = useRef<number | null>(null);
+  const programmaticScrollRef = useRef(false);
+  const anchorUpdateFromEditorRef = useRef(false);
+  const sourceMapRef = useRef<SourceMap | null>(null);
+  const activeAnchorIdRef = useRef<string | null>(null);
+  const syncModeRef = useRef<SyncMode>('auto');
   const isUserTypingRef = useRef(false); // Track if user is actively typing
   const lastLoadedContentRef = useRef<string>(''); // Track last loaded content
   const prevFileRef = useRef<string | null>(null); // Track previously opened file to avoid resetting editor on each keystroke
@@ -43,19 +56,41 @@ const Editor: React.FC = () => {
     });
   }, []);
 
-  const [imageInitial, setImageInitial] = useState<ImageProps>({ width: '60%', alignment: 'center' });
-  
-  const { 
+  const [imageInitial, setImageInitial] = useState<ImageProps>({ width: '60%', alignment: 'center', alt: '' });
+
+  const {
     editor: { currentFile, content, modified, openFiles },
     setContent,
     setModified,
     setCompileStatus,
     preferences,
-    setEditorScrollRatio,
     setSampleDocContent,
+    sourceMap,
+    setSourceMap,
+    activeAnchorId,
+    setActiveAnchorId,
+    syncMode,
+    setSyncMode,
     isTyping,
     setIsTyping
   } = useAppStore();
+
+  useEffect(() => {
+    sourceMapRef.current = sourceMap;
+  }, [sourceMap]);
+
+  useEffect(() => {
+    activeAnchorIdRef.current = activeAnchorId;
+  }, [activeAnchorId]);
+
+  useEffect(() => {
+    syncModeRef.current = syncMode;
+  }, [syncMode]);
+
+  const isTypingStoreRef = useRef(isTyping);
+  useEffect(() => {
+    isTypingStoreRef.current = isTyping;
+  }, [isTyping]);
 
   // Track openFiles to detect transition to zero and reset refs
   useEffect(() => {
@@ -78,10 +113,12 @@ const Editor: React.FC = () => {
       }
       autoRenderInFlightRef.current = true;
       setCompileStatus({ status: 'running' });
-      const pdfPath = await renderTypst(content, 'pdf');
-      setCompileStatus({ 
-        status: 'ok', 
-        pdf_path: pdfPath 
+      const document = await renderTypst(content, 'pdf');
+      setSourceMap(document.sourceMap);
+      setCompileStatus({
+        status: 'ok',
+        pdf_path: document.pdfPath,
+        source_map: document.sourceMap,
       });
       
       // Clean up old temp PDFs after successful render
@@ -92,11 +129,12 @@ const Editor: React.FC = () => {
         console.warn('Failed to cleanup temp PDFs:', err);
       }
     } catch (err) {
-      setCompileStatus({ 
-        status: 'error', 
-        message: 'Auto-render failed', 
-        details: String(err) 
+      setCompileStatus({
+        status: 'error',
+        message: 'Auto-render failed',
+        details: String(err)
       });
+      setSourceMap(null);
     } finally {
       autoRenderInFlightRef.current = false;
       // If there is a pending update queued during render, render once more with latest snapshot
@@ -249,29 +287,60 @@ const Editor: React.FC = () => {
       
       editorViewRef.current = view;
 
-      // Add scroll listener for ratio based on actual scroll position
-  const scrollEl = (view as unknown as { scrollDOM: HTMLElement }).scrollDOM;
-      const handleScroll = () => {
+      // Add scroll listener to compute active anchor based on viewport
+      const scrollEl = (view as unknown as { scrollDOM: HTMLElement }).scrollDOM;
+      const computeAnchorFromViewport = () => {
         if (!scrollEl) return;
-        if (isUserTypingRef.current || isTyping) return; // Suppress during active typing
-  // Do NOT auto-resume allowAutoSync here; user must click Resume Sync explicitly
-        const maxScroll = scrollEl.scrollHeight - scrollEl.clientHeight;
-        if (maxScroll <= 0) {
-          if (scrollIdleTimeoutRef.current) clearTimeout(scrollIdleTimeoutRef.current);
-          scrollIdleTimeoutRef.current = setTimeout(() => setEditorScrollRatio(0), 120);
-          return;
+        if (programmaticScrollRef.current) return;
+        if (isUserTypingRef.current || isTypingStoreRef.current) return;
+        const map = sourceMapRef.current;
+        if (!map || map.anchors.length === 0) return;
+
+        const top = scrollEl.scrollTop;
+        const bottom = top + scrollEl.clientHeight;
+        const topBlock = view.lineBlockAtHeight(Math.max(0, top));
+        const bottomHeight = Math.max(0, Math.min(scrollEl.scrollHeight - 1, bottom));
+        const bottomBlock = view.lineBlockAtHeight(bottomHeight);
+        const topLine = Math.max(0, view.state.doc.lineAt(topBlock.from).number - 1);
+        const bottomLine = Math.max(0, view.state.doc.lineAt(bottomBlock.to).number - 1);
+        const centerLine = Math.max(0, Math.floor((topLine + bottomLine) / 2));
+
+        let closest: SourceAnchor | null = null;
+        let closestDiff = Number.POSITIVE_INFINITY;
+        for (const anchor of map.anchors) {
+          const diff = Math.abs(anchor.editor.line - centerLine);
+          if (
+            diff < closestDiff ||
+            (diff === closestDiff && anchor.editor.offset < (closest?.editor.offset ?? Number.POSITIVE_INFINITY))
+          ) {
+            closest = anchor;
+            closestDiff = diff;
+          }
         }
-        const ratio = scrollEl.scrollTop / maxScroll;
-        // Debounce to only publish after user pauses scrolling ~120ms
-        if (scrollIdleTimeoutRef.current) clearTimeout(scrollIdleTimeoutRef.current);
-        scrollIdleTimeoutRef.current = setTimeout(() => {
-          setEditorScrollRatio(ratio);
-        }, 120);
+
+        if (!closest) return;
+
+        if (syncModeRef.current === 'locked-to-pdf') {
+          setSyncMode('auto');
+        }
+
+        if (closest.id !== activeAnchorIdRef.current) {
+          anchorUpdateFromEditorRef.current = true;
+          setActiveAnchorId(closest.id);
+        }
       };
+
+      const handleScroll = () => {
+        if (scrollIdleTimeoutRef.current) {
+          clearTimeout(scrollIdleTimeoutRef.current);
+        }
+        scrollIdleTimeoutRef.current = setTimeout(() => {
+          computeAnchorFromViewport();
+        }, 80);
+      };
+
       scrollEl.addEventListener('scroll', handleScroll, { passive: true });
-      // Initial ratio
-      handleScroll();
-      // Attach handler symbolically for cleanup
+      computeAnchorFromViewport();
       (scrollEl as unknown as { _tideflowScrollHandler?: () => void })._tideflowScrollHandler = handleScroll;
     }
     
@@ -279,8 +348,7 @@ const Editor: React.FC = () => {
       // Capture refs locally (lint appeasement; values only used for clearing primitives)
       const timeoutId = contentChangeTimeoutRef.current;
       const typingId = typingDetectionTimeoutRef.current;
-  const rafId = scrollSyncRafRef.current;
-  const scrollIdleId = scrollIdleTimeoutRef.current;
+      const scrollIdleId = scrollIdleTimeoutRef.current;
 
       if (editorViewRef.current) {
         // Remove scroll listener before destroy
@@ -297,11 +365,7 @@ const Editor: React.FC = () => {
       }
       if (timeoutId) clearTimeout(timeoutId);
       if (typingId) clearTimeout(typingId);
-      if (rafId !== null) {
-        try { cancelAnimationFrame(rafId); } catch { /* ignore */ }
-      }
       if (scrollIdleId) clearTimeout(scrollIdleId);
-      scrollSyncRafRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Intentionally empty to prevent recreation
@@ -344,6 +408,44 @@ const Editor: React.FC = () => {
       lastLoadedContentRef.current = content;
     }
   }, [content, currentFile]);
+
+  useEffect(() => {
+    if (!editorViewRef.current) return;
+    if (!sourceMap) return;
+    if (!activeAnchorId) return;
+    if (anchorUpdateFromEditorRef.current) {
+      anchorUpdateFromEditorRef.current = false;
+      return;
+    }
+    if (isTypingStoreRef.current) return;
+    if (syncModeRef.current !== 'locked-to-pdf') return;
+
+    const anchor = sourceMap.anchors.find((candidate) => candidate.id === activeAnchorId);
+    if (!anchor) return;
+
+    const view = editorViewRef.current;
+    programmaticScrollRef.current = true;
+    const effect = EditorView.scrollIntoView(anchor.editor.offset, { y: 'center' });
+    view.dispatch({ effects: effect });
+    requestAnimationFrame(() => {
+      programmaticScrollRef.current = false;
+    });
+  }, [activeAnchorId, sourceMap]);
+
+  useEffect(() => {
+    const anchors = sourceMap?.anchors ?? [];
+    if (anchors.length === 0) {
+      if (activeAnchorId !== null) {
+        setActiveAnchorId(null);
+      }
+      return;
+    }
+    if (activeAnchorId && anchors.some((anchor) => anchor.id === activeAnchorId)) {
+      return;
+    }
+    anchorUpdateFromEditorRef.current = true;
+    setActiveAnchorId(anchors[0].id);
+  }, [sourceMap, activeAnchorId, setActiveAnchorId]);
 
   // Save the file
   const handleSave = async () => {
@@ -392,14 +494,16 @@ const Editor: React.FC = () => {
         // Ask for width/alignment before inserting
         const initial: ImageProps = {
           width: preferences.default_image_width,
-          alignment: preferences.default_image_alignment as ImageProps['alignment']
+          alignment: preferences.default_image_alignment as ImageProps['alignment'],
+          alt: deriveAltFromPath(assetPath)
         };
         const chosen = await promptImageProps(initial);
         if (!chosen) return; // cancelled
         const imageMarkdown = generateImageMarkdown(
           assetPath,
           chosen.width,
-          chosen.alignment
+          chosen.alignment,
+          chosen.alt
         );
         insertSnippet(imageMarkdown);
         // Seed Image+ modal path for convenience
@@ -419,18 +523,20 @@ const Editor: React.FC = () => {
   const handleRender = async () => {
     try {
       setCompileStatus({ status: 'running' });
-      
-      const pdfPath = await renderTypst(content, 'pdf');
-      setCompileStatus({ 
-        status: 'ok', 
-        pdf_path: pdfPath 
+      const document = await renderTypst(content, 'pdf');
+      setSourceMap(document.sourceMap);
+      setCompileStatus({
+        status: 'ok',
+        pdf_path: document.pdfPath,
+        source_map: document.sourceMap,
       });
     } catch (err) {
-      setCompileStatus({ 
-        status: 'error', 
-        message: 'Rendering failed', 
-        details: String(err) 
+      setCompileStatus({
+        status: 'error',
+        message: 'Rendering failed',
+        details: String(err)
       });
+      setSourceMap(null);
     }
   };
 
@@ -470,7 +576,8 @@ const Editor: React.FC = () => {
             const imageMarkdown = generateImageMarkdown(
               assetPath,
               preferences.default_image_width,
-              preferences.default_image_alignment
+              preferences.default_image_alignment,
+              'Pasted image'
             );
             
             insertSnippet(imageMarkdown);
@@ -505,7 +612,8 @@ const Editor: React.FC = () => {
             const imageMarkdown = generateImageMarkdown(
               assetPath,
               preferences.default_image_width,
-              preferences.default_image_alignment
+              preferences.default_image_alignment,
+              deriveAltFromPath(file.name)
             );
             
             insertSnippet(imageMarkdown);
@@ -749,17 +857,16 @@ const Editor: React.FC = () => {
               setImagePlusOpen(false);
               if (!editorViewRef.current) return;
               if (choice.kind === 'figure') {
-                const { path, width, alignment, caption } = choice.data;
-                // Insert Typst figure with caption
-                cmd.figureWithCaption(editorViewRef.current, path, width, alignment, caption);
+                const { path, width, alignment, caption, alt } = choice.data;
+                // Insert Typst figure with caption and accessible alt text
+                cmd.figureWithCaption(editorViewRef.current, path, width, alignment, caption, alt);
               } else {
-                const { path, width, alignment, rightText, alt, leftText, position } = choice.data;
-                // Insert HTML table with image + text columns (optional left text under image) and layout position
-                cmd.imageWithTextColumns(editorViewRef.current, path, width, alignment, rightText, alt, leftText, position);
+                const { path, width, alignment, columnText, alt, underText, position } = choice.data;
+                // Insert HTML table with image + text columns (optional under-image text) and layout position
+                cmd.imageWithTextColumns(editorViewRef.current, path, width, alignment, columnText, alt, underText, position);
               }
               // seed future openings
-              if (choice.kind === 'figure') setImagePlusPath(choice.data.path);
-              if (choice.kind === 'columns') setImagePlusPath(choice.data.path);
+              setImagePlusPath(choice.data.path);
             }}
           />
         </>

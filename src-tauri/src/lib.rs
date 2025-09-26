@@ -1,5 +1,6 @@
 mod commands;
 mod preferences;
+mod preprocessor;
 mod renderer;
 mod utils;
 

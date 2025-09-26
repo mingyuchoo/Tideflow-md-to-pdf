@@ -1,119 +1,110 @@
 import type { Preferences } from './types';
 import { defaultPreferences } from './store';
 
-// Academic - Formal, structured, scholarly
-export const academic: Preferences = {
-  ...defaultPreferences,
-  papersize: 'a4',
-  margin: { x: '2.5cm', y: '2.5cm' },
-  fonts: { main: 'Times New Roman', mono: 'Courier New' },
-  toc: false,
-  toc_title: 'Table of Contents',
-  number_sections: true,
-  default_image_width: '75%',
-  default_image_alignment: 'center',
+export interface ThemeDefinition {
+  id: string;
+  name: string;
+  description: string;
+  preferences: Preferences;
+}
+
+const mergePreferences = (overrides: Partial<Preferences>): Preferences => {
+  return {
+    ...defaultPreferences,
+    ...overrides,
+    margin: {
+      ...defaultPreferences.margin,
+      ...(overrides.margin ?? {}),
+    },
+    fonts: {
+      ...defaultPreferences.fonts,
+      ...(overrides.fonts ?? {}),
+    },
+  };
 };
 
-// Modern - Clean, contemporary, professional
-export const modern: Preferences = {
-  ...defaultPreferences,
-  papersize: 'a4',
-  margin: { x: '1.8cm', y: '2.2cm' },
-  fonts: { main: 'Segoe UI', mono: 'Consolas' },
-  toc: false,
-  toc_title: 'Contents',
-  number_sections: false,
-  default_image_width: '85%',
-  default_image_alignment: 'center',
+export const themePresets: Record<string, ThemeDefinition> = {
+  default: {
+    id: 'default',
+    name: 'Default',
+    description: 'Balanced typography with generous margins and serif body text.',
+    preferences: mergePreferences({
+      theme_id: 'default',
+      fonts: { main: 'Times New Roman', mono: 'Courier New' },
+      margin: { x: '2cm', y: '2.5cm' },
+      toc: false,
+      number_sections: true,
+      default_image_width: '80%',
+      default_image_alignment: 'center',
+    }),
+  },
+  classic: {
+    id: 'classic',
+    name: 'Classic',
+    description: 'Elegant serif headings with traditional book-inspired spacing.',
+    preferences: mergePreferences({
+      theme_id: 'classic',
+      fonts: { main: 'Garamond', mono: 'Courier New' },
+      margin: { x: '2.5cm', y: '3cm' },
+      toc: true,
+      toc_title: 'Contents',
+      number_sections: true,
+      default_image_width: '70%',
+    }),
+  },
+  modern: {
+    id: 'modern',
+    name: 'Modern',
+    description: 'Clean sans-serif typography with crisp headings and accents.',
+    preferences: mergePreferences({
+      theme_id: 'modern',
+      fonts: { main: 'Segoe UI', mono: 'Consolas' },
+      margin: { x: '1.8cm', y: '2.2cm' },
+      toc: false,
+      number_sections: false,
+      default_image_width: '85%',
+    }),
+  },
+  academic: {
+    id: 'academic',
+    name: 'Academic',
+    description: 'Scholarly layout with structured headings and restrained palette.',
+    preferences: mergePreferences({
+      theme_id: 'academic',
+      fonts: { main: 'Palatino Linotype', mono: 'Courier New' },
+      margin: { x: '2.5cm', y: '2.5cm' },
+      toc: true,
+      toc_title: 'Table of Contents',
+      number_sections: true,
+      default_image_width: '75%',
+    }),
+  },
+  journal: {
+    id: 'journal',
+    name: 'Journal',
+    description: 'Editorial layout with expressive headings and expanded spacing.',
+    preferences: mergePreferences({
+      theme_id: 'journal',
+      fonts: { main: 'Georgia', mono: 'Consolas' },
+      margin: { x: '2.2cm', y: '2.8cm' },
+      toc: false,
+      number_sections: false,
+      default_image_width: '85%',
+    }),
+  },
+  colorful: {
+    id: 'colorful',
+    name: 'Colorful',
+    description: 'Vibrant accent colors with geometric heading treatments.',
+    preferences: mergePreferences({
+      theme_id: 'colorful',
+      fonts: { main: 'Candara', mono: 'Consolas' },
+      margin: { x: '1.6cm', y: '2.1cm' },
+      toc: false,
+      number_sections: false,
+      default_image_width: '90%',
+    }),
+  },
 };
 
-// Classic - Traditional, elegant, timeless
-export const classic: Preferences = {
-  ...defaultPreferences,
-  papersize: 'us-letter',
-  margin: { x: '2.2cm', y: '2.8cm' },
-  fonts: { main: 'Georgia', mono: 'Courier New' },
-  toc: false,
-  toc_title: 'Contents',
-  number_sections: true,
-  default_image_width: '70%',
-  default_image_alignment: 'center',
-};
-
-// Minimal - Sparse, focused, distraction-free
-export const minimal: Preferences = {
-  ...defaultPreferences,
-  papersize: 'a4',
-  margin: { x: '1.5cm', y: '2cm' },
-  fonts: { main: 'Arial', mono: 'Consolas' },
-  toc: false,
-  toc_title: '',
-  number_sections: false,
-  default_image_width: '90%',
-  default_image_alignment: 'center',
-};
-
-// Technical - Code-heavy, monospace, developer-focused
-export const technical: Preferences = {
-  ...defaultPreferences,
-  papersize: 'a4',
-  margin: { x: '2cm', y: '2cm' },
-  fonts: { main: 'Consolas', mono: 'Consolas' },
-  toc: false,
-  toc_title: 'Index',
-  number_sections: true,
-  default_image_width: '80%',
-  default_image_alignment: 'left',
-};
-
-// Creative - Artistic, expressive, magazine-style
-export const creative: Preferences = {
-  ...defaultPreferences,
-  papersize: 'a4',
-  margin: { x: '1.2cm', y: '1.8cm' },
-  fonts: { main: 'Comic Sans MS', mono: 'Consolas' },
-  toc: false,
-  toc_title: '',
-  number_sections: false,
-  default_image_width: '95%',
-  default_image_alignment: 'center',
-};
-
-// Business - Professional, corporate, formal
-export const business: Preferences = {
-  ...defaultPreferences,
-  papersize: 'us-letter',
-  margin: { x: '2.5cm', y: '2.5cm' },
-  fonts: { main: 'Calibri', mono: 'Courier New' },
-  toc: false,
-  toc_title: 'Table of Contents',
-  number_sections: true,
-  default_image_width: '70%',
-  default_image_alignment: 'center',
-};
-
-// Journal - Magazine-style, spacious, editorial
-export const journal: Preferences = {
-  ...defaultPreferences,
-  papersize: 'a4',
-  margin: { x: '3cm', y: '3.5cm' },
-  fonts: { main: 'Cambria', mono: 'Consolas' },
-  toc: false,
-  toc_title: 'Contents',
-  number_sections: false,
-  default_image_width: '85%',
-  default_image_alignment: 'center',
-};
-
-
-export const themePresets: Record<string, { name: string; preferences: Preferences }> = {
-  default: { name: 'Default', preferences: defaultPreferences },
-  academic: { name: 'Academic', preferences: academic },
-  modern: { name: 'Modern', preferences: modern },
-  classic: { name: 'Classic', preferences: classic },
-  minimal: { name: 'Minimal', preferences: minimal },
-  technical: { name: 'Technical', preferences: technical },
-  creative: { name: 'Creative', preferences: creative },
-  business: { name: 'Business', preferences: business },
-  journal: { name: 'Journal', preferences: journal },
-};
+export const themeList = Object.values(themePresets);

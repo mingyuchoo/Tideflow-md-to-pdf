@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import './DesignModal.css';
-
-export type ImageAlignment = 'left' | 'center' | 'right';
+import type { ImageAlignment } from '../types';
 
 export interface ImageProps {
   width: string; // e.g., "60%", "300px", "5cm"
   alignment: ImageAlignment;
+  alt: string;
 }
 
 export function ImagePropsModal({
@@ -23,12 +23,23 @@ export function ImagePropsModal({
 }) {
   const [width, setWidth] = useState(initial.width);
   const [alignment, setAlignment] = useState<ImageAlignment>(initial.alignment);
+  const [alt, setAlt] = useState(initial.alt);
   const firstFieldRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     setWidth(initial.width);
     setAlignment(initial.alignment);
+    setAlt(initial.alt);
   }, [initial]);
+
+  useEffect(() => {
+    if (open) {
+      requestAnimationFrame(() => {
+        firstFieldRef.current?.focus();
+        firstFieldRef.current?.select();
+      });
+    }
+  }, [open]);
 
   if (!open) return null;
 
@@ -38,7 +49,7 @@ export function ImagePropsModal({
         <div className="design-modal-header">
           <h2 id="img-modal-title">{title}</h2>
         </div>
-  <div className="design-section">
+        <div className="design-section">
           <div className="form-grid">
             <label htmlFor="img-width">Width
               <input
@@ -61,13 +72,27 @@ export function ImagePropsModal({
                 <option value="right">Right</option>
               </select>
             </label>
+            <label htmlFor="img-alt">Alt text
+              <input
+                id="img-alt"
+                type="text"
+                placeholder="Describe the image for screen readers"
+                value={alt}
+                onChange={(e) => setAlt(e.target.value)}
+              />
+            </label>
           </div>
         </div>
         <div className="design-footer">
           <div className="design-footer-actions">
             <button className="secondary" onClick={onCancel}>Cancel</button>
           </div>
-          <button className="primary" onClick={() => onSave({ width, alignment })}>Save</button>
+          <button
+            className="primary"
+            onClick={() => onSave({ width: width.trim(), alignment, alt: alt.trim() })}
+          >
+            Save
+          </button>
         </div>
       </div>
     </div>

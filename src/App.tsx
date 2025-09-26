@@ -4,13 +4,14 @@ import {
   PanelGroup, 
   PanelResizeHandle 
 } from 'react-resizable-panels';
-import { listen } from "@tauri-apps/api/event";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useAppStore } from './store';
 import { getPreferences, listenForFileChanges, readMarkdownFile } from './api';
 import { loadSession, saveSession } from './utils/session';
 import { handleError } from './utils/errorHandler';
 import './App.css';
 import { SAMPLE_DOC } from './sampleDoc';
+import type { BackendRenderedDocument } from './types';
 
 // Import components
 import TabBar from './components/TabBar';
@@ -21,18 +22,7 @@ import StatusBar from './components/StatusBar';
 
 function App() {
   const [loading, setLoading] = useState(true);
-  const { 
-    setPreferences, 
-    previewVisible, 
-  
-    editor,
-    setCurrentFile,
-    setContent,
-    addOpenFile,
-    initialSampleInjected,
-    setInitialSampleInjected,
-    setSampleDocContent
-  } = useAppStore();
+  const { previewVisible } = useAppStore();
 
   // Simple collapse flag; no persistence
   const previewCollapsed = !previewVisible;
@@ -41,85 +31,114 @@ function App() {
 
   // Initialize app
   useEffect(() => {
+    let unsubscribes: UnlistenFn[] = [];
+    let disposed = false;
+
+    const register = (unlisten: UnlistenFn) => {
+      if (disposed) {
+        try {
+          unlisten();
+        } catch {
+          // ignore cleanup failures for registrations that resolve after teardown
+        }
+      } else {
+        unsubscribes.push(unlisten);
+      }
+    };
+
     const init = async () => {
       try {
         console.log('[App] init start');
-        // Attempt to load previous session before anything else
         const session = loadSession();
+        const store = useAppStore.getState();
+        let sampleInjected = store.initialSampleInjected;
 
-        // Load preferences
         const prefs = await getPreferences();
-        setPreferences(prefs);
+        store.setPreferences(prefs);
+        store.setThemeSelection(prefs.theme_id ?? 'default');
         console.log('[App] preferences loaded', prefs);
-        
-        // Restore session if present and not yet injected
-        if (session && !initialSampleInjected) {
+
+        if (session && !sampleInjected) {
           try {
-            // Restore open files (filter duplicates)
             const restored = Array.from(new Set(session.openFiles || []));
-            if (restored.length > 0) {
-              for (const f of restored) {
-                if (f === 'sample.md') continue; // sample handled separately
-                // Try reading file; skip if unreadable
-                try {
-                  const content = await readMarkdownFile(f);
-                  addOpenFile(f);
-                  if (f === session.currentFile) {
-                    setCurrentFile(f);
-                    setContent(content);
-                  }
-                } catch (e) {
-                  console.warn('[Session] Skipped unreadable file', f, e);
+            for (const f of restored) {
+              if (f === 'sample.md') continue;
+              try {
+                const content = await readMarkdownFile(f);
+                store.addOpenFile(f);
+                if (f === session.currentFile) {
+                  store.setCurrentFile(f);
+                  store.setContent(content);
                 }
+              } catch (e) {
+                console.warn('[Session] Skipped unreadable file', f, e);
               }
             }
-            // Restore sample content (only add if there are no real files or currentFile is sample)
+
             if (session.sampleDocContent) {
-              setSampleDocContent(session.sampleDocContent);
+              store.setSampleDocContent(session.sampleDocContent);
             }
-            if (session.currentFile === 'sample.md' || (restored.length === 0 && !editor.currentFile)) {
-              setCurrentFile('sample.md');
-              addOpenFile('sample.md');
+            if (
+              session.currentFile === 'sample.md' ||
+              (restored.length === 0 && !store.editor.currentFile)
+            ) {
+              store.setCurrentFile('sample.md');
+              store.addOpenFile('sample.md');
               const content = session.sampleDocContent ?? '# Sample Document\n\nStart writing...';
-              setContent(content);
+              store.setContent(content);
             }
-            // Preview visibility
+
             if (typeof session.previewVisible === 'boolean') {
-              // We only have setter for previewVisible (already in store). Use direct call.
+              store.setPreviewVisible(session.previewVisible);
             }
-            setInitialSampleInjected(true);
+
+            store.setInitialSampleInjected(true);
+            sampleInjected = true;
           } catch (e) {
             console.warn('[Session] Failed to restore session, falling back to sample.', e);
           }
         }
 
-        // Initialize with default content if still nothing open
-        if (!editor.currentFile && !initialSampleInjected) {
-          setCurrentFile('sample.md');
-          addOpenFile('sample.md');
-    setContent(SAMPLE_DOC);
-    setSampleDocContent(SAMPLE_DOC);
-      setInitialSampleInjected(true);
+        if (!store.editor.currentFile && !sampleInjected) {
+          store.setCurrentFile('sample.md');
+          store.addOpenFile('sample.md');
+          store.setContent(SAMPLE_DOC);
+          store.setSampleDocContent(SAMPLE_DOC);
+          store.setInitialSampleInjected(true);
+          sampleInjected = true;
         }
-        
-        // Setup file change listener
-        await listenForFileChanges((filePath) => {
-          if (filePath === editor.currentFile) {
-            // Notify about file change if it's the current file
-            // Could trigger reload or render here
+
+        try {
+          const unlistenFiles = await listenForFileChanges((filePath) => {
+            const { editor: currentEditor } = useAppStore.getState();
+            if (filePath === currentEditor.currentFile) {
+              // Placeholder for future reload logic.
+            }
+          });
+          register(unlistenFiles);
+        } catch (e) {
+          console.warn('[App] Failed to register file-change listener', e);
+        }
+
+        const unlistenCompiled = await listen<BackendRenderedDocument>('compiled', (evt) => {
+          const { pdf_path, source_map } = evt.payload;
+          const state = useAppStore.getState();
+          state.setCompileStatus({ status: 'ok', pdf_path, source_map });
+          state.setSourceMap(source_map);
+          if (!state.activeAnchorId && source_map.anchors.length > 0) {
+            state.setActiveAnchorId(source_map.anchors[0].id);
           }
         });
+        register(unlistenCompiled);
 
-        // Setup compile event listeners
-        const unlistenCompiled = await listen<string>("compiled", (evt) => {
-          useAppStore.getState().setCompileStatus({ status: 'ok', pdf_path: evt.payload });
+        const unlistenCompileError = await listen<string>('compile-error', (evt) => {
+          const state = useAppStore.getState();
+          state.setCompileStatus({ status: 'error', message: 'Compile failed', details: evt.payload });
+          state.setSourceMap(null);
         });
+        register(unlistenCompileError);
 
-        const unlistenCompileError = await listen<string>("compile-error", (evt) => {
-          useAppStore.getState().setCompileStatus({ status: 'error', message: 'Compile failed', details: evt.payload });
-        });
-
-        const unlistenPrefsDump = await listen<string>("prefs-dump", (evt) => {
+        const unlistenPrefsDump = await listen<string>('prefs-dump', (evt) => {
           try {
             const json = JSON.parse(evt.payload);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -128,47 +147,56 @@ function App() {
             console.log('[PrefsDump] raw:', evt.payload);
           }
         });
+        register(unlistenPrefsDump);
 
-        const unlistenRenderDebug = await listen<string>("render-debug", (evt) => {
+        const unlistenRenderDebug = await listen<string>('render-debug', (evt) => {
           console.log('[RenderDebug]', evt.payload);
         });
+        register(unlistenRenderDebug);
 
-        const unlistenTemplateInspect = await listen<string>("template-inspect", (evt) => {
+        const unlistenTemplateInspect = await listen<string>('template-inspect', (evt) => {
           console.log('[TemplateInspect]', evt.payload);
         });
-        const unlistenTemplateWarning = await listen<string>("template-warning", (evt) => {
+        register(unlistenTemplateInspect);
+
+        const unlistenTemplateWarning = await listen<string>('template-warning', (evt) => {
           console.warn('[TemplateWarning]', evt.payload);
         });
+        register(unlistenTemplateWarning);
 
-        const unlistenPrefsWrite = await listen<string>("prefs-write", (evt) => {
+        const unlistenPrefsWrite = await listen<string>('prefs-write', (evt) => {
           console.log('[PrefsWrite]', evt.payload);
         });
+        register(unlistenPrefsWrite);
 
-        const unlistenPrefsRead = await listen<string>("prefs-read", (evt) => {
+        const unlistenPrefsRead = await listen<string>('prefs-read', (evt) => {
           console.log('[PrefsRead]', evt.payload);
         });
-
-        // Cleanup listeners on component unmount
-        return () => {
-          unlistenCompiled();
-          unlistenCompileError();
-          unlistenPrefsDump();
-          unlistenRenderDebug();
-          unlistenTemplateInspect();
-          unlistenTemplateWarning();
-          unlistenPrefsWrite();
-          unlistenPrefsRead();
-        };
+        register(unlistenPrefsRead);
       } catch (error) {
         handleError(error, { operation: 'initialize app', component: 'App' });
       } finally {
-        setLoading(false);
-        console.log('[App] init complete');
+        if (!disposed) {
+          setLoading(false);
+          console.log('[App] init complete');
+        }
       }
     };
-    
+
     init();
-  }, [editor.currentFile, setPreferences, setCurrentFile, setContent, addOpenFile, initialSampleInjected, setInitialSampleInjected, setSampleDocContent]);
+
+    return () => {
+      disposed = true;
+      for (const unlisten of unsubscribes) {
+        try {
+          unlisten();
+        } catch {
+          // ignore cleanup failures
+        }
+      }
+      unsubscribes = [];
+    };
+  }, []);
 
   // Autosave session when key state changes
   const { openFiles, currentFile } = useAppStore(s => s.editor);
