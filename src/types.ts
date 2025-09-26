@@ -16,10 +16,15 @@ export interface Fonts {
 }
 
 export interface Preferences {
+  theme_id: string;
   papersize: string;  // Changed from paper_size to papersize for Typst compatibility
   margin: Margins;    // Changed from margins to margin for Typst compatibility
   toc: boolean;
   toc_title: string; // empty string => no heading
+  cover_page: boolean;
+  cover_title: string;
+  cover_writer: string;
+  cover_image: string;
   number_sections: boolean;
   default_image_width: string;
   default_image_alignment: string;
@@ -35,6 +40,7 @@ export interface CompileStatus {
   message?: string;
   details?: string;
   pdf_path?: string;
+  source_map?: SourceMap;
 }
 
 export type ImageAlignment = 'left' | 'center' | 'right';
@@ -45,4 +51,38 @@ export interface EditorState {
   content: string;
   modified: boolean;
   compileStatus: CompileStatus;
+}
+
+export type SyncMode = 'auto' | 'locked-to-pdf' | 'locked-to-editor';
+
+export interface EditorLocation {
+  offset: number;
+  line: number;
+  column: number;
+}
+
+export interface PdfAnchorPosition {
+  page: number;
+  x: number;
+  y: number;
+}
+
+export interface SourceAnchor {
+  id: string;
+  editor: EditorLocation;
+  pdf?: PdfAnchorPosition;
+}
+
+export interface SourceMap {
+  anchors: SourceAnchor[];
+}
+
+export interface BackendRenderedDocument {
+  pdf_path: string;
+  source_map: SourceMap;
+}
+
+export interface RenderedDocument {
+  pdfPath: string;
+  sourceMap: SourceMap;
 }

@@ -11,12 +11,12 @@ Write on the left, get a beautifully typeset PDF on the right – instantly.
 I wanted a dead-simple, elegant writing tool that outputs print‑ready PDFs **without relying on a web service**, LaTeX toolchains, or heavy exports. Typst provides expressive, modern typesetting; Tauri keeps the footprint tiny; React + CodeMirror makes the editing experience fluid. Tideflow is the glue.
 
 ## Features
-* Real‑time PDF rendering (Typst under the hood)
-* Clean, distraction‑lite editor (CodeMirror 6) with smart debounced compilation
-* Automatic Table of Contents & optional section numbering
-* Image paste & drag‑drop (auto saves into managed assets directory)
+* Real‑time Typst rendering with pixel-perfect, two-way scroll sync between editor & PDF preview
+* Clean, distraction‑lite editor (CodeMirror 6) with smart debounced compilation & scroll-lock controls
+* Automatic Table of Contents, optional section numbering, and configurable cover page
+* Image paste, drag‑drop, and import dialogs with accessible metadata capture
 * Math (inline / block) via LaTeX-style syntax
-* Theme dropdown (placeholders) + Design modal with core layout & image settings (auto-applies)
+* Theme registry with bundled Typst themes (Default, Classic, Modern, Academic, Journal, Colorful) plus per-document overrides
 * Offline: once installed, **no network required**
 * Cross‑platform (Windows / macOS / Linux)
 * Fast startup: no giant runtime or Electron bloat
@@ -88,7 +88,7 @@ npm run tauri:build
 1. New / Open a file (or start with the sample)
 2. Write Markdown (math, code, images all supported)
 3. Watch instant PDF updates (debounce respects your preferences)
-4. Export or copy the generated PDF (Save As coming soon)
+4. Export or copy the generated PDF (use **Save PDF As** to pick a destination)
 
 ## Supported Markdown / Extras
 * Headings, emphasis, strike, code, block + inline math
@@ -99,15 +99,22 @@ npm run tauri:build
 * TOC + numbering (via Typst template)
 
 ## Preferences / Configuration
-A lightweight Design modal now provides basic editable settings (paper size, margins, fonts, TOC, numbering, default image width/alignment, debounce). A theme dropdown lists placeholder presets (Classic, Mono, Serif) plus Custom. Selecting or editing any field auto-applies and switches the selection to Custom. Planned tokens (accent color, heading scale, metadata) appear as placeholders.
+Open the **Design** modal from the toolbar to adjust layout, typography, and document chrome without leaving the editor.
+
+* **Themes** – Pick from the bundled Typst themes or continue with your saved custom tweaks.
+* **Layout** – Configure paper size, margins, TOC, numbering, and new cover-page metadata (title, author, hero image).
+* **Images** – Set default width/alignment plus alt-text defaults for imports.
+* **Debounce & rendering** – Fine-tune compile cadence or temporarily pause auto renders.
+
+Changes apply instantly and persist via the shared preferences pipeline across Rust + TypeScript.
 
 ## Architecture Overview
 ```
 ┌────────────┐   keystrokes   ┌───────────────┐   invoke (IPC)   ┌────────────┐
 │ CodeMirror │ ─────────────▶ │  Zustand Store │ ───────────────▶ │  Rust/Tauri │
 └────────────┘    state set    └───────────────┘    spawn Typst    └─────┬──────┘
-       ▲                               │                             PDF path
-       │  iframe reload (pdf_path)     │ update compileStatus             │
+       ▲                               │                          PDF path +
+       │         anchor updates        │                     scroll source-map
        └───────────────  PDFPreview ◀──┴──────────────────────────────────┘
 ```
 
@@ -115,23 +122,25 @@ A lightweight Design modal now provides basic editable settings (paper size, mar
 ```
 Md-to-PDF/
 ├── src/
-│   ├── components/        # Editor, PDFPreview, Toolbar, TabBar, etc.
-│   ├── store.ts           # Zustand app state
-│   ├── api.ts             # Tauri invoke bindings
+│   ├── components/        # Editor, PDFPreview, Toolbar, Design modal, etc.
+│   ├── store.ts           # Zustand app state + scroll-sync machine
+│   ├── api.ts             # Tauri invoke bindings & render queue
 │   └── types.ts           # Shared TypeScript interfaces
 ├── src-tauri/
 │   ├── src/               # Rust commands (render, export, prefs)
-│   ├── content/           # Templates (e.g. tideflow.typ, sample docs)
+│   ├── content/           # Templates & theme partials (tideflow.typ, themes/*.typ)
 │   ├── styles/            # Typst style files
 │   └── bin/typst/         # Bundled Typst binaries per platform
 └── public/                # Static assets
 ```
 
 ## Roadmap
-* [ ] PDF export dialog with destination picker
+* [x] PDF export dialog with destination picker
+* [x] Real theme system with Typst partials & persisted presets
+* [x] Anchor-based scroll sync with bidirectional lock controls
+* [x] Cover page toggle + metadata editor
 * [ ] Dark theme + high-contrast mode
 * [ ] Incremental / partial rendering optimization
-* [ ] Minimal config surface (fonts / page / debounce)
 * [ ] Built-in template gallery (report, memo, article)
 * [ ] Image optimization pipeline (resize/compress)
 * [ ] Spellcheck + grammar hooks

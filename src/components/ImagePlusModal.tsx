@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import './DesignModal.css';
 import { showOpenDialog, importImageFromPath } from '../api';
+import type { ImageAlignment } from '../types';
+import { deriveAltFromPath } from '../utils/image';
 
-export type ImageAlignment = 'left' | 'center' | 'right';
+type LayoutPosition = 'image-left' | 'image-right';
 
 interface FigureData {
   path: string;
@@ -16,15 +18,26 @@ interface ColumnsData {
   path: string;
   width: string;
   alignment: ImageAlignment;
-  rightText: string;
   alt: string;
-  leftText?: string;
-  position?: 'image-left' | 'image-right';
+  columnText: string;
+  underText?: string;
+  position: LayoutPosition;
 }
 
 export type ImagePlusChoice =
   | { kind: 'figure'; data: FigureData }
   | { kind: 'columns'; data: ColumnsData };
+
+interface ImagePlusModalProps {
+  open: boolean;
+  initialPath: string;
+  defaultWidth: string;
+  defaultAlignment: ImageAlignment;
+  onCancel: () => void;
+  onChoose: (choice: ImagePlusChoice) => void;
+}
+
+const COLUMN_PLACEHOLDER = 'Add accompanying text here.';
 
 export function ImagePlusModal({
   open,
@@ -33,32 +46,70 @@ export function ImagePlusModal({
   defaultAlignment,
   onCancel,
   onChoose
-}: {
-  open: boolean;
-  initialPath: string;
-  defaultWidth: string;
-  defaultAlignment: ImageAlignment;
-  onCancel: () => void;
-  onChoose: (choice: ImagePlusChoice) => void;
-}) {
+}: ImagePlusModalProps) {
   const [mode, setMode] = useState<'figure' | 'columns'>('figure');
   const [path, setPath] = useState(initialPath);
   const [width, setWidth] = useState(defaultWidth);
   const [alignment, setAlignment] = useState<ImageAlignment>(defaultAlignment);
   const [caption, setCaption] = useState('');
-  const [alt, setAlt] = useState('');
-  const [rightText, setRightText] = useState('Right column text');
-  const [leftText, setLeftText] = useState('');
-  const [position, setPosition] = useState<'image-left' | 'image-right'>('image-left');
+  const [alt, setAlt] = useState(deriveAltFromPath(initialPath));
+  const [altTouched, setAltTouched] = useState(false);
+  const [columnText, setColumnText] = useState('');
+  const [underText, setUnderText] = useState('');
+  const [position, setPosition] = useState<LayoutPosition>('image-left');
   const firstFieldRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
+    if (!open) return;
+
+    setMode('figure');
     setPath(initialPath);
     setWidth(defaultWidth);
     setAlignment(defaultAlignment);
-  }, [initialPath, defaultWidth, defaultAlignment]);
+    setCaption('');
+    setColumnText('');
+    setUnderText('');
+    setPosition('image-left');
+    setAlt(deriveAltFromPath(initialPath));
+    setAltTouched(false);
+
+    requestAnimationFrame(() => {
+      firstFieldRef.current?.focus();
+      firstFieldRef.current?.select();
+    });
+  }, [open, initialPath, defaultWidth, defaultAlignment]);
+
+  useEffect(() => {
+    if (!open || altTouched) return;
+    setAlt(deriveAltFromPath(path));
+  }, [path, open, altTouched]);
 
   if (!open) return null;
+
+  const handlePickImage = async () => {
+    try {
+      const selectedFile = await showOpenDialog([
+        { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg'] }
+      ]);
+      if (!selectedFile) return;
+
+      const assetPath = await importImageFromPath(selectedFile);
+      setPath(assetPath);
+      if (!altTouched) {
+        setAlt(deriveAltFromPath(assetPath));
+      }
+    } catch (err) {
+      console.error('Failed to pick image:', err);
+    }
+  };
+
+  const sanitizedPath = path.trim();
+  const sanitizedWidth = width.trim();
+  const sanitizedCaption = caption.trim();
+  const sanitizedAlt = alt.trim();
+  const sanitizedColumn = columnText.trim();
+  const sanitizedUnder = underText.trim();
+  const canInsert = sanitizedPath.length > 0;
 
   return (
     <div className="design-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="imgplus-modal-title">
@@ -66,10 +117,15 @@ export function ImagePlusModal({
         <div className="design-modal-header">
           <h2 id="imgplus-modal-title">Insert Image+</h2>
         </div>
+
         <div className="design-section">
           <div className="form-grid one-col">
             <label htmlFor="imgplus-mode">Insert as
-              <select id="imgplus-mode" value={mode} onChange={(e) => setMode(e.target.value as 'figure' | 'columns')}>
+              <select
+                id="imgplus-mode"
+                value={mode}
+                onChange={(e) => setMode(e.target.value as 'figure' | 'columns')}
+              >
                 <option value="figure">Figure with caption</option>
                 <option value="columns">Image + text columns</option>
               </select>
@@ -91,20 +147,7 @@ export function ImagePlusModal({
             </label>
             <label>
               Pick image
-              <button
-                onClick={async () => {
-                  try {
-                    const selectedFile = await showOpenDialog([
-                      { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg'] },
-                    ]);
-                    if (!selectedFile) return;
-                    const assetPath = await importImageFromPath(selectedFile);
-                    setPath(assetPath);
-                  } catch (err) {
-                    console.error('Failed to pick image:', err);
-                  }
-                }}
-              >
+              <button type="button" onClick={handlePickImage}>
                 Pick…
               </button>
             </label>
@@ -132,9 +175,12 @@ export function ImagePlusModal({
               <input
                 id="imgplus-alt"
                 type="text"
-                placeholder="Short description"
+                placeholder="Describe the image"
                 value={alt}
-                onChange={(e) => setAlt(e.target.value)}
+                onChange={(e) => {
+                  setAltTouched(true);
+                  setAlt(e.target.value);
+                }}
               />
             </label>
           </div>
@@ -163,70 +209,71 @@ export function ImagePlusModal({
                 <select
                   id="imgplus-layout"
                   value={position}
-                  onChange={(e) => setPosition(e.target.value as 'image-left' | 'image-right')}
+                  onChange={(e) => setPosition(e.target.value as LayoutPosition)}
                 >
                   <option value="image-left">Image left, text right</option>
                   <option value="image-right">Image right, text left</option>
                 </select>
               </label>
-              {position === 'image-right' ? (
-                <>
-                  <label htmlFor="imgplus-right">Left column text
-                    <textarea
-                      id="imgplus-right"
-                      placeholder="Text to appear to the left of the image"
-                      value={rightText}
-                      onChange={(e) => setRightText(e.target.value)}
-                      rows={4}
-                    />
-                  </label>
-                  <label htmlFor="imgplus-left">Under-image text (optional; shown below the image)
-                    <textarea
-                      id="imgplus-left"
-                      placeholder="Text to appear directly under the image"
-                      value={leftText}
-                      onChange={(e) => setLeftText(e.target.value)}
-                      rows={2}
-                    />
-                  </label>
-                </>
-              ) : (
-                <>
-                  <label htmlFor="imgplus-left">Under-image text (optional; shown below the image)
-                    <textarea
-                      id="imgplus-left"
-                      placeholder="Text to appear directly under the image"
-                      value={leftText}
-                      onChange={(e) => setLeftText(e.target.value)}
-                      rows={2}
-                    />
-                  </label>
-                  <label htmlFor="imgplus-right">Right column text
-                    <textarea
-                      id="imgplus-right"
-                      placeholder="Text to appear to the right of the image"
-                      value={rightText}
-                      onChange={(e) => setRightText(e.target.value)}
-                      rows={4}
-                    />
-                  </label>
-                </>
-              )}
+              <label htmlFor="imgplus-column">Column text
+                <textarea
+                  id="imgplus-column"
+                  placeholder={COLUMN_PLACEHOLDER}
+                  value={columnText}
+                  onChange={(e) => setColumnText(e.target.value)}
+                  rows={4}
+                />
+              </label>
+              <label htmlFor="imgplus-under">Under-image text (optional)
+                <textarea
+                  id="imgplus-under"
+                  placeholder="Text to show directly below the image"
+                  value={underText}
+                  onChange={(e) => setUnderText(e.target.value)}
+                  rows={2}
+                />
+              </label>
             </div>
           </div>
         )}
 
         <div className="design-footer">
           <div className="design-footer-actions">
-            <button className="secondary" onClick={onCancel}>Cancel</button>
+            <button className="secondary" type="button" onClick={onCancel}>Cancel</button>
           </div>
           <button
             className="primary"
+            type="button"
+            disabled={!canInsert}
             onClick={() => {
+              if (!canInsert) {
+                return;
+              }
+
               if (mode === 'figure') {
-                onChoose({ kind: 'figure', data: { path, width, alignment, caption, alt } });
+                onChoose({
+                  kind: 'figure',
+                  data: {
+                    path: sanitizedPath,
+                    width: sanitizedWidth,
+                    alignment,
+                    caption: sanitizedCaption,
+                    alt: sanitizedAlt
+                  }
+                });
               } else {
-                onChoose({ kind: 'columns', data: { path, width, alignment, rightText, alt, leftText, position } });
+                onChoose({
+                  kind: 'columns',
+                  data: {
+                    path: sanitizedPath,
+                    width: sanitizedWidth,
+                    alignment,
+                    alt: sanitizedAlt,
+                    columnText: sanitizedColumn,
+                    underText: sanitizedUnder,
+                    position
+                  }
+                });
               }
             }}
           >

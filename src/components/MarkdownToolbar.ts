@@ -31,7 +31,9 @@ export const TOOLBAR_CONFIG: ToolbarItem[] = [
   { type: "button", id: "image", label: "🖼", tooltip: "Insert image" },
   { type: "button", id: "table", label: "▦", tooltip: "Insert table" },
   { type: "button", id: "hr", label: "—", tooltip: "Horizontal rule" },
-  
+  { type: "button", id: "note", label: "📝", tooltip: "Insert note" },
+  { type: "button", id: "warning", label: "⚠️", tooltip: "Insert warning" },
+
   { type: "divider" },
   
   // Layout helpers

@@ -261,6 +261,7 @@ fn create_default_config_files(app_handle: &AppHandle) -> Result<()> {
         // Create default prefs.json if it doesn't exist
         if !prefs_json_path.exists() {
         let default_prefs_json = r#"{
+  "theme_id": "default",
   "papersize": "a4",
   "margin": {
     "x": "2cm",

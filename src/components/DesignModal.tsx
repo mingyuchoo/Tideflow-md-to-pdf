@@ -45,18 +45,18 @@ const DesignModal: React.FC = () => {
     if (!autoApply) return; // manual mode; only local state updates
     if (applyTimer.current) window.clearTimeout(applyTimer.current);
     const seq = ++applySeq.current;
-  console.log('[DesignModal][schedule]', { seq, toc: next.toc });
+    console.log('[DesignModal][schedule]', { seq, toc: next.toc, cover: next.cover_page });
     applyTimer.current = window.setTimeout(async () => {
       try {
         if (seq !== latestSeq()) {
           console.log('[DesignModal][apply-skip-stale]', { seq, current: latestSeq() });
           return;
         }
-  console.log('[DesignModal][apply-fire]', { seq, toc: next.toc });
+        console.log('[DesignModal][apply-fire]', { seq, toc: next.toc, cover: next.cover_page });
         setCompileStatus({ status: 'running' });
-  setPreferences(next);            // update in-memory store
-  await persistPreferences(next);  // persist to backend _prefs.json
-  debugPaths().then(info => console.log('[DesignModal][auto]', info)).catch(()=>{});
+        setPreferences(next);            // update in-memory store
+        await persistPreferences(next);  // persist to backend _prefs.json
+        debugPaths().then(info => console.log('[DesignModal][auto]', info)).catch(()=>{});
         await rerenderCurrent();
       } catch (e) {
         // swallow for now; could surface a toast
@@ -67,28 +67,28 @@ const DesignModal: React.FC = () => {
 
   const mutate = (patch: Partial<Preferences>) => {
     const next: Preferences = { ...local, ...patch } as Preferences;
-  console.log('[DesignModal][mutate]', { from: { toc: local.toc }, to: { toc: next.toc } });
+    console.log('[DesignModal][mutate]', { from: { toc: local.toc, cover: local.cover_page }, to: { toc: next.toc, cover: next.cover_page } });
     setLocal(next);
     setDirty(true);
     if (themeSelection !== 'custom') setThemeSelection('custom');
     // Immediate apply for TOC (race prone) else debounced
-  if (Object.prototype.hasOwnProperty.call(patch, 'toc')) {
+    if (Object.prototype.hasOwnProperty.call(patch, 'toc') || Object.prototype.hasOwnProperty.call(patch, 'cover_page')) {
       // Cancel pending timer
       if (applyTimer.current) {
         window.clearTimeout(applyTimer.current);
         applyTimer.current = null;
       }
       const seq = ++applySeq.current;
-      console.log('[DesignModal][immediate-toc-apply]', { seq, toc: next.toc });
+      console.log('[DesignModal][immediate-structure-apply]', { seq, toc: next.toc, cover: next.cover_page });
       (async () => {
         try {
           setCompileStatus({ status: 'running' });
           setPreferences(next);
           await persistPreferences(next);
-          debugPaths().then(info => console.log('[DesignModal][immediate-toc-meta]', info)).catch(()=>{});
+          debugPaths().then(info => console.log('[DesignModal][immediate-structure-meta]', info)).catch(()=>{});
           await rerenderCurrent();
         } catch (e) {
-          console.warn('[DesignModal] immediate toc apply failed', e);
+          console.warn('[DesignModal] immediate structure apply failed', e);
         }
       })();
     } else {
@@ -99,13 +99,22 @@ const DesignModal: React.FC = () => {
   const handlePresetSelect = (id: string) => {
     setThemeSelection(id);
     if (id === 'custom') {
-      setLocal(lastCustomPreferences);
-      scheduleApply(lastCustomPreferences);
+      const snapshot: Preferences = {
+        ...lastCustomPreferences,
+        margin: { ...lastCustomPreferences.margin },
+        fonts: { ...lastCustomPreferences.fonts },
+      };
+      setLocal(snapshot);
+      scheduleApply(snapshot);
       return;
     }
     const preset = themePresets[id];
     if (preset) {
-      const merged: Preferences = { ...preset.preferences };
+      const merged: Preferences = {
+        ...preset.preferences,
+        margin: { ...preset.preferences.margin },
+        fonts: { ...preset.preferences.fonts },
+      };
       setLocal(merged);
       setPreferences(merged); // Directly update preferences
       scheduleApply(merged);
@@ -137,7 +146,11 @@ const DesignModal: React.FC = () => {
   };
 
   const handleReset = async () => {
-    const base = { ...defaultPreferences };
+    const base: Preferences = {
+      ...defaultPreferences,
+      margin: { ...defaultPreferences.margin },
+      fonts: { ...defaultPreferences.fonts },
+    };
     setLocal(base);
     setDirty(true);
     setThemeSelection('default'); // Reset theme to default
@@ -168,7 +181,7 @@ const DesignModal: React.FC = () => {
               Theme:
               <select value={themeSelection} onChange={(e) => handlePresetSelect(e.target.value)}>
                 {Object.entries(themePresets).map(([id, theme]) => (
-                  <option key={id} value={id}>{theme.name}</option>
+                  <option key={id} value={id} title={theme.description}>{theme.name}</option>
                 ))}
                 <option value="custom">Custom</option>
               </select>
@@ -272,6 +285,35 @@ const DesignModal: React.FC = () => {
                 />
               </label>
             )}
+            <label className="checkbox-label">
+              <input type="checkbox" checked={local.cover_page} onChange={e => mutate({ cover_page: e.target.checked })} /> Cover Page
+            </label>
+            {local.cover_page && (
+              <>
+                <label>Cover Title
+                  <input
+                    placeholder="Document title"
+                    value={local.cover_title}
+                    onChange={e => mutate({ cover_title: e.target.value })}
+                  />
+                </label>
+                <label>Cover Writer
+                  <input
+                    placeholder="Author or organization"
+                    value={local.cover_writer}
+                    onChange={e => mutate({ cover_writer: e.target.value })}
+                  />
+                </label>
+                <label>Cover Image Path
+                  <input
+                    placeholder="Relative path (optional)"
+                    value={local.cover_image}
+                    onChange={e => mutate({ cover_image: e.target.value })}
+                  />
+                  <div className="helper-text">Provide an image path relative to the document or assets folder.</div>
+                </label>
+              </>
+            )}
           </div>
         </div>
 
@@ -308,7 +350,6 @@ const DesignModal: React.FC = () => {
           <ul>
             <li>Heading Scale (planned)</li>
             <li>Accent Color (planned)</li>
-            <li>Cover Page Options (planned)</li>
             <li>Export Metadata (planned)</li>
           </ul>
         </div>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAppStore } from '../store';
+import type { Preferences } from '../types';
 import DesignModal from './DesignModal';
 import { clearSession } from '../utils/session';
 // Removed showOpenDialog (export now uses save dialog directly)
@@ -42,10 +43,24 @@ const Toolbar: React.FC = () => {
   const handleThemeSelect = async (value: string) => {
     setThemeSelection(value);
     if (value === 'custom') {
+      const { lastCustomPreferences } = useAppStore.getState();
+      const snapshot: Preferences = {
+        ...lastCustomPreferences,
+        margin: { ...lastCustomPreferences.margin },
+        fonts: { ...lastCustomPreferences.fonts },
+      };
+      try {
+        setCompileStatus({ status: 'running' });
+        setPreferences(snapshot);
+        await persistPreferences(snapshot);
+        await rerenderCurrent();
+      } catch (e) {
+        console.warn('[Toolbar] custom apply failed', e);
+      }
       setDesignModalOpen(true);
       return;
     }
-    
+
     // Apply theme immediately like the design modal does
     const preset = themePresets[value];
     if (preset) {
@@ -114,7 +129,7 @@ const Toolbar: React.FC = () => {
           title="Select Theme"
         >
           {Object.entries(themePresets).map(([id, theme]) => (
-            <option key={id} value={id}>{theme.name}</option>
+            <option key={id} value={id} title={theme.description}>{theme.name}</option>
           ))}
           <option value="custom">Custom…</option>
         </select>

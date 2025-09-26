@@ -1,9 +1,16 @@
 import { create } from 'zustand';
-import type { CompileStatus, EditorState, Preferences } from './types';
+import type {
+  CompileStatus,
+  EditorState,
+  Preferences,
+  SourceMap,
+  SyncMode,
+} from './types';
 import { SAMPLE_DOC } from './sampleDoc';
 
 // Initial preferences
 export const defaultPreferences: Preferences = {
+  theme_id: 'default',
   papersize: 'a4',  // Changed from paper_size to papersize
   margin: {         // Changed from margins to margin
     x: '2cm',
@@ -11,6 +18,10 @@ export const defaultPreferences: Preferences = {
   },
   toc: false, // default changed to false (no table of contents unless user enables)
   toc_title: '',
+  cover_page: false,
+  cover_title: '',
+  cover_writer: '',
+  cover_image: '',
   number_sections: true,
   default_image_width: '80%',
   default_image_alignment: 'center',
@@ -44,8 +55,12 @@ interface AppState {
   setModified: (modified: boolean) => void;
   setCompileStatus: (status: CompileStatus) => void;
   // Scroll / cursor sync
-  editorScrollRatio: number; // 0..1 proportion of scroll/cursor position inside document
-  setEditorScrollRatio: (ratio: number) => void;
+  sourceMap: SourceMap | null;
+  setSourceMap: (map: SourceMap | null) => void;
+  activeAnchorId: string | null;
+  setActiveAnchorId: (id: string | null) => void;
+  syncMode: SyncMode;
+  setSyncMode: (mode: SyncMode) => void;
   // Typing state (suppresses aggressive scroll sync while user is entering text)
   isTyping: boolean;
   setIsTyping: (v: boolean) => void;
@@ -59,7 +74,7 @@ interface AppState {
   preferences: Preferences;
   setPreferences: (preferences: Preferences) => void;
   // Theme selection & design modal
-  themeSelection: string; // 'default' | 'classic' | 'mono' | 'serif' | 'custom'
+  themeSelection: string; // 'default' | 'classic' | 'modern' | 'academic' | 'journal' | 'colorful' | 'custom'
   setThemeSelection: (theme: string) => void;
   designModalOpen: boolean;
   setDesignModalOpen: (open: boolean) => void;
@@ -86,8 +101,12 @@ interface AppState {
 export const useAppStore = create<AppState>((set) => ({
   // Editor state
   editor: initialEditorState,
-  editorScrollRatio: 0,
-  setEditorScrollRatio: (ratio: number) => set({ editorScrollRatio: Math.min(1, Math.max(0, ratio)) }),
+  sourceMap: null,
+  setSourceMap: (map: SourceMap | null) => set({ sourceMap: map }),
+  activeAnchorId: null,
+  setActiveAnchorId: (id: string | null) => set({ activeAnchorId: id }),
+  syncMode: 'auto',
+  setSyncMode: (mode: SyncMode) => set({ syncMode: mode }),
   isTyping: false,
   setIsTyping: (v: boolean) => set({ isTyping: v }),
   setCurrentFile: (path: string | null) => set((state: AppState) => {
@@ -185,12 +204,26 @@ export const useAppStore = create<AppState>((set) => ({
   
   // Preferences state
   preferences: defaultPreferences,
-  setPreferences: (preferences: Preferences) => set({ preferences }),
+  setPreferences: (preferences: Preferences) => set((state: AppState) => {
+    const snapshot: Preferences = {
+      ...preferences,
+      margin: { ...preferences.margin },
+      fonts: { ...preferences.fonts },
+    };
+    return {
+      preferences,
+      lastCustomPreferences: state.themeSelection === 'custom' ? snapshot : state.lastCustomPreferences,
+    };
+  }),
   themeSelection: 'default',
   setThemeSelection: (theme: string) => set({ themeSelection: theme }),
   designModalOpen: false,
   setDesignModalOpen: (open: boolean) => set({ designModalOpen: open }),
-  lastCustomPreferences: defaultPreferences,
+  lastCustomPreferences: {
+    ...defaultPreferences,
+    margin: { ...defaultPreferences.margin },
+    fonts: { ...defaultPreferences.fonts },
+  },
   
   // UI state
   
@@ -206,7 +239,9 @@ export const useAppStore = create<AppState>((set) => ({
       compileStatus: { status: 'idle' }
     },
     sampleDocContent: SAMPLE_DOC,
-    editorScrollRatio: 0,
+    sourceMap: null,
+    activeAnchorId: null,
+    syncMode: 'auto',
     previewVisible: true,
   })),
   // removed panelRestoreTick & previewRerenderTick

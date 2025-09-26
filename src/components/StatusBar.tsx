@@ -59,6 +59,7 @@ const StatusBar: React.FC = () => {
           TOC: {preferences.toc ? 'On' : 'Off'}
         </span>
         <span className="status-item">
+          Cover: {preferences.cover_page ? 'On' : 'Off'}
         </span>
       </div>
     </div>

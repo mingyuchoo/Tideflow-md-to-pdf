@@ -1,10 +1,16 @@
 {
+  "theme_id": "default",
   "papersize": "a4",
   "margin": {
     "x": "2cm",
     "y": "2.5cm"
   },
   "toc": false,
+  "toc_title": "",
+  "cover_page": false,
+  "cover_title": "",
+  "cover_writer": "",
+  "cover_image": "",
   "numberSections": true,
   "default_image_width": "60%",
   "default_image_alignment": "center",
