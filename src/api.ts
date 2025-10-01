@@ -315,9 +315,9 @@ export async function showOpenDialog(
     } else {
       return result || null;
     }
-  } catch {
-    // Fall back to a hardcoded test path for debugging
-    return 'C:\\Users\\Deniz\\Desktop\\mdtopdf\\test\\test-document.md';
+  } catch (err) {
+    console.error('[API] showOpenDialog failed:', err);
+    return null;
   }
 }
 

@@ -1,5 +1,4 @@
 import { useEffect } from 'react';
-import { useAppStore } from '../store';
 import { renderPdfPages } from '../utils/pdfRenderer';
 import { extractOffsetsFromPdfText } from '../utils/offsets';
 import { convertFileSrc } from '@tauri-apps/api/core';
@@ -108,15 +107,11 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
 
           recomputeAnchorOffsets(map);
 
-          // If the backend already reported that the Typst query failed,
-          // prefer the PDF-text extraction fallback immediately rather
-          // than waiting for typst-produced offsets that will never
-          // arrive. This uses the global store flag set by App.tsx when
-          // the renderer emits a typst-query-failed event.
+          // Always attempt PDF-text extraction as fallback if typst query produced no anchors
+          // This happens naturally when sourceMap.anchors.length === 0
           try {
-            const st = useAppStore.getState();
-            if (st.typstQueryFailed) {
-              if (process.env.NODE_ENV !== 'production') console.debug('[usePdfRenderer] typstQueryFailed=true; running immediate extraction fallback');
+            if (map.anchors.length === 0) {
+              if (process.env.NODE_ENV !== 'production') console.debug('[usePdfRenderer] no typst anchors, running PDF-text extraction fallback');
               try {
                 const extracted = await extractOffsetsFromPdfText(doc, metrics, map.anchors, renderScale);
                       if (extracted.size > 0) {

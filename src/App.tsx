@@ -182,8 +182,6 @@ function App() {
 
         const unlistenTypstFailed = await listen<string>('typst-query-failed', () => {
           console.warn('[TypstQuery] no positions found, falling back to PDF-text extraction');
-          const st = useAppStore.getState();
-          st.setTypstQueryFailed(true);
         });
         register(unlistenTypstFailed);
 

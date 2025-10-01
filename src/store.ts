@@ -84,9 +84,6 @@ interface AppState {
   
   previewVisible: boolean;
   setPreviewVisible: (visible: boolean) => void;
-  // Typst query failure flag; when true prefer PDF-text fallback
-  typstQueryFailed: boolean;
-  setTypstQueryFailed: (v: boolean) => void;
   // Timestamp when the last compiled event arrived; used to coordinate final-sync
   compiledAt: number;
   setCompiledAt: (ts: number) => void;
@@ -278,9 +275,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   setInitialSampleInjected: (v: boolean) => set({ initialSampleInjected: v }),
   sampleDocContent: null,
   setSampleDocContent: (content: string) => set({ sampleDocContent: content }),
-  // Typst query failure flag: when true, prefer PDF-text extraction fallback
-  typstQueryFailed: false,
-  setTypstQueryFailed: (v: boolean) => set({ typstQueryFailed: v }),
   // Timestamp when the last compiled event arrived; used to coordinate final-sync
   compiledAt: 0,
   setCompiledAt: (ts: number) => set({ compiledAt: ts }),
