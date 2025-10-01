@@ -76,6 +76,7 @@ const Editor: React.FC = () => {
     currentFile,
     content,
     modified,
+    sourceMap,
     setModified,
     setCompileStatus,
     setSourceMap,

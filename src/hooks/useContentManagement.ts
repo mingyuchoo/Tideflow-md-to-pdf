@@ -68,9 +68,9 @@ export function useContentManagement(params: UseContentManagementParams) {
         pdf_path: document.pdfPath,
         source_map: document.sourceMap,
       });
-      // On first render that sets sourceMap, lock PDF to editor for initial sync
+      // On first render that sets sourceMap, enable auto-sync so PDF follows editor
       if (wasSourceMapNull) {
-        setSyncMode('locked-to-pdf');
+        setSyncMode('auto');
       }
       
       // Clean up old temp PDFs after successful render

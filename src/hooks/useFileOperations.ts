@@ -24,6 +24,7 @@ interface UseFileOperationsParams {
   currentFile: string | null;
   content: string;
   modified: boolean;
+  sourceMap: SourceMap | null;
   setModified: (modified: boolean) => void;
   setCompileStatus: (status: CompileStatus) => void;
   setSourceMap: (map: SourceMap | null) => void;
@@ -39,6 +40,7 @@ export function useFileOperations(params: UseFileOperationsParams) {
     currentFile,
     content,
     modified,
+    sourceMap,
     setModified,
     setCompileStatus,
     setSourceMap,
@@ -206,6 +208,29 @@ export function useFileOperations(params: UseFileOperationsParams) {
       lastLoadedContentRef.current = content;
     }
   }, [content, currentFile, editorViewRef, prevFileRef, lastLoadedContentRef]);
+
+  // Initial render on startup: trigger auto-render when editor is ready with content but no PDF yet
+  // This handles the case where the app starts with a file already loaded from session
+  useEffect(() => {
+    if (!editorViewRef.current) return; // Editor not ready
+    if (!currentFile) return; // No file open
+    if (!content) return; // No content
+    if (sourceMap) return; // Already rendered
+    
+    // At this point: editor is ready, file is open, has content, but no PDF rendered yet
+    // This is the startup state - trigger initial render
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug('[Editor] startup render triggered', { file: currentFile, contentLength: content.length });
+    }
+    
+    const timerId = setTimeout(() => {
+      handleAutoRender(content);
+    }, 300); // Delay to ensure editor is fully initialized
+    
+    return () => clearTimeout(timerId);
+    // Only run once when these conditions first become true
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editorViewRef.current !== null && currentFile !== null && !sourceMap]);
 
   return {
     handleSave,
