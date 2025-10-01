@@ -94,16 +94,8 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
         pdfMetricsRef.current = metrics;
 
         const tryComputeAndMaybeScroll = async () => {
-          let map = sourceMapRef.current;
-          if (!map) {
-            let pollAttempts = 0;
-            while (!map && pollAttempts < 20) {
-              pollAttempts += 1;
-              await new Promise((res) => setTimeout(res, 100));
-              map = sourceMapRef.current;
-            }
-            if (!map) return;
-          }
+          const map = sourceMapRef.current;
+          if (!map) return; // SourceMap should already be set by render event
 
           recomputeAnchorOffsets(map);
 
@@ -138,14 +130,8 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
             void e;
           }
 
-          let attempts = 0;
-          while (anchorOffsetsRef.current.size === 0 && (map?.anchors.length ?? 0) > 0 && attempts < 6) {
-            attempts += 1;
-            await new Promise((res) => setTimeout(res, 80 * attempts));
-            recomputeAnchorOffsets(map);
-          }
-
-          if (anchorOffsetsRef.current.size === 0 && (sourceMapRef.current?.anchors.length ?? 0) > 0) {
+          // If offsets still empty, try PDF-text extraction (single attempt)
+          if (anchorOffsetsRef.current.size === 0 && (map?.anchors.length ?? 0) > 0) {
             try {
               const map = sourceMapRef.current!;
               const extracted = await extractOffsetsFromPdfText(doc, metrics, map.anchors, renderScale);
@@ -218,28 +204,13 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
 
           // If an earlier extraction/fallback registered a pending forced
           // anchor, perform that forced scroll now that rendering has
-          // completed. If the user is typing, the pendingForcedTimerRef
-          // handles firing when typing stops; otherwise perform the
-          // one-shot forced scroll now and mark it done.
-          const pending = pendingForcedAnchorRef.current;
-          if (process.env.NODE_ENV !== 'production') console.debug('[usePdfRenderer] post-render check', { pending, initialForced: initialForcedScrollDoneRef.current, isTyping: isTypingRef.current, userInteracted: userInteractedRef?.current, syncMode: syncModeRef?.current });
-          if (pending && !initialForcedScrollDoneRef.current) {
+          // completed via the consumePendingAnchor handler (which uses a single RAF)
+          if (process.env.NODE_ENV !== 'production') console.debug('[usePdfRenderer] post-render check', { pending: pendingForcedAnchorRef.current, initialForced: initialForcedScrollDoneRef.current, isTyping: isTypingRef.current });
+          if (pendingForcedAnchorRef.current && !initialForcedScrollDoneRef.current) {
               if (consumePendingAnchor) {
                 consumePendingAnchor();
               }
           }
-
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              const anchorId = sourceMapRef.current?.anchors[0]?.id ?? null;
-              if (anchorId) {
-                const off = anchorOffsetsRef.current.get(anchorId);
-                if (off !== undefined && !isTypingRef.current) {
-                  scrollToAnchor(anchorId, true);
-                }
-              }
-            });
-          });
         };
         tryComputeAndMaybeScroll();
       } catch (e) {
