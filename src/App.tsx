@@ -289,7 +289,7 @@ function App() {
           currentFile,
           sampleDocContent,
           previewVisible: previewVisibleState,
-          // Preserve fullscreen from current session
+          // Preserve fullscreen from current session (it's saved separately on fullscreen event)
           fullscreen: currentSession?.fullscreen ?? false,
         });
       } catch (error) {

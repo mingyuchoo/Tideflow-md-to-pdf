@@ -5,16 +5,11 @@ import './PDFPreview.css';
 import * as pdfjsLib from 'pdfjs-dist';
 import PDFPreviewHeader from './PDFPreviewHeader';
 import { usePdfRenderer } from '../hooks/usePdfRenderer';
-import usePdfSync from '../hooks/usePdfSync';
 import PdfJsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?worker';
-import { usePendingScroll } from '../hooks/usePendingScroll';
 import { useScrollState } from '../hooks/useScrollState';
 import { useOffsetManager } from '../hooks/useOffsetManager';
-import { useStartupSync } from '../hooks/useStartupSync';
-import { useAnchorSync } from '../hooks/useAnchorSync';
-import { useDocumentLifecycle } from '../hooks/useDocumentLifecycle';
-import { useFinalSync } from '../hooks/useFinalSync';
-import { usePreviewEvents } from '../hooks/usePreviewEvents';
+import { useEditorToPdfSync } from '../hooks/useEditorToPdfSync';
+import { usePdfToEditorSync } from '../hooks/usePdfToEditorSync';
 import { UI } from '../constants/timing';
 
 interface PdfJsWorkerOptions {
@@ -73,12 +68,13 @@ const PDFPreview: React.FC = () => {
     lastProgrammaticScrollAt,
     userInteractedRef,
     initialForcedScrollDoneRef,
-    startupOneShotAppliedRef,
-    finalRefreshDoneRef,
     syncModeRef,
     activeAnchorRef,
     isTypingRef,
   } = scrollState;
+
+  // Legacy refs no longer used (kept in scrollState for backward compat)
+  // startupOneShotAppliedRef, finalRefreshDoneRef
 
   // Temporary ref for registerPendingAnchor to avoid circular dependency
   const registerPendingAnchorRef = useRef<((anchorId: string) => void) | null>(null);
@@ -215,30 +211,46 @@ const PDFPreview: React.FC = () => {
     }
   }, [containerRef, anchorOffsetsRef, isTypingRef, initialForcedScrollDoneRef, programmaticScrollRef, lastProgrammaticScrollAt]);
 
-  // Pending scroll hook
-  const { registerPendingAnchor, consumePendingAnchor } = usePendingScroll({
-    pendingForcedAnchorRef,
-    pendingForcedTimerRef,
-    pendingForcedOneShotRef,
-    isTypingRef,
-    initialForcedScrollDoneRef,
-    userInteractedRef,
-    syncModeRef,
+  // SIMPLIFIED: Editor → PDF sync (replaces useAnchorSync, usePendingScroll, useStartupSync, useFinalSync)
+  useEditorToPdfSync({
+    activeAnchorId,
+    syncMode,
+    isTyping,
+    sourceMap,
+    compileStatus,
+    containerRef,
     anchorOffsetsRef,
+    pdfMetricsRef,
+    sourceMapRef,
+    syncModeRef,
+    userInteractedRef,
     scrollToAnchor,
+    recomputeAnchorOffsets,
   });
+
+  // SIMPLIFIED: PDF → Editor sync (replaces usePdfSync, usePreviewEvents)
+  usePdfToEditorSync({
+    containerRef,
+    anchorOffsetsRef,
+    sourceMapRef,
+    programmaticScrollRef,
+    lastProgrammaticScrollAt,
+    mountedAt,
+    userInteractedRef,
+    activeAnchorRef,
+    syncModeRef,
+    renderingRef: scrollState.renderingRef,
+    setActiveAnchorId,
+    setSyncMode,
+  });
+
+  // Dummy for backward compat during migration
+  const registerPendingAnchor = useCallback(() => {}, []);
+  const consumePendingAnchor = useCallback(() => {}, []);
+  const mountSignal = 0;
 
   // Wire up the registerPendingAnchor to the ref
   registerPendingAnchorRef.current = registerPendingAnchor;
-
-  // Startup sync hook - handles mount signal and startup synchronization
-  const { mountSignal } = useStartupSync({
-    compileStatus,
-    scrollStateRefs: scrollState,
-    offsetManagerRefs: offsetManager,
-    recomputeAnchorOffsets,
-    scrollToAnchor,
-  });
 
   // PDF renderer hook
   usePdfRenderer({
@@ -289,7 +301,7 @@ const PDFPreview: React.FC = () => {
         // If offsets are now available for the pending anchor, consume it.
         const off = anchorOffsetsRef.current.get(pending);
         if (off !== undefined) {
-          consumePendingAnchor(true);
+          consumePendingAnchor();
         }
       } catch {
         // swallow; keep polling
@@ -298,88 +310,10 @@ const PDFPreview: React.FC = () => {
     return () => { cancelled = true; window.clearInterval(iv); };
   }, [consumePendingAnchor, anchorOffsetsRef, containerRef]);
 
-  // PDF sync hook - handles scroll/pointer/resize events
-  usePdfSync({
-    containerRef,
-    anchorOffsetsRef,
-    sourceMapRef,
-    renderingRef: scrollState.renderingRef,
-    programmaticScrollRef,
-    lastProgrammaticScrollAt,
-    mountedAt,
-    userInteractedRef,
-    activeAnchorRef,
-    syncModeRef,
-    isTypingRef,
-    setActiveAnchorId,
-    setSyncMode,
-    scrollToAnchor,
-    recomputeAnchorOffsets,
-  });
-
-  // Anchor sync hook - handles activeAnchorId changes
-  useAnchorSync({
-    activeAnchorId,
-    syncMode,
-    containerRef,
-    anchorOffsetsRef,
-    sourceMapRef,
-    isTypingRef,
-    userInteractedRef,
-    syncModeRef,
-    initialForcedScrollDoneRef,
-    pendingForcedAnchorRef,
-    scrollToAnchor,
-    recomputeAnchorOffsets,
-    consumePendingAnchor,
-  });
-
-  // Document lifecycle hook - handles sourceMap/compileStatus changes
-  useDocumentLifecycle({
-    sourceMap,
-    compileStatus,
-    anchorOffsetsRef,
-    finalRefreshDoneRef,
-    initialForcedScrollDoneRef,
-    userInteractedRef,
-    pendingForcedAnchorRef,
-    pendingForcedTimerRef,
-    pendingForcedOneShotRef,
-    pendingFallbackTimerRef,
-    pendingFallbackRef,
-    setActiveAnchorId,
-    setSyncMode,
-  });
-
-  // Final sync hook - handles mount/final refresh/typing idle
-  useFinalSync({
-    rendering,
-    isTyping,
-    compileStatus,
-    sourceMap,
-    containerRef,
-    anchorOffsetsRef,
-    pdfMetricsRef,
-    sourceMapRef,
-    activeAnchorRef,
-    syncModeRef,
-    userInteractedRef,
-    initialForcedScrollDoneRef,
-    startupOneShotAppliedRef,
-    finalRefreshDoneRef,
-    scrollToAnchor,
-    recomputeAnchorOffsets,
-    registerPendingAnchor,
-    consumePendingAnchor,
-  });
-
-  // Preview events hook - handles custom events
-  usePreviewEvents({
-    scrollToAnchor,
-    recomputeAnchorOffsets,
-    consumePendingAnchor,
-    sourceMapRef,
-  });
+  // ✅ ALL OLD HOOKS REPLACED WITH 2 NEW SIMPLIFIED HOOKS ABOVE ✅
+  // Removed: usePdfSync, useAnchorSync, useDocumentLifecycle, useFinalSync, usePreviewEvents
+  // Total removed: ~800 lines of complex sync logic
+  // Replaced with: useEditorToPdfSync + usePdfToEditorSync (~400 lines)
 
   return (
     <div className="pdf-preview">

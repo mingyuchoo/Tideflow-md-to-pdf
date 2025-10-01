@@ -42,6 +42,7 @@ const Editor: React.FC = () => {
   const [isActivelyTyping, setIsActivelyTyping] = useState(false);
   const [selectedFont, setSelectedFont] = useState<string>("New Computer Modern");
   const [calloutType, setCalloutType] = useState<'box' | 'info' | 'tip' | 'warn'>('box');
+  const [editorReady, setEditorReady] = useState(false);
 
   // Use editor state hook - consolidates all refs
   const editorStateRefs = useEditorState({
@@ -77,6 +78,7 @@ const Editor: React.FC = () => {
     content,
     modified,
     sourceMap,
+    editorReady,
     setModified,
     setCompileStatus,
     setSourceMap,
@@ -89,7 +91,7 @@ const Editor: React.FC = () => {
   // Wrap handleSave to pass setIsSaving
   const handleSave = () => handleSaveBase(setIsSaving);
 
-  // Use CodeMirror setup hook - initialization and keymaps
+  // Use CodeMirror setup hook - editor initialization
   useCodeMirrorSetup({
     editorStateRefs,
     content,
@@ -104,6 +106,7 @@ const Editor: React.FC = () => {
     handleAutoRender,
     renderDebounceMs: preferences.render_debounce_ms,
     setupScrollListener,
+    setEditorReady,
   });
 
   // Use anchor management hook - anchor sync effects

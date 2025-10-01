@@ -27,6 +27,7 @@ interface UseCodeMirrorSetupParams {
   handleAutoRender: (content: string, signal?: AbortSignal) => Promise<void>;
   renderDebounceMs: number;
   setupScrollListener: () => (() => void) | undefined;
+  setEditorReady: (ready: boolean) => void;
 }
 
 export function useCodeMirrorSetup(params: UseCodeMirrorSetupParams) {
@@ -44,6 +45,7 @@ export function useCodeMirrorSetup(params: UseCodeMirrorSetupParams) {
     handleAutoRender,
     renderDebounceMs,
     setupScrollListener,
+    setEditorReady,
   } = params;
 
   const {
@@ -205,6 +207,9 @@ export function useCodeMirrorSetup(params: UseCodeMirrorSetupParams) {
       });
       
       editorViewRef.current = view;
+
+      // Signal that editor is ready
+      setEditorReady(true);
 
       // Add scroll listener to compute active anchor based on viewport
       const scrollEl = getScrollElement(view);

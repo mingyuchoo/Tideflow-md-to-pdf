@@ -3,7 +3,7 @@
  * Manages scroll position restoration and document lifecycle.
  */
 
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { writeMarkdownFile, renderTypst } from '../api';
 import { scrubRawTypstAnchors } from '../utils/scrubAnchors';
 import { handleError } from '../utils/errorHandler';
@@ -25,6 +25,7 @@ interface UseFileOperationsParams {
   content: string;
   modified: boolean;
   sourceMap: SourceMap | null;
+  editorReady: boolean;
   setModified: (modified: boolean) => void;
   setCompileStatus: (status: CompileStatus) => void;
   setSourceMap: (map: SourceMap | null) => void;
@@ -41,6 +42,7 @@ export function useFileOperations(params: UseFileOperationsParams) {
     content,
     modified,
     sourceMap,
+    editorReady,
     setModified,
     setCompileStatus,
     setSourceMap,
@@ -211,26 +213,57 @@ export function useFileOperations(params: UseFileOperationsParams) {
 
   // Initial render on startup: trigger auto-render when editor is ready with content but no PDF yet
   // This handles the case where the app starts with a file already loaded from session
+  const initialRenderAttemptedRef = useRef(false);
+  
   useEffect(() => {
-    if (!editorViewRef.current) return; // Editor not ready
-    if (!currentFile) return; // No file open
-    if (!content) return; // No content
-    if (sourceMap) return; // Already rendered
+    console.debug('[Editor] startup render effect fired', {
+      attempted: initialRenderAttemptedRef.current,
+      editorReady,
+      hasFile: !!currentFile,
+      hasContent: !!content,
+      hasSourceMap: !!sourceMap,
+    });
     
-    // At this point: editor is ready, file is open, has content, but no PDF rendered yet
-    // This is the startup state - trigger initial render
-    if (process.env.NODE_ENV !== 'production') {
-      console.debug('[Editor] startup render triggered', { file: currentFile, contentLength: content.length });
+    // Only attempt initial render once per mount
+    if (initialRenderAttemptedRef.current) {
+      console.debug('[Editor] startup render already attempted, skipping');
+      return;
     }
     
+    // Wait for editor to be ready
+    if (!editorReady) {
+      console.debug('[Editor] startup render waiting for editor ready');
+      return;
+    }
+    if (!currentFile) {
+      console.debug('[Editor] startup render waiting for file');
+      return;
+    }
+    if (!content) {
+      console.debug('[Editor] startup render waiting for content');
+      return;
+    }
+    
+    // Don't render if we already have a PDF
+    if (sourceMap) {
+      console.debug('[Editor] startup render skipped - sourceMap already exists');
+      initialRenderAttemptedRef.current = true;
+      return;
+    }
+    
+    // Mark that we've attempted
+    initialRenderAttemptedRef.current = true;
+    
+    // At this point: editor is ready, file is open, has content, but no PDF rendered yet
+    console.debug('[Editor] startup render triggered', { file: currentFile, contentLength: content.length });
+    
     const timerId = setTimeout(() => {
+      console.debug('[Editor] executing startup render NOW');
       handleAutoRender(content);
-    }, 300); // Delay to ensure editor is fully initialized
+    }, 500); // Longer delay to ensure everything is initialized
     
     return () => clearTimeout(timerId);
-    // Only run once when these conditions first become true
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editorViewRef.current !== null && currentFile !== null && !sourceMap]);
+  }, [editorReady, currentFile, content, sourceMap, handleAutoRender]);
 
   return {
     handleSave,
