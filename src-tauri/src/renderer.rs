@@ -2,14 +2,13 @@ use crate::preprocessor::{
     attach_pdf_positions, pdf_positions_from_query, preprocess_markdown, AnchorMeta, PdfPosition,
     SourceMapPayload,
 };
+use crate::render_pipeline::{self, RenderConfig};
 use crate::utils;
 use anyhow::{anyhow, Context, Result};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::fs;
-use std::io::Write;
 use std::path::Path;
-use std::process::{Command, Stdio};
 use std::sync::Arc;
 use std::time::SystemTime;
 use tauri::{AppHandle, Emitter};
@@ -32,72 +31,8 @@ lazy_static::lazy_static! {
         Arc::new(Mutex::new(std::collections::HashMap::new()));
 }
 
-/// Ensure a required cmarker asset exists in the user's Typst package cache on Windows.
-/// Some environments end up with an incomplete package cache missing `assets/camkale.png`,
-/// which causes markdown rendering to fail. We synthesize a tiny 1x1 PNG placeholder.
-fn ensure_cmarker_asset_camkale_png() {
-    #[cfg(target_os = "windows")]
-    {
-        if let Ok(local) = std::env::var("LOCALAPPDATA") {
-            let assets_dir = std::path::Path::new(&local)
-                .join("typst")
-                .join("packages")
-                .join("preview")
-                .join("cmarker")
-                .join("0.1.6")
-                .join("assets");
-            let target = assets_dir.join("camkale.png");
-            if !target.exists() {
-                let _ = std::fs::create_dir_all(&assets_dir);
-                // Minimal valid 1x1 PNG (transparent)
-                let png_bytes: [u8; 67] = [
-                    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49,
-                    0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06,
-                    0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44,
-                    0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00, 0x05, 0x00, 0x01, 0x0D,
-                    0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42,
-                    0x60, 0x82,
-                ];
-                if let Ok(mut f) = std::fs::File::create(&target) {
-                    let _ = f.write_all(&png_bytes);
-                }
-            }
-        }
-    }
-}
-
-fn copy_directory(src: &Path, dst: &Path) -> Result<()> {
-    if dst.exists() {
-        fs::remove_dir_all(dst)?;
-    }
-    fs::create_dir_all(dst)?;
-
-    for entry in fs::read_dir(src)? {
-        let entry = entry?;
-        let path = entry.path();
-        let dest_path = dst.join(entry.file_name());
-        if entry.file_type()?.is_dir() {
-            copy_directory(&path, &dest_path)?;
-        } else {
-            fs::copy(&path, &dest_path)?;
-        }
-    }
-
-    Ok(())
-}
-
-fn sync_theme_assets(template_src: &Path, build_dir: &Path) -> Result<()> {
-    if let Some(parent) = template_src.parent() {
-        let themes_src = parent.join("themes");
-        if themes_src.exists() {
-            let themes_dst = build_dir.join("themes");
-            copy_directory(&themes_src, &themes_dst)?;
-        }
-    }
-    Ok(())
-}
-
 fn build_source_map(
+    app_handle: &AppHandle,
     typst_path: &Path,
     build_dir: &Path,
     content_dir: &Path,
@@ -109,25 +44,119 @@ fn build_source_map(
 
     let mut pdf_lookup: HashMap<String, PdfPosition> = HashMap::new();
     let root_arg = content_dir.to_string_lossy().to_string();
-    let query_result = Command::new(typst_path)
-        .current_dir(build_dir)
-        .args([
+    // If the Typst binary is an older 0.13.x release, its `query` selector
+    // syntax differs from newer releases and several selector variants we
+    // might try here will fail with errors such as "unknown variable:
+    // element". In that case prefer to emit a failure event so the
+    // frontend can immediately fall back to PDF-text extraction rather
+    // than repeatedly invoking `typst query` with incompatible selectors.
+    //
+    // We detect this by running `typst --version` and checking for
+    // "0.13." in the output.
+    if let Ok(ver_out) = render_pipeline::typst_command(&typst_path).arg("--version").output() {
+        if ver_out.status.success() {
+            let ver_txt = String::from_utf8_lossy(&ver_out.stdout).to_string();
+            if ver_txt.contains("0.13.") {
+                println!("[renderer] detected Typst version 0.13.x ({}); skipping typst query selectors and emitting typst-query-failed", ver_txt.trim());
+                let _ = app_handle.emit("typst-query-failed", "typst-0.13-incompatible");
+                return attach_pdf_positions(anchors, &pdf_lookup);
+            }
+        }
+    }
+
+    // Try multiple selector variants to support different Typst versions.
+    // Some Typst releases expect element-style selectors (e.g. element(label)).
+    let selector_variants = vec!["label", "element(label)", "element('label')", "element(\"label\")", "element.label"];
+    let mut tried_any = false;
+    for selector in selector_variants.iter() {
+        let args = [
             "query",
             "--format",
             "json",
             "--root",
             root_arg.as_str(),
             "tideflow.typ",
-            "label()",
-        ])
-        .output();
+            selector,
+        ];
+        println!("[renderer] running typst query args: {:?}", args);
+        let query_result = render_pipeline::typst_command(&typst_path)
+            .current_dir(build_dir)
+            .args(&args)
+            .output();
 
-    if let Ok(output) = query_result {
-        if output.status.success() {
-            if let Ok(map) = pdf_positions_from_query(&output.stdout) {
-                pdf_lookup = map;
+        tried_any = true;
+        if let Ok(output) = query_result {
+            // Sanitize selector for filename usage
+            let sel_name: String = selector
+                .chars()
+                .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+                .collect();
+            let stdout_txt = String::from_utf8_lossy(&output.stdout).to_string();
+            let stderr_txt = String::from_utf8_lossy(&output.stderr).to_string();
+            let out_dump = build_dir.join(format!(".typst_query_output_{}.json", sel_name));
+            let err_dump = build_dir.join(format!(".typst_query_error_{}.txt", sel_name));
+            if let Err(e) = std::fs::write(&out_dump, stdout_txt.as_bytes()) {
+                println!("[renderer] failed to write typst query stdout dump: {}", e);
+            } else {
+                println!("[renderer] typst query stdout written to: {}", out_dump.display());
+            }
+            // Emit stdout to the frontend for easier debugging in DevTools
+            let _ = app_handle.emit("typst-query-stdout", stdout_txt.clone());
+            if let Err(e) = std::fs::write(&err_dump, stderr_txt.as_bytes()) {
+                println!("[renderer] failed to write typst query stderr dump: {}", e);
+            } else {
+                println!("[renderer] typst query stderr written to: {}", err_dump.display());
+            }
+            // Emit stderr to the frontend so the UI can show precise Typst errors
+            let _ = app_handle.emit("typst-query-stderr", stderr_txt.clone());
+
+            // If stderr indicates a selector-syntax incompatibility (common in
+            // older Typst releases), stop trying additional selectors and
+            // immediately notify the frontend so it can fall back to the
+            // PDF-text extraction path. This avoids repeatedly invoking an
+            // incompatible `typst query` and flooding the logs.
+            if stderr_txt.contains("unknown variable: element") || stderr_txt.contains("only element functions can be used as selectors") {
+                println!("[renderer] typst query stderr indicates incompatible selector syntax; emitting typst-query-failed and aborting selector loop");
+                let _ = app_handle.emit("typst-query-failed", stderr_txt.clone());
+                return attach_pdf_positions(anchors, &pdf_lookup);
+            }
+
+            if output.status.success() {
+                if let Ok(map) = pdf_positions_from_query(&output.stdout) {
+                    if !map.is_empty() {
+                        pdf_lookup = map;
+                        println!("[renderer] typst query succeeded with selector '{}' and produced {} positions", selector, pdf_lookup.len());
+                        break;
+                    } else {
+                        println!("[renderer] typst query succeeded with selector '{}' but produced 0 positions", selector);
+                        // try next selector
+                    }
+                } else {
+                    println!("[renderer] typst query produced output but parser failed for selector '{}'", selector);
+                }
+            } else {
+                println!("[renderer] typst query failed for selector '{}'; see stderr dump for details", selector);
+                // try next selector
+            }
+        } else if let Err(e) = query_result {
+            println!("[renderer] typst query invocation error for selector '{}': {:?}", selector, e);
+            let inv_err = build_dir.join(format!(".typst_query_invocation_error_{}.txt", selector.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect::<String>()));
+            if let Err(err) = std::fs::write(&inv_err, format!("{:?}", e).as_bytes()) {
+                println!("[renderer] failed to write typst invocation error: {}", err);
+            } else {
+                println!("[renderer] typst invocation error written to: {}", inv_err.display());
             }
         }
+    }
+    if !tried_any {
+        println!("[renderer] did not attempt any typst query selectors");
+    }
+    // If none of the selector attempts produced positions, emit an event so
+    // the frontend can fall back to PDF-text extraction immediately.
+    if pdf_lookup.is_empty() {
+        // Emit an event so the frontend can fall back to PDF-text extraction.
+        // Use the provided app_handle reference; emission failures are ignored.
+        let _ = app_handle.emit("typst-query-failed", "no-positions-found");
     }
 
     attach_pdf_positions(anchors, &pdf_lookup)
@@ -163,140 +192,88 @@ pub async fn render_markdown(app_handle: &AppHandle, file_path: &str) -> Result<
     let build_dir = content_dir.join(".build");
     fs::create_dir_all(&build_dir)?;
 
-    // 1) Get preferences and write prefs.json for the template
-    // Copy canonical prefs.json into build directory (single source of truth)
-    let canonical_prefs = utils::get_content_dir(app_handle)?.join("prefs.json");
-    if canonical_prefs.exists() {
-        std::fs::copy(&canonical_prefs, build_dir.join("prefs.json"))?;
-        if let Ok(txt) = std::fs::read_to_string(&canonical_prefs) {
-            app_handle.emit("prefs-dump", &txt).ok();
-            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&txt) {
-                let toc_flag = val.get("toc").and_then(|v| v.as_bool()).unwrap_or(true);
-                let num_flag = val
-                    .get("numberSections")
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(true);
-                let dbg = serde_json::json!({
-                    "path_type": "markdown",
-                    "toc": toc_flag,
-                    "numberSections": num_flag,
-                    "papersize": val.get("papersize"),
-                    "timestamp": chrono::Utc::now().to_rfc3339(),
-                });
-                app_handle.emit("render-debug", dbg).ok();
-            }
-        }
-    }
+    // Setup render configuration
+    let config = RenderConfig {
+        app_handle,
+        build_dir: build_dir.clone(),
+        content_dir: content_dir.clone(),
+    };
+
+    // Setup preferences (handles cover image rewriting and debug events)
+    render_pipeline::setup_prefs(&config, "markdown")?;
 
     // 2) Copy the markdown content to build/content.md (with preprocessing + image path rewrites)
+    // We write two files:
+    // - content.md (clean, no preview-only tokens) used for export and canonical build state
+    // - content.preview.md (preview-only, includes non-printing/preview tokens next to anchors)
+    // During preview compilation we temporarily copy content.preview.md over content.md so the
+    // template and Typst query can see the preview-only tokens. Export remains untouched.
     let md_content_raw = fs::read_to_string(path)?;
-    let preprocess = preprocess_markdown(&md_content_raw)?;
     let base_dir = path.parent().unwrap_or(Path::new("."));
     // Resolve assets/ paths to the global content/assets directory so images work from any doc folder
     let assets_root = utils::get_assets_dir(app_handle).ok();
     let assets_root_ref = assets_root.as_deref();
-    let md_content =
-        utils::rewrite_image_paths_in_markdown(&preprocess.markdown, base_dir, assets_root_ref);
-    fs::write(build_dir.join("content.md"), &md_content)?;
 
-    // 3) Ensure tideflow.typ is available in build directory
-    // Prefer workspace template during dev, fall back to user content template
-    let template_src = if let Ok(cwd) = std::env::current_dir() {
-        let dev_tpl = cwd.join("src-tauri").join("content").join("tideflow.typ");
-        if dev_tpl.exists() {
-            dev_tpl
-        } else {
-            content_dir.join("tideflow.typ")
-        }
-    } else {
-        content_dir.join("tideflow.typ")
-    };
-    let template_dst = build_dir.join("tideflow.typ");
-    if template_src.exists() {
-        fs::copy(&template_src, &template_dst)?;
-        sync_theme_assets(&template_src, &build_dir)?;
-        if let Ok(tpl_txt) = fs::read_to_string(&template_src) {
-            let snippet: String = tpl_txt.chars().take(400).collect();
-            let has_conditional = tpl_txt.contains("#if prefs.toc");
-            let evt = serde_json::json!({
-                "path_type": "markdown",
-                "template_path": template_src.to_string_lossy(),
-                "has_conditional": has_conditional,
-                "snippet": snippet,
-                "timestamp": chrono::Utc::now().to_rfc3339()
-            });
-            app_handle.emit("template-inspect", evt).ok();
-            if !has_conditional {
-                let warn = serde_json::json!({
-                    "warning": "Template missing '#if prefs.toc' conditional; TOC will always show.",
-                    "template_path": template_src.to_string_lossy(),
-                    "timestamp": chrono::Utc::now().to_rfc3339()
-                });
-                app_handle.emit("template-warning", warn).ok();
-            }
-        }
-    } else {
-        return Err(anyhow!(
-            "tideflow.typ template not found at {}",
-            template_src.display()
-        ));
+    // Clean (export) version: do NOT inject visible tokens
+    let preprocess_clean = preprocess_markdown(&md_content_raw)?;
+    let md_content_clean = utils::rewrite_image_paths_in_markdown(
+        &preprocess_clean.markdown,
+        base_dir,
+        assets_root_ref,
+    );
+    fs::write(build_dir.join("content.md"), &md_content_clean)?;
+
+    // Preview version: inject preview-only tokens (these will NOT be used for exports)
+    let preprocess_preview = preprocess_markdown(&md_content_raw)?;
+    let md_content_preview = utils::rewrite_image_paths_in_markdown(
+        &preprocess_preview.markdown,
+        base_dir,
+        assets_root_ref,
+    );
+    fs::write(build_dir.join("content.preview.md"), &md_content_preview)?;
+    // Also write debug copies into workspace for developer inspection
+    if let Ok(cwd) = std::env::current_dir() {
+        let dbg_dir = cwd.join("src-tauri").join("gen_debug");
+        let _ = std::fs::create_dir_all(&dbg_dir);
+        let _ = std::fs::write(dbg_dir.join("content.md"), &md_content_clean);
+        let _ = std::fs::write(dbg_dir.join("content.preview.md"), &md_content_preview);
     }
+
+    // Setup template (copies template and syncs theme assets)
+    render_pipeline::setup_template(&config, "markdown")?;
 
     // 4) Get bundled Typst binary path
     let typst_path = utils::get_typst_path(app_handle)
         .context("Typst binary not found. Download and place Typst binary in bin/typst/<platform>/ directory.")?;
 
-    // 5) Compile preview PDF
-    // Work around missing cmarker asset on some systems
-    ensure_cmarker_asset_camkale_png();
-    let preview_pdf = build_dir.join("preview.pdf");
-    let status = Command::new(&typst_path)
-        .current_dir(&build_dir)
-        .args([
-            "compile",
-            "--root",
-            content_dir.to_string_lossy().as_ref(),
-            "tideflow.typ",
-            "preview.pdf",
-        ])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .status()?;
-
-    if !status.success() {
-        let output = Command::new(&typst_path)
-            .current_dir(&build_dir)
-            .args([
-                "compile",
-                "--root",
-                content_dir.to_string_lossy().as_ref(),
-                "tideflow.typ",
-                "preview.pdf",
-            ])
-            .output()?;
-
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-
-        return Err(anyhow!(
-            "Typst compile failed (status {}).\nSTDOUT:\n{}\nSTDERR:\n{}",
-            status,
-            stdout.trim(),
-            stderr.trim()
-        ));
+    // Compile preview PDF
+    // For preview, temporarily install the preview content into content.md so the
+    // template and typst query see the preview-only tokens. We'll restore the clean
+    // content.md after compilation.
+    let preview_src = build_dir.join("content.preview.md");
+    let content_md = build_dir.join("content.md");
+    if preview_src.exists() {
+        if let Err(e) = fs::copy(&preview_src, &content_md) {
+            println!("[renderer] warning: failed to install preview content for compile: {}", e);
+        }
     }
 
-    if !preview_pdf.exists() {
-        return Err(anyhow!(
-            "Typst compile completed but PDF missing at {}",
-            preview_pdf.display()
-        ));
+    render_pipeline::compile_typst(&config, &typst_path, "preview.pdf")?;
+    let preview_pdf = build_dir.join("preview.pdf");
+
+    // Restore the clean content.md so the build directory reflects canonical (export) content.
+    if let Err(e) = fs::write(build_dir.join("content.md"), &md_content_clean) {
+        println!(
+            "[renderer] warning: failed to restore clean content.md after preview compile: {}",
+            e
+        );
     }
 
     // Update last render time
     last_render_times.insert(file_path.to_string(), mod_time);
 
-    let source_map = build_source_map(&typst_path, &build_dir, &content_dir, &preprocess.anchors);
+    // Use the anchor list from the clean preprocess (anchors are identical between preview and clean)
+    let source_map = build_source_map(app_handle, &typst_path, &build_dir, &content_dir, &preprocess_clean.anchors);
     let document = RenderedDocument {
         pdf_path: preview_pdf.to_string_lossy().to_string(),
         source_map,
@@ -327,102 +304,48 @@ pub async fn export_markdown(app_handle: &AppHandle, file_path: &str) -> Result<
     let build_dir = content_dir.join(".build");
     fs::create_dir_all(&build_dir)?;
 
-    // 1) Get preferences and write prefs.json for the template
-    let canonical_prefs = utils::get_content_dir(app_handle)?.join("prefs.json");
-    if canonical_prefs.exists() {
-        std::fs::copy(&canonical_prefs, build_dir.join("prefs.json"))?;
-        if let Ok(txt) = std::fs::read_to_string(&canonical_prefs) {
-            app_handle.emit("prefs-dump", txt).ok();
-        }
-    }
+    // Setup render configuration
+    let config = RenderConfig {
+        app_handle,
+        build_dir: build_dir.clone(),
+        content_dir: content_dir.clone(),
+    };
+
+    // Setup preferences
+    render_pipeline::setup_prefs(&config, "markdown-export")?;
 
     // 2) Copy the markdown content to build/content.md (with image path rewrites)
     let md_content_raw = fs::read_to_string(path)?;
     let base_dir = path.parent().unwrap_or(Path::new("."));
     let assets_root = utils::get_assets_dir(app_handle).ok();
     let assets_root_ref = assets_root.as_deref();
+    // For export, do NOT inject visible tokens — output must be clean for users
     let preprocess = preprocess_markdown(&md_content_raw)?;
     let md_content =
         utils::rewrite_image_paths_in_markdown(&preprocess.markdown, base_dir, assets_root_ref);
     fs::write(build_dir.join("content.md"), md_content)?;
 
-    // 3) Ensure tideflow.typ is available in build directory
-    let template_src = if let Ok(cwd) = std::env::current_dir() {
-        let dev_tpl = cwd.join("src-tauri").join("content").join("tideflow.typ");
-        if dev_tpl.exists() {
-            dev_tpl
-        } else {
-            content_dir.join("tideflow.typ")
-        }
-    } else {
-        content_dir.join("tideflow.typ")
-    };
-    let template_dst = build_dir.join("tideflow.typ");
-    if template_src.exists() {
-        fs::copy(&template_src, &template_dst)?;
-        sync_theme_assets(&template_src, &build_dir)?;
-    } else {
-        return Err(anyhow!(
-            "tideflow.typ template not found at {}",
-            template_src.display()
-        ));
-    }
+    // Setup template
+    render_pipeline::setup_template(&config, "markdown-export")?;
 
-    // 4) Get bundled Typst binary path
+    // Get bundled Typst binary path
     let typst_path = utils::get_typst_path(app_handle)
         .context("Typst binary not found. Download and place Typst binary in bin/typst/<platform>/ directory.")?;
 
-    // 5) Compile to final PDF next to source file
-    // Work around missing cmarker asset on some systems
-    ensure_cmarker_asset_camkale_png();
+    // Compile to final PDF next to source file
     let final_pdf = Path::new(file_path).with_extension("pdf");
-    let status = Command::new(&typst_path)
-        .current_dir(&build_dir)
-        .args([
-            "compile",
-            "--root",
-            content_dir.to_string_lossy().as_ref(),
-            "tideflow.typ",
-            final_pdf.to_string_lossy().as_ref(),
-        ])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .status()?;
-
-    if !status.success() {
-        let output = Command::new(&typst_path)
-            .current_dir(&build_dir)
-            .args([
-                "compile",
-                "--root",
-                content_dir.to_string_lossy().as_ref(),
-                "tideflow.typ",
-                final_pdf.to_string_lossy().as_ref(),
-            ])
-            .output()?;
-
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-
-        return Err(anyhow!(
-            "Typst export failed (status {}).\nSTDOUT:\n{}\nSTDERR:\n{}",
-            status,
-            stdout.trim(),
-            stderr.trim()
-        ));
-    }
+    let final_pdf_name = final_pdf.file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| anyhow!("Invalid output filename"))?;
+    
+    render_pipeline::compile_typst(&config, &typst_path, final_pdf_name)?;
 
     if !final_pdf.exists() {
-        return Err(anyhow!(
-            "Typst export completed but PDF missing at {}",
-            final_pdf.display()
-        ));
+        return Err(anyhow!("Export PDF not found at {}", final_pdf.display()));
     }
 
     // Emit absolute path of final PDF to UI
-    app_handle
-        .emit("exported", final_pdf.to_string_lossy().to_string())
-        .ok();
+    app_handle.emit("exported", final_pdf.to_string_lossy().to_string()).ok();
 
     Ok(final_pdf.to_string_lossy().to_string())
 }
@@ -451,6 +374,7 @@ pub async fn render_typst(
     let temp_content_path = build_dir.join(&temp_content_name);
 
     // Preprocess content to rewrite image paths so Typst/cmarker can resolve them properly
+    // For ad-hoc typst renders, include visible tokens to aid preview extraction
     let preprocess = preprocess_markdown(content)?;
     let base_dir = &content_dir; // live preview has no specific file path; use content root
     let assets_root = utils::get_assets_dir(app_handle).ok();
@@ -462,125 +386,42 @@ pub async fn render_typst(
     );
     fs::write(&temp_content_path, &processed)?;
 
-    // Copy canonical prefs.json (single source of truth) & emit dump
-    let canonical_prefs = content_dir.join("prefs.json");
-    if canonical_prefs.exists() {
-        fs::copy(&canonical_prefs, build_dir.join("prefs.json"))?;
-        if let Ok(txt) = fs::read_to_string(&canonical_prefs) {
-            // Emit prefs-dump without moving the String so we can still parse it
-            app_handle.emit("prefs-dump", &txt).ok();
-            // Emit render-debug event for tracing toc issues
-            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&txt) {
-                let toc_flag = val.get("toc").and_then(|v| v.as_bool()).unwrap_or(true);
-                let num_flag = val
-                    .get("numberSections")
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(true);
-                let dbg = serde_json::json!({
-                    "path_type": "typst-temp",
-                    "toc": toc_flag,
-                    "numberSections": num_flag,
-                    "papersize": val.get("papersize"),
-                    "timestamp": chrono::Utc::now().to_rfc3339(),
-                });
-                app_handle.emit("render-debug", dbg).ok();
-            }
-        }
-    }
+    // Setup render configuration
+    let config = RenderConfig {
+        app_handle,
+        build_dir: build_dir.clone(),
+        content_dir: content_dir.clone(),
+    };
+
+    // Setup preferences
+    render_pipeline::setup_prefs(&config, "typst-temp")?;
 
     // Ensure the content is available as content.md (required by template)
     fs::copy(&temp_content_path, build_dir.join("content.md"))?;
 
-    // Ensure tideflow.typ is available in build directory
-    let template_src = if let Ok(cwd) = std::env::current_dir() {
-        let dev_tpl = cwd.join("src-tauri").join("content").join("tideflow.typ");
-        if dev_tpl.exists() {
-            dev_tpl
-        } else {
-            content_dir.join("tideflow.typ")
-        }
-    } else {
-        content_dir.join("tideflow.typ")
-    };
-    let template_dst = build_dir.join("tideflow.typ");
-    if template_src.exists() {
-        fs::copy(&template_src, &template_dst)?;
-        sync_theme_assets(&template_src, &build_dir)?;
-        if let Ok(tpl_txt) = fs::read_to_string(&template_src) {
-            let snippet: String = tpl_txt.chars().take(400).collect();
-            let has_conditional = tpl_txt.contains("#if prefs.toc");
-            let evt = serde_json::json!({
-                "path_type": "typst-temp",
-                "template_path": template_src.to_string_lossy(),
-                "has_conditional": has_conditional,
-                "snippet": snippet,
-                "timestamp": chrono::Utc::now().to_rfc3339()
-            });
-            app_handle.emit("template-inspect", evt).ok();
-            if !has_conditional {
-                let warn = serde_json::json!({
-                    "warning": "Template missing '#if prefs.toc' conditional; TOC will always show.",
-                    "template_path": template_src.to_string_lossy(),
-                    "timestamp": chrono::Utc::now().to_rfc3339()
-                });
-                app_handle.emit("template-warning", warn).ok();
-            }
-        }
-    } else {
-        return Err(anyhow!(
-            "tideflow.typ template not found at {}",
-            template_src.display()
-        ));
-    }
+    // Setup template
+    render_pipeline::setup_template(&config, "typst-temp")?;
 
-    // Determine output file extension based on format (Typst only supports PDF for now)
-    let output_ext = "pdf"; // Typst primarily outputs PDF
-    let output_file_name = format!("temp_{}.{}", uuid, output_ext);
+    // Determine output file name
+    let output_file_name = format!("temp_{}.pdf", uuid);
     let output_path = build_dir.join(&output_file_name);
 
-    // Run Typst to compile the file
-    // Work around missing cmarker asset on some systems
-    ensure_cmarker_asset_camkale_png();
-    let output = Command::new(&typst_path)
-        .current_dir(&build_dir)
-        .args([
-            "compile",
-            "--root",
-            content_dir.to_string_lossy().as_ref(),
-            "tideflow.typ",
-            &output_file_name,
-        ])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .context("Failed to execute Typst command")?;
+    // Compile with Typst
+    render_pipeline::compile_typst(&config, &typst_path, &output_file_name)?;
 
     // Clean up the temporary content file
     let _ = fs::remove_file(&temp_content_path);
 
-    if !output.status.success() {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-
-        return Err(anyhow!(
-            "Typst compilation failed (status exit code: {}).\nSTDOUT:\n{}\nSTDERR:\n{}",
-            output.status.code().unwrap_or(-1),
-            stdout,
-            stderr
-        ));
-    }
-
-    // Check if output was created
+    // Verify output was created
     if !output_path.exists() {
-        return Err(anyhow!(
-            "Output file was not created: {}",
-            output_path.display()
-        ));
+        return Err(anyhow!("Output file was not created: {}", output_path.display()));
     }
 
-    let source_map = build_source_map(&typst_path, &build_dir, &content_dir, &preprocess.anchors);
+    let source_map = build_source_map(app_handle, &typst_path, &build_dir, &content_dir, &preprocess.anchors);
     Ok(RenderedDocument {
         pdf_path: output_path.to_string_lossy().to_string(),
         source_map,
     })
 }
+
+

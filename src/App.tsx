@@ -17,7 +17,9 @@ import type { BackendRenderedDocument } from './types';
 import TabBar from './components/TabBar';
 import Editor from './components/Editor';
 import PDFPreview from './components/PDFPreview';
+import PDFErrorBoundary from './components/PDFErrorBoundary';
 import Toolbar from './components/Toolbar';
+import { TIMING } from './constants/timing';
 import StatusBar from './components/StatusBar';
 
 function App() {
@@ -125,8 +127,22 @@ function App() {
           const state = useAppStore.getState();
           state.setCompileStatus({ status: 'ok', pdf_path, source_map });
           state.setSourceMap(source_map);
+          state.setCompiledAt(Date.now());
           if (!state.activeAnchorId && source_map.anchors.length > 0) {
             state.setActiveAnchorId(source_map.anchors[0].id);
+          }
+          // Trigger a final sync pass in the preview once the backend has
+          // delivered the compiled PDF and source map. This helps ensure
+          // the preview performs a one-shot final render+refresh on app
+          // startup rather than waiting for a subsequent document switch.
+          try {
+            // Delay a touch so the preview has a chance to mount and
+            // wire listeners before the final sync event is consumed.
+            setTimeout(() => {
+              try { window.dispatchEvent(new CustomEvent('pdf-preview-final-sync')); } catch { /* ignore */ }
+            }, TIMING.FINAL_SYNC_DELAY_MS);
+          } catch {
+            // ignore
           }
         });
         register(unlistenCompiled);
@@ -154,31 +170,90 @@ function App() {
         });
         register(unlistenRenderDebug);
 
-        const unlistenTemplateInspect = await listen<string>('template-inspect', (evt) => {
-          console.log('[TemplateInspect]', evt.payload);
+        const unlistenTypstStdErr = await listen<string>('typst-query-stderr', (evt) => {
+          console.warn('[TypstQuery STDERR]', evt.payload);
         });
-        register(unlistenTemplateInspect);
+        register(unlistenTypstStdErr);
 
-        const unlistenTemplateWarning = await listen<string>('template-warning', (evt) => {
-          console.warn('[TemplateWarning]', evt.payload);
+        const unlistenTypstStdOut = await listen<string>('typst-query-stdout', (evt) => {
+          console.log('[TypstQuery STDOUT]', evt.payload);
         });
-        register(unlistenTemplateWarning);
+        register(unlistenTypstStdOut);
 
-        const unlistenPrefsWrite = await listen<string>('prefs-write', (evt) => {
-          console.log('[PrefsWrite]', evt.payload);
+        const unlistenTypstFailed = await listen<string>('typst-query-failed', () => {
+          console.warn('[TypstQuery] no positions found, falling back to PDF-text extraction');
+          const st = useAppStore.getState();
+          st.setTypstQueryFailed(true);
         });
-        register(unlistenPrefsWrite);
+        register(unlistenTypstFailed);
 
-        const unlistenPrefsRead = await listen<string>('prefs-read', (evt) => {
-          console.log('[PrefsRead]', evt.payload);
-        });
-        register(unlistenPrefsRead);
+        // Listen for fullscreen requests dispatched from UI components.
+        const onReqFs = (ev: Event) => {
+          try {
+            const ce = ev as CustomEvent<{ fullscreen?: boolean }>;
+            const want = ce?.detail?.fullscreen;
+            if (typeof want !== 'boolean') return;
+            // Persist preference
+            try { saveSession({ fullscreen: want }); } catch { /* ignore */ }
+            // Try Tauri window API if available
+            (async () => {
+              try {
+                const mod = await import('@tauri-apps/api/window');
+                const modTyped = mod as { getCurrentWindow?: () => unknown; getCurrent?: () => unknown; appWindow?: unknown };
+                const win = modTyped.getCurrentWindow?.() || modTyped.getCurrent?.() || modTyped.appWindow;
+                if (win && typeof (win as { setFullscreen?: unknown }).setFullscreen === 'function') {
+                  try { await (win as { setFullscreen: (f: boolean) => Promise<void> }).setFullscreen(want); } catch (e) { console.debug('[App] setFullscreen failed', e); }
+                  return;
+                }
+              } catch (e) {
+                void e; // dynamic import failed; fall through to DOM API
+              }
+              // Fallback: use DOM Fullscreen API on the document element
+              try {
+                if (want) {
+                  if (document.documentElement.requestFullscreen) {
+                    // requestFullscreen returns a Promise
+                    void document.documentElement.requestFullscreen();
+                  }
+                } else {
+                  if (document.fullscreenElement) {
+                    void document.exitFullscreen();
+                  }
+                }
+              } catch (e) {
+                console.debug('[App] DOM fullscreen toggle failed', e);
+              }
+            })();
+          } catch (e) {
+            void e;
+          }
+        };
+        window.addEventListener('tideflow-request-fullscreen', onReqFs as EventListener);
+        // unregister on cleanup
+        register(() => window.removeEventListener('tideflow-request-fullscreen', onReqFs as EventListener));
+
+        // Template inspect/warning listeners removed - they only logged debug info
+        // If needed for debugging, add them back temporarily
       } catch (error) {
         handleError(error, { operation: 'initialize app', component: 'App' });
       } finally {
         if (!disposed) {
           setLoading(false);
           console.log('[App] init complete');
+          // Apply saved fullscreen if requested in session
+          try {
+            const s = loadSession();
+            if (s?.fullscreen) {
+              if (process.env.NODE_ENV !== 'production') console.debug('[App] applying saved fullscreen');
+              try {
+                window.dispatchEvent(new CustomEvent('tideflow-request-fullscreen', { detail: { fullscreen: true } }));
+              } catch (err) {
+                console.warn('[App] failed to dispatch tideflow-request-fullscreen', err);
+              }
+            }
+          } catch (err) {
+            console.warn('[App] failed to read session for fullscreen', err);
+          }
         }
       }
     };
@@ -207,7 +282,9 @@ function App() {
       openFiles,
       currentFile,
       sampleDocContent,
-      previewVisible: previewVisibleState
+      previewVisible: previewVisibleState,
+      // keep fullscreen preference if present in current session storage
+      fullscreen: loadSession()?.fullscreen ?? false,
     });
   }, [openFiles, currentFile, sampleDocContent, previewVisibleState]);
 
@@ -247,7 +324,11 @@ function App() {
             }}
           >
             {/* Only mount PDFPreview when not collapsed to avoid wasted renders */}
-            {!previewCollapsed && <PDFPreview />}
+            {!previewCollapsed && (
+              <PDFErrorBoundary>
+                <PDFPreview />
+              </PDFErrorBoundary>
+            )}
           </Panel>
         </PanelGroup>
       </div>

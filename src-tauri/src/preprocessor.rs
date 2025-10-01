@@ -91,7 +91,7 @@ fn transform_admonitions(markdown: &str) -> String {
         };
 
         let raw_kind = after_marker[..closing_idx].trim();
-        let mut remainder = after_marker[closing_idx + 1..].trim_start();
+        let remainder = after_marker[closing_idx + 1..].trim_start();
         if raw_kind.is_empty() {
             output.push_str(segment);
             idx += 1;
@@ -110,7 +110,6 @@ fn transform_admonitions(markdown: &str) -> String {
         }
 
         idx += 1;
-        let mut last_line_had_newline = had_newline;
         while idx < segments.len() {
             let seg = segments[idx];
             let (line_body, seg_had_newline) = if seg.ends_with('\n') {
@@ -122,7 +121,7 @@ fn transform_admonitions(markdown: &str) -> String {
             if !trimmed_line.starts_with('>') {
                 break;
             }
-            let mut content = trimmed_line[1..].trim_start_matches(' ');
+            let content = trimmed_line[1..].trim_start_matches(' ');
             if content.is_empty() {
                 // Preserve blank quoted line
                 body.push('\n');
@@ -132,38 +131,35 @@ fn transform_admonitions(markdown: &str) -> String {
                     body.push('\n');
                 }
             }
-            last_line_had_newline = seg_had_newline;
             idx += 1;
         }
 
         let mut rendered = String::new();
         rendered.push_str(indent);
         rendered.push_str("<!--raw-typst #admonition(\"");
-        rendered.push_str(kind);
+        rendered.push_str(&kind);
         rendered.push_str("\")[ -->\n");
         rendered.push_str(body.trim_end_matches('\n'));
         rendered.push('\n');
-        rendered.push_str(indent);
-        rendered.push_str("<!--raw-typst ] -->");
-        if last_line_had_newline || idx < segments.len() {
-            rendered.push('\n');
-        }
+
+        // Append the rendered admonition block to the output and continue processing
         output.push_str(&rendered);
+        // advance to the next segment in the outer loop
+        continue;
     }
 
     output
 }
 
-fn canonical_admonition_kind(raw: &str) -> &str {
-    match raw.trim().to_lowercase().as_str() {
-        "warning" | "warn" | "danger" | "caution" => "warning",
-        "tip" | "success" => "tip",
-        "info" | "information" => "info",
-        "important" => "important",
-        _ => "note",
+fn canonical_admonition_kind(raw: &str) -> String {
+    match raw.to_lowercase().as_str() {
+        "warning" | "warn" | "danger" | "caution" => "warning".to_string(),
+        "tip" | "success" => "tip".to_string(),
+        "info" | "information" => "info".to_string(),
+        "important" => "important".to_string(),
+        _ => "note".to_string(),
     }
 }
-
 fn normalise_legacy_callouts(markdown: &str) -> String {
     let mut replaced = markdown.replace(
         "<!--raw-typst #block(fill: luma(245), inset: 8pt, radius: 6pt, stroke: 0.5pt + luma(200))",
@@ -188,6 +184,21 @@ fn inject_anchors(markdown: &str) -> Result<PreprocessorOutput> {
     let mut insertions: Vec<(usize, String)> = Vec::new();
     let mut anchors: Vec<AnchorMeta> = Vec::new();
     let mut seen_offsets: HashSet<usize> = HashSet::new();
+
+    // Ensure there's always a document-start anchor so preview can scroll to
+    // the top even when a cover page is rendered above content.
+    let doc_id = "tf-doc-start".to_string();
+    if !seen_offsets.contains(&0) {
+            let doc_anchor = build_anchor_markup(markdown, 0, &doc_id);
+        insertions.push((0, doc_anchor));
+        anchors.push(AnchorMeta {
+            id: doc_id.clone(),
+            offset: 0,
+            line: 0,
+            column: 0,
+        });
+        seen_offsets.insert(0usize);
+    }
 
     let parser = Parser::new_ext(
         markdown,
@@ -230,7 +241,7 @@ fn is_block_level(tag: &Tag<'_>) -> bool {
     matches!(
         tag,
         Tag::Paragraph
-            | Tag::Heading(_)
+            | Tag::Heading(..)
             | Tag::BlockQuote
             | Tag::CodeBlock(_)
             | Tag::List(_)
@@ -265,7 +276,9 @@ fn build_anchor_markup(source: &str, offset: usize, id: &str) -> String {
             snippet.push('\n');
         }
     }
-    snippet.push_str("<!--raw-typst #anchor(\"");
+    // Inject a literal label call so Typst sees a label node it can query.
+    // A bare label is accepted by Typst and will be discoverable by `typst query`.
+    snippet.push_str("<!--raw-typst #label(\"");
     snippet.push_str(id);
     snippet.push_str("\") -->\n");
     snippet
@@ -291,6 +304,7 @@ pub fn attach_pdf_positions(
     SourceMapPayload { anchors: entries }
 }
 
+#[allow(dead_code)]
 pub fn anchors_to_lookup(anchors: &[AnchorMeta]) -> HashMap<String, EditorPosition> {
     anchors
         .iter()
@@ -316,18 +330,11 @@ pub fn pdf_positions_from_query(json_bytes: &[u8]) -> Result<HashMap<String, Pdf
                 if !label.starts_with("tf-") {
                     continue;
                 }
-                if let Some(location) = entry.get("location") {
-                    let page = location.get("page").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
-                    let position = location
-                        .get("position")
-                        .or_else(|| location.get("point"))
-                        .or_else(|| location.get("pos"));
-                    let x = position
-                        .and_then(|p| p.get("x").and_then(|v| v.as_f64()))
-                        .unwrap_or_default() as f32;
-                    let y = position
-                        .and_then(|p| p.get("y").and_then(|v| v.as_f64()))
-                        .unwrap_or_default() as f32;
+                // Try to find a location object anywhere under this entry. Typst
+                // output varies by version and query shape; search for common
+                // variants such as { location: { page, position: { x,y } } }
+                // or nested fields like 'point', 'pos', or 'rect'.
+                if let Some((page, x, y)) = find_location(entry) {
                     map.insert(label, PdfPosition { page, x, y });
                 }
             }
@@ -355,3 +362,77 @@ fn find_label(value: &serde_json::Value) -> Option<String> {
         _ => None,
     }
 }
+
+/// Recursively search a serde_json::Value for a location-like object and extract
+/// (page, x, y) if possible. Supports keys: location, page, position, point,
+/// pos, rect (rect may provide [x0,y0,x1,y1] coords; we use y0 as baseline).
+fn find_location(value: &serde_json::Value) -> Option<(usize, f32, f32)> {
+    match value {
+        serde_json::Value::Object(map) => {
+            // Direct location field
+            if let Some(loc) = map.get("location") {
+                if let Some(res) = extract_page_xy(loc) {
+                    return Some(res);
+                }
+            }
+            // Some outputs might put page/position at top-level
+            if let Some(res) = extract_page_xy(&serde_json::Value::Object(map.clone())) {
+                return Some(res);
+            }
+            // Recurse into children
+            for (_k, v) in map.iter() {
+                if let Some(found) = find_location(v) {
+                    return Some(found);
+                }
+            }
+            None
+        }
+        serde_json::Value::Array(arr) => arr.iter().find_map(find_location),
+        _ => None,
+    }
+}
+
+fn extract_page_xy(v: &serde_json::Value) -> Option<(usize, f32, f32)> {
+    if let Some(obj) = v.as_object() {
+        // Page
+        // Page may be numeric or string; accept both
+        let page = obj
+            .get("page")
+            .and_then(|p| p.as_u64().or_else(|| p.as_str().and_then(|s| s.parse::<u64>().ok())))
+            .unwrap_or(1) as usize;
+
+        // Position variants
+        if let Some(pos) = obj.get("position").or_else(|| obj.get("point")).or_else(|| obj.get("pos")) {
+            if let Some(pos_obj) = pos.as_object() {
+                let x = pos_obj
+                    .get("x")
+                    .and_then(|v| v.as_f64().or_else(|| v.as_str().and_then(|s| s.parse::<f64>().ok())))
+                    .unwrap_or(0.0) as f32;
+                let y = pos_obj
+                    .get("y")
+                    .and_then(|v| v.as_f64().or_else(|| v.as_str().and_then(|s| s.parse::<f64>().ok())))
+                    .unwrap_or(0.0) as f32;
+                return Some((page, x, y));
+            }
+        }
+
+        // rect variant: [x0, y0, x1, y1]
+        if let Some(rect) = obj.get("rect") {
+            if let Some(arr) = rect.as_array() {
+                if arr.len() >= 2 {
+                    let x = arr[0]
+                        .as_f64()
+                        .or_else(|| arr[0].as_str().and_then(|s| s.parse::<f64>().ok()))
+                        .unwrap_or(0.0) as f32;
+                    let y = arr[1]
+                        .as_f64()
+                        .or_else(|| arr[1].as_str().and_then(|s| s.parse::<f64>().ok()))
+                        .unwrap_or(0.0) as f32;
+                    return Some((page, x, y));
+                }
+            }
+        }
+    }
+    None
+}
+

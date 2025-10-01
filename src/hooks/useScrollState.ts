@@ -1,0 +1,82 @@
+/**
+ * Hook to manage scroll-related state and refs in PDFPreview.
+ * Centralizes all scroll tracking, programmatic scroll detection,
+ * and user interaction state.
+ */
+
+import { useEffect, useRef } from 'react';
+import type { SyncMode } from '../types';
+
+export interface ScrollStateRefs {
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  programmaticScrollRef: React.MutableRefObject<boolean>;
+  lastProgrammaticScrollAt: React.MutableRefObject<number | null>;
+  userInteractedRef: React.MutableRefObject<boolean>;
+  initialForcedScrollDoneRef: React.MutableRefObject<boolean>;
+  startupOneShotAppliedRef: React.MutableRefObject<boolean>;
+  finalRefreshDoneRef: React.MutableRefObject<boolean>;
+  // Sync refs (kept in sync with props/state)
+  syncModeRef: React.MutableRefObject<SyncMode>;
+  activeAnchorRef: React.MutableRefObject<string | null>;
+  isTypingRef: React.MutableRefObject<boolean>;
+  renderingRef: React.MutableRefObject<boolean>;
+}
+
+export interface UseScrollStateParams {
+  syncMode: SyncMode;
+  activeAnchorId: string | null;
+  isTyping: boolean;
+  rendering: boolean;
+}
+
+export function useScrollState(params: UseScrollStateParams): ScrollStateRefs {
+  const { syncMode, activeAnchorId, isTyping, rendering } = params;
+
+  // Core container reference
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // Scroll behavior tracking
+  const programmaticScrollRef = useRef(false);
+  const lastProgrammaticScrollAt = useRef<number | null>(null);
+  const userInteractedRef = useRef(false);
+
+  // One-shot startup sync guards
+  const initialForcedScrollDoneRef = useRef(false);
+  const startupOneShotAppliedRef = useRef(false);
+  const finalRefreshDoneRef = useRef(false);
+
+  // Sync refs for stable access in callbacks
+  const syncModeRef = useRef(syncMode);
+  useEffect(() => {
+    syncModeRef.current = syncMode;
+  }, [syncMode]);
+
+  const activeAnchorRef = useRef<string | null>(activeAnchorId);
+  useEffect(() => {
+    activeAnchorRef.current = activeAnchorId;
+  }, [activeAnchorId]);
+
+  const isTypingRef = useRef(isTyping);
+  useEffect(() => {
+    isTypingRef.current = isTyping;
+  }, [isTyping]);
+
+  const renderingRef = useRef(rendering);
+  useEffect(() => {
+    renderingRef.current = rendering;
+  }, [rendering]);
+
+  return {
+    containerRef,
+    programmaticScrollRef,
+    lastProgrammaticScrollAt,
+    userInteractedRef,
+    initialForcedScrollDoneRef,
+    startupOneShotAppliedRef,
+    finalRefreshDoneRef,
+    syncModeRef,
+    activeAnchorRef,
+    isTypingRef,
+    renderingRef,
+  };
+}

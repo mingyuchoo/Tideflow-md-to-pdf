@@ -84,6 +84,12 @@ interface AppState {
   
   previewVisible: boolean;
   setPreviewVisible: (visible: boolean) => void;
+  // Typst query failure flag; when true prefer PDF-text fallback
+  typstQueryFailed: boolean;
+  setTypstQueryFailed: (v: boolean) => void;
+  // Timestamp when the last compiled event arrived; used to coordinate final-sync
+  compiledAt: number;
+  setCompiledAt: (ts: number) => void;
   // (Panel persistence removed)
   
   // Reset state
@@ -95,10 +101,14 @@ interface AppState {
   sampleDocContent: string | null;
   setSampleDocContent: (content: string) => void;
   clearCache: () => void;
+  // Persisted editor scroll positions per-file (in-memory)
+  editorScrollPositions: Record<string, number>;
+  setEditorScrollPosition: (path: string, pos: number) => void;
+  getEditorScrollPosition: (path: string) => number | null;
 }
 
 // Create store
-export const useAppStore = create<AppState>((set) => ({
+export const useAppStore = create<AppState>((set, get) => ({
   // Editor state
   editor: initialEditorState,
   sourceMap: null,
@@ -229,6 +239,16 @@ export const useAppStore = create<AppState>((set) => ({
   
   previewVisible: true,
   setPreviewVisible: (visible: boolean) => set({ previewVisible: visible }),
+  // editor scroll position persistence (in-memory map)
+  editorScrollPositions: {},
+  setEditorScrollPosition: (path: string, pos: number) => set((state: AppState) => ({
+    editorScrollPositions: { ...state.editorScrollPositions, [path]: pos }
+  })),
+  getEditorScrollPosition: (path: string) => {
+    // Use the `get` accessor provided by zustand to read current state.
+    const s = get();
+    return s.editorScrollPositions[path] ?? null;
+  },
   // Provide cache clear early so type checker sees it (ordering not required but for clarity)
   clearCache: () => set(() => ({
     editor: {
@@ -258,4 +278,10 @@ export const useAppStore = create<AppState>((set) => ({
   setInitialSampleInjected: (v: boolean) => set({ initialSampleInjected: v }),
   sampleDocContent: null,
   setSampleDocContent: (content: string) => set({ sampleDocContent: content }),
+  // Typst query failure flag: when true, prefer PDF-text extraction fallback
+  typstQueryFailed: false,
+  setTypstQueryFailed: (v: boolean) => set({ typstQueryFailed: v }),
+  // Timestamp when the last compiled event arrived; used to coordinate final-sync
+  compiledAt: 0,
+  setCompiledAt: (ts: number) => set({ compiledAt: ts }),
 }));

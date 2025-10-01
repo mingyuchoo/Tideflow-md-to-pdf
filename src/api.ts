@@ -14,8 +14,13 @@ export async function readMarkdownFile(path: string): Promise<string> {
   return invoke('read_markdown_file', { path });
 }
 
+import { scrubRawTypstAnchors } from './utils/scrubAnchors';
+
 export async function writeMarkdownFile(path: string, content: string): Promise<void> {
-  return invoke('write_markdown_file', { path, content });
+  // Ensure any injected preview-only raw-typst anchors are removed before
+  // persisting to disk. This centralizes scrubbing so every caller is safe.
+  const cleaned = scrubRawTypstAnchors(content);
+  return invoke('write_markdown_file', { path, content: cleaned });
 }
 
 export async function listFiles(dirPath = ''): Promise<FileEntry[]> {

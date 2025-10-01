@@ -1,0 +1,107 @@
+.pdf-error-boundary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  padding: 2rem;
+  background: #f9f9f9;
+}
+
+.pdf-error-content {
+  max-width: 600px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.pdf-error-content h3 {
+  margin: 0 0 1rem 0;
+  color: #d32f2f;
+  font-size: 1.5rem;
+}
+
+.pdf-error-content p {
+  margin: 0 0 1.5rem 0;
+  color: #666;
+  line-height: 1.6;
+}
+
+.pdf-error-actions {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.pdf-error-button {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.pdf-error-button.primary {
+  background: #1976d2;
+  color: white;
+}
+
+.pdf-error-button.primary:hover {
+  background: #1565c0;
+}
+
+.pdf-error-details {
+  margin-bottom: 1.5rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 0.5rem;
+}
+
+.pdf-error-details summary {
+  cursor: pointer;
+  padding: 0.5rem;
+  font-weight: 500;
+  color: #555;
+}
+
+.pdf-error-details summary:hover {
+  background: #f5f5f5;
+}
+
+.pdf-error-stack {
+  padding: 1rem;
+}
+
+.pdf-error-stack strong {
+  display: block;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  color: #333;
+}
+
+.pdf-error-stack pre {
+  background: #f5f5f5;
+  padding: 0.75rem;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-size: 0.85rem;
+  color: #d32f2f;
+  margin: 0;
+}
+
+.pdf-error-help {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.pdf-error-help ul {
+  margin: 0.5rem 0 0 0;
+  padding-left: 1.5rem;
+}
+
+.pdf-error-help li {
+  margin: 0.25rem 0;
+}

@@ -71,9 +71,8 @@ const DesignModal: React.FC = () => {
     setLocal(next);
     setDirty(true);
     if (themeSelection !== 'custom') setThemeSelection('custom');
-    // Immediate apply for TOC (race prone) else debounced
-    if (Object.prototype.hasOwnProperty.call(patch, 'toc') || Object.prototype.hasOwnProperty.call(patch, 'cover_page')) {
-      // Cancel pending timer
+    // Only cover_page triggers immediate apply; TOC is now debounced
+    if (Object.prototype.hasOwnProperty.call(patch, 'cover_page')) {
       if (applyTimer.current) {
         window.clearTimeout(applyTimer.current);
         applyTimer.current = null;

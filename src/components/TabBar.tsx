@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { useAppStore } from '../store';
 import { readMarkdownFile, createFile, writeMarkdownFile } from '../api';
+import { scrubRawTypstAnchors } from '../utils/scrubAnchors';
 import { open } from '@tauri-apps/plugin-dialog';
 import { handleError } from '../utils/errorHandler';
 import './TabBar.css';
@@ -52,12 +53,13 @@ const TabBar: React.FC = () => {
       const text = await file.text();
       const safeName = file.name.endsWith('.md') ? file.name : file.name + '.md';
       const newPath = await createFile(safeName);
-      await writeMarkdownFile(newPath, text);
+      const cleaned = scrubRawTypstAnchors(text);
+      await writeMarkdownFile(newPath, cleaned);
       
       // Add to open files and set as current
       addOpenFile(newPath);
       setCurrentFile(newPath);
-      setContent(text);
+      setContent(cleaned);
     } catch (e2) {
       handleError(e2, { operation: 'open file', component: 'TabBar' });
     } finally {
@@ -75,6 +77,7 @@ const TabBar: React.FC = () => {
       
       const newContent = `# ${name.replace('.md', '')}\n\nStart writing your document.`;
       const filePath = await createFile(fileName);
+      // New content is clean, no need to scrub
       await writeMarkdownFile(filePath, newContent);
       
       // Add to open files and set as current

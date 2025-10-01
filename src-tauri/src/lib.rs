@@ -1,6 +1,7 @@
 mod commands;
 mod preferences;
 mod preprocessor;
+mod render_pipeline;
 mod renderer;
 mod utils;
 

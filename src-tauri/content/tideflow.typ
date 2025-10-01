@@ -5,22 +5,25 @@
 #let prefs = json("prefs.json")
 
 #let theme-id = if "theme_id" in prefs { prefs.theme_id } else { "default" }
+
+// Theme hooks may set typography; ensure language defaults to English first so
+// theme `set text(...)` calls can fully control font/size/lang.
+#set text(lang: "en")
+
 #let theme-config = apply-theme(theme-id, prefs)
 #let accent-color = theme-config.at("accent", default: rgb(45, 62, 80))
-
-// Theme hooks apply their own typography; ensure language defaults to English
-#set text(lang: "en")
 
 // Capture built-in image to avoid recursive overrides
 #let builtin-image = image
 
-#let anchor(id) = {
-  label(id)
-  box(width: 0pt, height: 0pt)
-}
+// Provide a lightweight `anchor` function for the render scope. We inject
+// literal `#label("id")[box(...)]` snippets from the Rust preprocessor, so
+// the anchor helper does not need to produce any output; it just needs to
+// exist in the scope when `render` is called.
+#let anchor = id => none
 
 #let admonition-colors = (
-  "note": (fill: mix(accent-color, rgb(255, 255, 255), 85%), stroke: accent-color),
+  "note": (fill: color.mix(accent-color, rgb(255, 255, 255)), stroke: accent-color),
   "info": (fill: rgb(224, 242, 254), stroke: rgb(186, 230, 253)),
   "tip": (fill: rgb(220, 252, 231), stroke: rgb(187, 247, 208)),
   "warning": (fill: rgb(254, 249, 195), stroke: rgb(253, 224, 71)),
@@ -54,38 +57,40 @@
 
 #let sanitize-str = it => if type(it) == str { it.trim() } else { "" }
 
-#let cover-enabled = {
+#let cover_enabled = {
   if "cover_page" in prefs {
     if type(prefs.cover_page) == bool { prefs.cover_page } else { false }
   } else { false }
 }
 
-#let cover-title = sanitize-str(if "cover_title" in prefs { prefs.cover_title } else { "" })
-#let cover-writer = sanitize-str(if "cover_writer" in prefs { prefs.cover_writer } else { "" })
-#let cover-image = sanitize-str(if "cover_image" in prefs { prefs.cover_image } else { "" })
+#let cover_title = sanitize-str(if "cover_title" in prefs { prefs.cover_title } else { "" })
+#let cover_writer = sanitize-str(if "cover_writer" in prefs { prefs.cover_writer } else { "" })
+#let cover_image = sanitize-str(if "cover_image" in prefs { prefs.cover_image } else { "" })
 
-#let render-cover-page = {
-  if !cover-enabled { return none }
-  let has-title = cover-title != ""
-  let has-writer = cover-writer != ""
-  let has-image = cover-image != ""
+#let render_cover_page = {
+  // Only render the cover when enabled in preferences. Use a code-level `if` so
+  // `#` directives are not placed at the top-level of a code block.
+  if cover_enabled {
+    let has_title = cover_title != ""
+    let has_writer = cover_writer != ""
+    let has_image = cover_image != ""
 
-  box(width: 100%)[
-    #set text(align: center)
-    #v(5cm)
-    #if has-image {
-      #align(center, builtin-image(cover-image, width: 60%))
-      #v(24pt)
-    }
-    #if has-title {
-      #text(size: 28pt, weight: 700)[#cover-title]
-      #v(12pt)
-    }
-    #if has-writer {
-      #text(size: 16pt, fill: mix(accent-color, rgb(0, 0, 0), 60%))[#cover-writer]
-      #v(12pt)
-    }
-  ]
+    align(center, box(width: 100%)[
+      #v(5cm)
+      #if has_image [
+        #align(center, builtin-image(cover_image, width: 60%))
+        #v(24pt)
+      ]
+      #if has_title [
+        #text(size: 28pt, weight: 700)[#cover_title]
+        #v(12pt)
+      ]
+      #if has_writer [
+        #text(size: 16pt, fill: color.mix(accent-color, rgb(0, 0, 0)))[#cover_writer]
+        #v(12pt)
+      ]
+  ])
+  } else { none }
 }
 
 // Safe margin parsing (supports cm/mm/in/pt or numeric fallback)
@@ -112,8 +117,8 @@
 // Read markdown content
 #let md_content = read("content.md")
 
-#if cover-enabled [
-  #render-cover-page
+#if cover_enabled [
+  #render_cover_page
   #pagebreak()
 ]
 
@@ -132,6 +137,14 @@
 
 // Render markdown content with explicit outline suppression
 #show outline: none
+
+// Define fallback helpers at top-level so we don't need to pass them as
+// keyword arguments into #render (some cmarker versions reject unexpected
+// keyword arguments). These are safe defaults; the Rust preprocessor may
+// still inject label/anchor markup directly into the markdown.
+#let anchor = (id => none)
+#let image = (path, alt: none, ..n) => builtin-image(path, alt: alt, ..n)
+
 #render(md_content,
   html: (
     // Handle <img src width data-align> so we can control size and alignment
@@ -148,10 +161,5 @@
       else if a == "right" { align(right, im) }
       else { im }
     })
-  ),
-  scope: (
-    // Ensure image paths resolve relative to our project/build directory,
-    // not the cmarker package root. See cmarker docs: "Resolving Paths Correctly".
-    image: (path, alt: none, ..n) => builtin-image(path, alt: alt, ..n)
   )
 )

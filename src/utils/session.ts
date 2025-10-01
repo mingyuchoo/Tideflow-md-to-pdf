@@ -5,6 +5,7 @@ export interface TideflowSessionData {
   openFiles: string[];
   currentFile: string | null;
   previewVisible: boolean;
+  fullscreen?: boolean;
   sampleDocContent: string | null;
   timestamp: number;
   version: number;
@@ -32,6 +33,7 @@ export function saveSession(partial: Partial<TideflowSessionData>) {
       openFiles: [],
       currentFile: null,
       previewVisible: true,
+      fullscreen: false,
   sampleDocContent: null,
   version: VERSION,
       ...existing,

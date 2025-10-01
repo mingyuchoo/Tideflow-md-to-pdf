@@ -1,11 +1,21 @@
+  // ...existing code...
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useAppStore } from '../store';
-import { handleError } from '../utils/errorHandler';
 import './PDFPreview.css';
 import * as pdfjsLib from 'pdfjs-dist';
-import { convertFileSrc } from '@tauri-apps/api/core';
+import PDFPreviewHeader from './PDFPreviewHeader';
+import { usePdfRenderer } from '../hooks/usePdfRenderer';
+import usePdfSync from '../hooks/usePdfSync';
 import PdfJsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?worker';
-import type { SourceMap } from '../types';
+import { usePendingScroll } from '../hooks/usePendingScroll';
+import { useScrollState } from '../hooks/useScrollState';
+import { useOffsetManager } from '../hooks/useOffsetManager';
+import { useStartupSync } from '../hooks/useStartupSync';
+import { useAnchorSync } from '../hooks/useAnchorSync';
+import { useDocumentLifecycle } from '../hooks/useDocumentLifecycle';
+import { useFinalSync } from '../hooks/useFinalSync';
+import { usePreviewEvents } from '../hooks/usePreviewEvents';
+import { UI } from '../constants/timing';
 
 interface PdfJsWorkerOptions {
   workerPort?: unknown;
@@ -20,245 +30,367 @@ try {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       lib.GlobalWorkerOptions.workerPort = new (PdfJsWorker as any)();
-      console.log('[PDFPreview] pdf.js workerPort initialized');
+      if (process.env.NODE_ENV !== 'production') console.log('[PDFPreview] pdf.js workerPort initialized');
     } catch (inner) {
-      console.warn('[PDFPreview] Worker construction failed, continuing with fake worker', inner);
+      if (process.env.NODE_ENV !== 'production') console.warn('[PDFPreview] Worker construction failed, continuing with fake worker', inner);
     }
   }
 } catch (outer) {
-  console.warn('[PDFPreview] Worker initialization outer failure; continuing without worker', outer);
+  if (process.env.NODE_ENV !== 'production') console.warn('[PDFPreview] Worker initialization outer failure; continuing without worker', outer);
 }
 
 const PDFPreview: React.FC = () => {
-  // Pull editor (for compileStatus) and sync state
+  // Store state
   const { editor, sourceMap, activeAnchorId, setActiveAnchorId, syncMode, setSyncMode, isTyping } = useAppStore();
   const { compileStatus } = editor;
-  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // Local state
   const [rendering, setRendering] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
+
+  // Rendering control refs
+  const cancelRenderRef = useRef<{ canceled: boolean }>({ canceled: false });
+  const mountedAt = useRef<number>(Date.now());
+
+  // Pending scroll state refs
+  const pendingFallbackRef = useRef<Map<string, number> | null>(null);
+  const pendingFallbackTimerRef = useRef<number | null>(null);
+  const pendingForcedTimerRef = useRef<number | null>(null);
+  const pendingForcedOneShotRef = useRef<number | null>(null);
+  const pendingForcedAnchorRef = useRef<string | null>(null);
+
+  // Use scroll state hook - consolidates 19 refs
+  const scrollState = useScrollState({
+    syncMode,
+    activeAnchorId,
+    isTyping,
+    rendering,
+  });
+
+  const {
+    containerRef,
+    programmaticScrollRef,
+    lastProgrammaticScrollAt,
+    userInteractedRef,
+    initialForcedScrollDoneRef,
+    startupOneShotAppliedRef,
+    finalRefreshDoneRef,
+    syncModeRef,
+    activeAnchorRef,
+    isTypingRef,
+  } = scrollState;
+
+  // Temporary ref for registerPendingAnchor to avoid circular dependency
+  const registerPendingAnchorRef = useRef<((anchorId: string) => void) | null>(null);
+
+  // Use offset manager hook
+  const offsetManager = useOffsetManager({
+    sourceMap,
+    scrollStateRefs: {
+      syncModeRef,
+      activeAnchorRef,
+      userInteractedRef,
+      initialForcedScrollDoneRef,
+    },
+    registerPendingAnchor: (anchorId: string) => {
+      if (registerPendingAnchorRef.current) {
+        registerPendingAnchorRef.current(anchorId);
+      }
+    },
+  });
+
+  const { anchorOffsetsRef, pdfMetricsRef, sourceMapRef, recomputeAnchorOffsets } = offsetManager;
+
   const renderingRef = useRef(rendering);
   useEffect(() => { renderingRef.current = rendering; }, [rendering]);
-  const isTypingRef = useRef(isTyping);
-  useEffect(() => { isTypingRef.current = isTyping; }, [isTyping]);
-  const cancelRenderRef = useRef<{ canceled: boolean }>({ canceled: false });
-  const programmaticScrollRef = useRef(false);
-  const anchorOffsetsRef = useRef<Map<string, number>>(new Map());
-  const pdfMetricsRef = useRef<{ page: number; height: number; scale: number }[]>([]);
-  const syncModeRef = useRef(syncMode);
-  useEffect(() => { syncModeRef.current = syncMode; }, [syncMode]);
-  const activeAnchorRef = useRef<string | null>(activeAnchorId);
-  useEffect(() => { activeAnchorRef.current = activeAnchorId; }, [activeAnchorId]);
-  const sourceMapRef = useRef<SourceMap | null>(sourceMap);
-  useEffect(() => { sourceMapRef.current = sourceMap; }, [sourceMap]);
 
-  const recomputeAnchorOffsets = useCallback((map: SourceMap | null) => {
-    const metrics = pdfMetricsRef.current;
-    const offsets = new Map<string, number>();
-    if (!map || metrics.length === 0) {
-      anchorOffsetsRef.current = offsets;
-      return;
+  const scrollToAnchor = useCallback((anchorId: string, center = false, force = false) => {
+  const el = containerRef.current;
+  // Ensure the container is still attached to the document; during fast
+  // doc switches it may be removed which would make subsequent DOM ops
+  // throw (removeChild). Also guard if parentNode is missing.
+  if (!el || !el.parentNode || !el.isConnected) return;
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[PDFPreview] scrollToAnchor requested: anchor=${anchorId}, offsets=${anchorOffsetsRef.current.size}, topBefore=${el.scrollTop}, clientH=${el.clientHeight}, scrollHeight=${el.scrollHeight}`);
     }
-    const pageOffsets = new Map<number, number>();
-    let cumulative = 0;
-    for (const metric of metrics) {
-      pageOffsets.set(metric.page, cumulative);
-      cumulative += metric.height;
-    }
-    for (const anchor of map.anchors) {
-      const pdf = anchor.pdf;
-      if (!pdf) continue;
-      const metric = metrics.find((m) => m.page === pdf.page);
-      if (!metric) continue;
-      const pageTop = pageOffsets.get(pdf.page) ?? 0;
-      const yPx = pdf.y * metric.scale;
-      const offset = pageTop + yPx;
-      offsets.set(anchor.id, offset);
-    }
-    anchorOffsetsRef.current = offsets;
-  }, []);
-
-  const scrollToAnchor = useCallback((anchorId: string, center = false) => {
-    const el = containerRef.current;
-    if (!el) return;
     const offset = anchorOffsetsRef.current.get(anchorId);
     if (offset === undefined) return;
+    // Defensive guard: avoid jumping the preview to the very top (offset
+    // near zero) when the preview is currently scrolled elsewhere or when
+    // the user is typing. This prevents jarring jumps produced by fallback
+    // offsets or transient races while pages/anchors are still settling.
+    const currentTop = el.scrollTop ?? 0;
+    if (!force && (isTypingRef.current) && Math.abs(currentTop - offset) > UI.SCROLL_POSITION_TOLERANCE_PX) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[PDFPreview] skipping scrollToAnchor due to typing', { anchorId, offset, currentTop: el.scrollTop });
+      }
+      return;
+    }
+    // If the computed target would be essentially the document top (<=8px)
+    // but the user is already scrolled well past the top, avoid jumping
+    // them to the top. Allow a single forced startup scroll (controlled by
+    // initialForcedScrollDoneRef) to handle the case where the preview
+    // initially needs to sync on load.
+    if (!force && offset <= UI.MIN_OFFSET_FROM_TOP_PX && Math.abs(currentTop - offset) > UI.SCROLL_POSITION_TOLERANCE_PX) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[PDFPreview] skipping scrollToAnchor to near-top (guard)', { anchorId, offset, currentTop: el.scrollTop });
+      }
+      return;
+    }
+    if (force && offset <= UI.MIN_OFFSET_FROM_TOP_PX && currentTop > UI.SCROLL_AWAY_FROM_TOP_THRESHOLD_PX) {
+      // If this is a forced scroll but the user is already scrolled down,
+      // only allow it once on startup.
+      if (initialForcedScrollDoneRef.current) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.debug('[PDFPreview] ignoring repeated forced near-top scroll', { anchorId, offset, currentTop });
+        }
+        return;
+      }
+      // Do NOT mark done here; the authoritative place to mark the
+      // one-shot forced-startup scroll as completed is immediately
+      // after we've actually performed a programmatic forced scroll in
+      // this function. That prevents other codepaths from prematurely
+      // blocking future startup sync attempts.
+    }
     const bias = center ? el.clientHeight / 2 : el.clientHeight * 0.3;
     const target = Math.max(0, offset - bias);
+    // Avoid jumping to near-top positions for users who are scrolled well
+    // below the top. If the computed target is very small but the current
+    // scrollTop is significantly larger, skip the programmatic scroll
+    // unless explicitly forced.
+    if (!force && (el.scrollTop ?? 0) > 20 && target < 8) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[PDFPreview] suppressing near-top jump', { anchorId, offset, target, currentTop: el.scrollTop });
+      }
+      return;
+    }
     programmaticScrollRef.current = true;
+    lastProgrammaticScrollAt.current = Date.now();
+    const beforeTop = el.scrollTop;
+    // Perform the programmatic scroll. We avoid prematurely marking the
+    // one-shot startup sync as completed for a no-op (zero-delta) scroll
+    // because offsets may still be imprecise; instead rely on the rAF
+    // confirmation below which marks the startup sync only if the
+    // scroll actually changed the viewport.
     el.scrollTo({ top: target, behavior: 'auto' });
+    // We will mark the one-shot startup guard only after confirming the
+    // programmatic scroll actually moved the viewport. This avoids
+    // premature marking when the attempted scroll was a no-op (for
+    // example when the target equals the current scrollTop) or when a
+    // conservative fallback was applied before precise offsets were
+    // available.
+    if (process.env.NODE_ENV !== 'production') {
+      // Wrap RAF checks with a defensive read to ensure the element
+      // is still present when the callback runs.
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          try {
+            const currentEl = containerRef.current;
+            if (!currentEl || !currentEl.isConnected) return;
+            const after = currentEl.scrollTop;
+            const delta = after - beforeTop;
+            console.log(`[PDFPreview] scrollToAnchor effect: anchor=${anchorId}, offset=${offset}, target=${target}, topBefore=${beforeTop}, topAfter=${after}, delta=${delta}, scrollHeight=${currentEl.scrollHeight}`);
+            if (force && !initialForcedScrollDoneRef.current) {
+              if (delta !== 0 || Math.abs(beforeTop - target) > UI.SCROLL_NO_MOVEMENT_THRESHOLD_PX) {
+                programmaticScrollRef.current = true;
+                console.debug('[PDFPreview] initialForcedScrollDone set by scrollToAnchor (confirmed)', { anchorId, target, delta });
+              } else {
+                console.debug('[PDFPreview] initialForcedScrollDone NOT set (no movement)', { anchorId, target, delta });
+              }
+            }
+          } catch {
+            // swallow any exceptions during the diagnostic logging so
+            // they don't bubble up during unmounts or fast switches.
+          }
+        }, 80);
+      });
+    }
     requestAnimationFrame(() => {
       setTimeout(() => {
         programmaticScrollRef.current = false;
       }, 60);
     });
-  }, []);
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug('[PDFPreview] programmaticScroll set true', { anchorId, target, timestamp: lastProgrammaticScrollAt.current });
+    }
+  }, [containerRef, anchorOffsetsRef, isTypingRef, initialForcedScrollDoneRef, programmaticScrollRef, lastProgrammaticScrollAt]);
 
+  // Pending scroll hook
+  const { registerPendingAnchor, consumePendingAnchor } = usePendingScroll({
+    pendingForcedAnchorRef,
+    pendingForcedTimerRef,
+    pendingForcedOneShotRef,
+    isTypingRef,
+    initialForcedScrollDoneRef,
+    userInteractedRef,
+    syncModeRef,
+    anchorOffsetsRef,
+    scrollToAnchor,
+  });
+
+  // Wire up the registerPendingAnchor to the ref
+  registerPendingAnchorRef.current = registerPendingAnchor;
+
+  // Startup sync hook - handles mount signal and startup synchronization
+  const { mountSignal } = useStartupSync({
+    compileStatus,
+    scrollStateRefs: scrollState,
+    offsetManagerRefs: offsetManager,
+    recomputeAnchorOffsets,
+    scrollToAnchor,
+  });
+
+  // PDF renderer hook
+  usePdfRenderer({
+    compileStatus,
+    containerRef,
+    cancelRenderRef,
+    pdfMetricsRef,
+    anchorOffsetsRef,
+    sourceMapRef,
+    userInteractedRef,
+    syncModeRef,
+    isTypingRef,
+    pendingFallbackRef,
+    pendingFallbackTimerRef,
+    pendingForcedTimerRef,
+    pendingForcedAnchorRef,
+    pendingForcedOneShotRef,
+    initialForcedScrollDoneRef,
+    setRendering,
+    setPdfError,
+    recomputeAnchorOffsets,
+    scrollToAnchor,
+    mountSignal,
+  });
+
+  // Offset-transition watcher: polls briefly for offsets when a pending
+  // forced anchor is registered and consumes it once offsets become
+  // available. Defensive guards cancel the watcher if the container
+  // disappears (e.g., during document switch) to avoid DOM ops after
+  // unmount.
   useEffect(() => {
-    const load = async () => {
-      if (compileStatus.status !== 'ok' || !compileStatus.pdf_path) {
-        setPdfError(null);
-        if (containerRef.current) containerRef.current.innerHTML = '';
-        pdfMetricsRef.current = [];
-        anchorOffsetsRef.current = new Map();
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug('[PDFPreview] offset-transition watcher mounted');
+    }
+    let cancelled = false;
+    const iv = window.setInterval(() => {
+      if (cancelled) return;
+      // Defensive: if containerRef is gone, cancel interval
+      if (!containerRef.current) {
+        cancelled = true;
+        window.clearInterval(iv);
         return;
       }
-      if (!containerRef.current) return;
-      setRendering(true);
-      setPdfError(null);
-      cancelRenderRef.current.canceled = false;
-      const localCancelToken = cancelRenderRef.current;
       try {
-        const bust = Date.now();
-        const fileUrl = convertFileSrc(compileStatus.pdf_path) + `?v=${bust}`;
-        const doc = await pdfjsLib.getDocument({ url: fileUrl }).promise;
-        if (localCancelToken.canceled) return;
-        const frag = document.createDocumentFragment();
-        const tmpWrap = document.createElement('div');
-        tmpWrap.style.display = 'contents';
-        const metrics: { page: number; height: number; scale: number }[] = [];
-        const renderScale = 1.2;
-        for (let pageNum = 1; pageNum <= doc.numPages; pageNum++) {
-          if (localCancelToken.canceled) return;
-          const page = await doc.getPage(pageNum);
-          if (localCancelToken.canceled) return;
-          const viewport = page.getViewport({ scale: renderScale });
-          metrics.push({ page: pageNum, height: viewport.height, scale: renderScale });
-          const canvas = document.createElement('canvas');
-          canvas.className = 'pdfjs-page-canvas';
-          const ctx = canvas.getContext('2d');
-          if (!ctx) continue;
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
-          tmpWrap.appendChild(canvas);
-          await page.render({ canvasContext: ctx, viewport }).promise;
+        const pending = pendingForcedAnchorRef.current;
+        if (!pending) return;
+        if (anchorOffsetsRef.current.size === 0) return;
+        // If offsets are now available for the pending anchor, consume it.
+        const off = anchorOffsetsRef.current.get(pending);
+        if (off !== undefined) {
+          consumePendingAnchor(true);
         }
-        frag.appendChild(tmpWrap);
-        if (containerRef.current) {
-          containerRef.current.innerHTML = '';
-          containerRef.current.appendChild(frag);
-        }
-        pdfMetricsRef.current = metrics;
-        recomputeAnchorOffsets(sourceMapRef.current);
-        setRendering(false);
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            if (syncModeRef.current !== 'locked-to-pdf') {
-              const anchorId = activeAnchorRef.current ?? sourceMapRef.current?.anchors[0]?.id;
-              if (anchorId) {
-                scrollToAnchor(anchorId, true);
-              }
-            }
-          });
-        });
-      } catch (e) {
-        if (!localCancelToken.canceled) {
-          handleError(e, { operation: 'render PDF', component: 'PDFPreview' });
-          setPdfError(e instanceof Error ? e.message : String(e));
-          setRendering(false);
-        }
+      } catch {
+        // swallow; keep polling
       }
-    };
-    load();
-    return () => {
-      cancelRenderRef.current.canceled = true;
-    };
-  }, [compileStatus, recomputeAnchorOffsets, scrollToAnchor]);
+    }, 200);
+    return () => { cancelled = true; window.clearInterval(iv); };
+  }, [consumePendingAnchor, anchorOffsetsRef, containerRef]);
 
-  useEffect(() => {
-    recomputeAnchorOffsets(sourceMap);
-  }, [sourceMap, recomputeAnchorOffsets]);
+  // PDF sync hook - handles scroll/pointer/resize events
+  usePdfSync({
+    containerRef,
+    anchorOffsetsRef,
+    sourceMapRef,
+    renderingRef: scrollState.renderingRef,
+    programmaticScrollRef,
+    lastProgrammaticScrollAt,
+    mountedAt,
+    userInteractedRef,
+    activeAnchorRef,
+    syncModeRef,
+    isTypingRef,
+    setActiveAnchorId,
+    setSyncMode,
+    scrollToAnchor,
+    recomputeAnchorOffsets,
+  });
 
-  useEffect(() => {
-    if (!activeAnchorId) return;
-    if (syncMode === 'locked-to-pdf') return;
-    if (isTypingRef.current) return;
-    scrollToAnchor(activeAnchorId);
-  }, [activeAnchorId, scrollToAnchor, syncMode]);
+  // Anchor sync hook - handles activeAnchorId changes
+  useAnchorSync({
+    activeAnchorId,
+    syncMode,
+    containerRef,
+    anchorOffsetsRef,
+    sourceMapRef,
+    isTypingRef,
+    userInteractedRef,
+    syncModeRef,
+    initialForcedScrollDoneRef,
+    pendingForcedAnchorRef,
+    scrollToAnchor,
+    recomputeAnchorOffsets,
+    consumePendingAnchor,
+  });
 
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const el = containerRef.current;
-    const onScroll = () => {
-      if (programmaticScrollRef.current) return;
-      if (renderingRef.current) return;
-      const map = sourceMapRef.current;
-      if (!map || map.anchors.length === 0) return;
-      const center = el.scrollTop + el.clientHeight / 2;
-      let closestId: string | null = null;
-      let bestDist = Number.POSITIVE_INFINITY;
-      for (const anchor of map.anchors) {
-        const offset = anchorOffsetsRef.current.get(anchor.id);
-        if (offset === undefined) continue;
-        const dist = Math.abs(offset - center);
-        if (dist < bestDist) {
-          bestDist = dist;
-          closestId = anchor.id;
-        }
-      }
-      if (!closestId) return;
-      if (syncModeRef.current !== 'locked-to-pdf') {
-        setSyncMode('locked-to-pdf');
-      }
-      if (activeAnchorRef.current !== closestId) {
-        setActiveAnchorId(closestId);
-      }
-    };
-    el.addEventListener('scroll', onScroll, { passive: true });
-    return () => el.removeEventListener('scroll', onScroll);
-  }, [setActiveAnchorId, setSyncMode]);
+  // Document lifecycle hook - handles sourceMap/compileStatus changes
+  useDocumentLifecycle({
+    sourceMap,
+    compileStatus,
+    anchorOffsetsRef,
+    finalRefreshDoneRef,
+    initialForcedScrollDoneRef,
+    userInteractedRef,
+    pendingForcedAnchorRef,
+    pendingForcedTimerRef,
+    pendingForcedOneShotRef,
+    pendingFallbackTimerRef,
+    pendingFallbackRef,
+    setActiveAnchorId,
+    setSyncMode,
+  });
 
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const el = containerRef.current;
-    const ro = new ResizeObserver(() => {
-      if (renderingRef.current) return;
-      recomputeAnchorOffsets(sourceMapRef.current);
-      if (syncModeRef.current !== 'locked-to-pdf' && activeAnchorRef.current) {
-        scrollToAnchor(activeAnchorRef.current);
-      }
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [recomputeAnchorOffsets, scrollToAnchor]);
-  
-  // Render PDF pages when compile status signals a new PDF
-  useEffect(() => {
-    console.log('[PDFPreview] mount');
-    return () => { console.log('[PDFPreview] unmount'); };
-  }, []);
+  // Final sync hook - handles mount/final refresh/typing idle
+  useFinalSync({
+    rendering,
+    isTyping,
+    compileStatus,
+    sourceMap,
+    containerRef,
+    anchorOffsetsRef,
+    pdfMetricsRef,
+    sourceMapRef,
+    activeAnchorRef,
+    syncModeRef,
+    userInteractedRef,
+    initialForcedScrollDoneRef,
+    startupOneShotAppliedRef,
+    finalRefreshDoneRef,
+    scrollToAnchor,
+    recomputeAnchorOffsets,
+    registerPendingAnchor,
+    consumePendingAnchor,
+  });
 
-  useEffect(() => {
-    console.log('[PDFPreview] compileStatus changed', compileStatus);
-  }, [compileStatus]);
-
+  // Preview events hook - handles custom events
+  usePreviewEvents({
+    scrollToAnchor,
+    recomputeAnchorOffsets,
+    consumePendingAnchor,
+    sourceMapRef,
+  });
 
   return (
     <div className="pdf-preview">
-      <div className="pdf-preview-header">
-        <h3>PDF Preview</h3>
-        <div className="pdf-preview-actions sync-controls">
-          <button
-            type="button"
-            onClick={() => {
-              setSyncMode('auto');
-              const targetAnchor = activeAnchorId ?? sourceMap?.anchors[0]?.id;
-              if (targetAnchor) {
-                scrollToAnchor(targetAnchor, true);
-              }
-            }}
-            title="Resume automatic sync with the editor"
-            className="resync-btn"
-          >Resume Sync</button>
-          {syncMode === 'locked-to-pdf' && (
-            <div className="sync-paused-badge" title="Preview is controlling scroll until you move the editor">
-              Preview Locked
-            </div>
-          )}
-        </div>
-        {compileStatus.status === 'error' && (
-          <div className="error-badge">Error</div>
-        )}
-      </div>
+      <PDFPreviewHeader
+        syncMode={syncMode}
+        setSyncMode={setSyncMode}
+        activeAnchorId={activeAnchorId}
+        sourceMap={sourceMap}
+        anchorOffsetsRef={anchorOffsetsRef}
+        containerRef={containerRef}
+      />
       
       <div className="pdf-preview-content">
         {compileStatus.status === 'error' ? (
