@@ -49,11 +49,17 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
   // Track if we've done initial sync
   const initialSyncDoneRef = useRef(false);
   const lastSourceMapRef = useRef<SourceMap | null>(null);
+  const lastActiveAnchorIdRef = useRef<string | null>(null);
+  const wasTypingRef = useRef(isTyping);
 
   // Effect 1: Sync PDF to active anchor when it changes (normal operation)
   useEffect(() => {
+    // Don't sync if same anchor as last time (prevents feedback loop from PDF scroll handler)
+    if (activeAnchorId === lastActiveAnchorIdRef.current) return;
+    
     // Don't sync if PDF is locked
     if (syncMode === 'locked-to-pdf') {
+      lastActiveAnchorIdRef.current = activeAnchorId;
       if (process.env.NODE_ENV !== 'production') {
         console.debug('[EditorToPdfSync] skipped - PDF locked');
       }
@@ -61,28 +67,60 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
     }
 
     // Don't sync if no anchor
-    if (!activeAnchorId) return;
+    if (!activeAnchorId) {
+      lastActiveAnchorIdRef.current = activeAnchorId;
+      return;
+    }
 
     // Don't sync if offsets not ready
     if (anchorOffsetsRef.current.size === 0) {
       if (process.env.NODE_ENV !== 'production') {
         console.debug('[EditorToPdfSync] skipped - no offsets yet');
       }
+      // Don't update lastActiveAnchorIdRef - we want to retry when offsets are ready
       return;
     }
 
+    // Update last anchor BEFORE scrolling to prevent re-triggering
+    lastActiveAnchorIdRef.current = activeAnchorId;
+
     // Debounce: wait longer if user is typing
-    const debounceMs = isTyping ? 200 : 50;
+    // During typing, we debounce more to reduce scroll spam
+    // When not typing (e.g., just scrolling editor), sync quickly
+    const debounceMs = isTyping ? 150 : 30;
 
     const timerId = setTimeout(() => {
       if (process.env.NODE_ENV !== 'production') {
-        console.debug('[EditorToPdfSync] syncing to anchor', { activeAnchorId, isTyping });
+        console.debug('[EditorToPdfSync] syncing to anchor', { activeAnchorId, isTyping, debounceMs });
       }
       scrollToAnchor(activeAnchorId, false, false);
     }, debounceMs);
 
     return () => clearTimeout(timerId);
   }, [activeAnchorId, syncMode, isTyping, anchorOffsetsRef, scrollToAnchor]);
+
+  // Effect 1b: Trigger sync when user stops typing (to catch up if needed)
+  useEffect(() => {
+    // Track if typing state changed from true to false
+    const stoppedTyping = wasTypingRef.current && !isTyping;
+    wasTypingRef.current = isTyping;
+
+    if (!stoppedTyping) return;
+    if (syncMode === 'locked-to-pdf') return;
+    if (!activeAnchorId) return;
+    if (anchorOffsetsRef.current.size === 0) return;
+
+    // User stopped typing - sync to current anchor position
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug('[EditorToPdfSync] user stopped typing, syncing', { activeAnchorId });
+    }
+
+    const timerId = setTimeout(() => {
+      scrollToAnchor(activeAnchorId, false, false);
+    }, 100);
+
+    return () => clearTimeout(timerId);
+  }, [isTyping, syncMode, activeAnchorId, anchorOffsetsRef, scrollToAnchor]);
 
   // Effect 2: Handle sourceMap changes (new render completed)
   useEffect(() => {
@@ -203,13 +241,30 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
     recomputeAnchorOffsets,
   ]);
 
-  // Effect 4: Recompute offsets on resize
+  // Effect 4: Recompute offsets on resize (debounced)
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
+    let resizeTimeout: number | null = null;
+    let lastWidth = el.clientWidth;
+    let lastHeight = el.clientHeight;
+
     const resizeObserver = new ResizeObserver(() => {
-      if (sourceMapRef.current) {
+      if (!sourceMapRef.current) return;
+      
+      // Only recompute if size actually changed significantly (more than 5px)
+      const newWidth = el.clientWidth;
+      const newHeight = el.clientHeight;
+      if (Math.abs(newWidth - lastWidth) < 5 && Math.abs(newHeight - lastHeight) < 5) {
+        return; // Ignore tiny fluctuations
+      }
+      
+      lastWidth = newWidth;
+      lastHeight = newHeight;
+
+      if (resizeTimeout) window.clearTimeout(resizeTimeout);
+      resizeTimeout = window.setTimeout(() => {
         if (process.env.NODE_ENV !== 'production') {
           console.debug('[EditorToPdfSync] container resized, recomputing offsets');
         }
@@ -221,10 +276,13 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
             scrollToAnchor(activeAnchorId, false, false);
           }, 50);
         }
-      }
+      }, 150); // Debounce resize recomputation
     });
 
     resizeObserver.observe(el);
-    return () => resizeObserver.disconnect();
+    return () => {
+      if (resizeTimeout) window.clearTimeout(resizeTimeout);
+      resizeObserver.disconnect();
+    };
   }, [containerRef, sourceMapRef, syncModeRef, activeAnchorId, scrollToAnchor, recomputeAnchorOffsets]);
 }

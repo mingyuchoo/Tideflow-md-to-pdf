@@ -48,6 +48,8 @@ export function usePdfToEditorSync(params: UsePdfToEditorSyncParams): void {
     const el = containerRef.current;
     if (!el) return;
 
+    let scrollTimeout: number | null = null;
+
     // Find closest anchor to given scroll position
     const findClosestAnchor = (scrollPos: number): string | null => {
       const map = sourceMapRef.current;
@@ -70,30 +72,8 @@ export function usePdfToEditorSync(params: UsePdfToEditorSyncParams): void {
       return closestId;
     };
 
-    // Handle scroll event
-    const handleScroll = () => {
-      // Ignore programmatic scrolls
-      if (programmaticScrollRef.current) {
-        if (process.env.NODE_ENV !== 'production') {
-          console.debug('[PdfToEditorSync] ignoring programmatic scroll');
-        }
-        return;
-      }
-
-      // Ignore if still rendering
-      if (renderingRef.current) return;
-
-      // Mark as user interaction
-      userInteractedRef.current = true;
-
-      // Lock PDF to prevent it from following editor
-      if (syncModeRef.current !== 'locked-to-pdf') {
-        if (process.env.NODE_ENV !== 'production') {
-          console.debug('[PdfToEditorSync] locking PDF (user scrolled)');
-        }
-        setSyncMode('locked-to-pdf');
-      }
-
+    // Update active anchor (debounced logic)
+    const updateActiveAnchor = () => {
       // Find closest anchor to center of viewport
       const center = el.scrollTop + el.clientHeight / 2;
       const closestId = findClosestAnchor(center);
@@ -106,10 +86,40 @@ export function usePdfToEditorSync(params: UsePdfToEditorSyncParams): void {
       }
     };
 
+    // Handle scroll event (debounced)
+    const handleScroll = () => {
+      // Ignore programmatic scrolls
+      if (programmaticScrollRef.current) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.debug('[PdfToEditorSync] ignoring programmatic scroll');
+        }
+        return;
+      }
+
+      // Ignore if still rendering
+      if (renderingRef.current) return;
+
+      // Mark as user interaction (immediate)
+      userInteractedRef.current = true;
+
+      // Lock PDF to prevent it from following editor (immediate)
+      if (syncModeRef.current !== 'locked-to-pdf') {
+        if (process.env.NODE_ENV !== 'production') {
+          console.debug('[PdfToEditorSync] locking PDF (user scrolled)');
+        }
+        setSyncMode('locked-to-pdf');
+      }
+
+      // Debounce the anchor update to avoid excessive state changes
+      if (scrollTimeout) window.clearTimeout(scrollTimeout);
+      scrollTimeout = window.setTimeout(updateActiveAnchor, TIMING.SCROLL_DEBOUNCE_MS);
+    };
+
     // Attach scroll listener with passive flag for performance
     el.addEventListener('scroll', handleScroll, { passive: true });
 
     return () => {
+      if (scrollTimeout) window.clearTimeout(scrollTimeout);
       el.removeEventListener('scroll', handleScroll);
     };
   }, [

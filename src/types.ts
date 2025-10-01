@@ -33,6 +33,8 @@ export interface Preferences {
   render_debounce_ms: number;
   focused_preview_enabled?: boolean; // kept optional (removed in UI) for backend compatibility
   preserve_scroll_position: boolean;
+  // Experimental AI feature flags
+  gpt5_codex_enabled?: boolean; // preview feature, default true if missing
 }
 
 export interface CompileStatus {

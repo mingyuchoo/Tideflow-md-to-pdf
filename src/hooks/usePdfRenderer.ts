@@ -31,6 +31,8 @@ interface UsePdfRendererArgs {
   setPdfError: (v: string | null) => void;
   recomputeAnchorOffsets: (map: SourceMap | null) => void;
   scrollToAnchor: (id: string, center?: boolean, force?: boolean) => void;
+  activeAnchorId?: string | null;
+  preferences?: { toc: boolean; cover_page: boolean };
   mountSignal?: number;
 }
 
@@ -62,6 +64,12 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
   const consumePendingAnchor = args.consumePendingAnchor;
 
   useEffect(() => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[usePdfRenderer] Effect triggered', { 
+        status: compileStatus.status, 
+        pdf_path: compileStatus.pdf_path?.slice(-30) 
+      });
+    }
     const localCancel = cancelRenderRef.current;
     const load = async () => {
       if (compileStatus.status !== 'ok' || !compileStatus.pdf_path) {
@@ -161,6 +169,14 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
             if (el) {
               const avail = Math.max(0, el.scrollHeight - el.clientHeight);
               const fallback = new Map<string, number>();
+              if (process.env.NODE_ENV !== 'production') {
+                console.debug('[usePdfRenderer] creating fallback offsets', { 
+                  anchors: anchors.length, 
+                  avail, 
+                  scrollHeight: el.scrollHeight, 
+                  clientHeight: el.clientHeight 
+                });
+              }
               for (let i = 0; i < anchors.length; i++) {
                 const frac = i / Math.max(1, anchors.length - 1);
                 let pos = Math.round(frac * avail);
@@ -168,19 +184,63 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
                 fallback.set(anchors[i].id, pos);
               }
               if (anchorOffsetsRef.current.size === 0) {
-                // Apply fallback immediately if not typing, otherwise store for later
-                if (!isTypingRef.current) {
+                // Apply fallback immediately if not typing OR if this is initial startup
+                // At startup, user hasn't interacted yet, so it's safe to apply fallback
+                const shouldApplyImmediately = !isTypingRef.current || !userInteractedRef.current;
+                
+                if (shouldApplyImmediately) {
                   anchorOffsetsRef.current = fallback;
+                  if (process.env.NODE_ENV !== 'production') {
+                    console.debug('[usePdfRenderer] applied fallback offsets immediately', { 
+                      size: fallback.size,
+                      isTyping: isTypingRef.current,
+                      userInteracted: userInteractedRef.current,
+                      sample: Array.from(fallback.entries()).slice(0, 3)
+                    });
+                  }
                   // Register pending anchor for forced scroll
-                  const anchorId = sourceMapRef.current?.anchors[0]?.id ?? null;
+                  // Use active anchor if user has interacted, otherwise find first content anchor
+                  let anchorId: string | null = null;
+                  
+                  if (userInteractedRef.current && args.activeAnchorId) {
+                    // User is actively editing - use current position
+                    anchorId = args.activeAnchorId;
+                  } else {
+                    // Startup: find first content anchor (skip TOC/cover if present)
+                    const anchors = sourceMapRef.current?.anchors ?? [];
+                    const hasTocOrCover = args.preferences?.toc || args.preferences?.cover_page;
+                    
+                    if (hasTocOrCover && anchors.length > 1) {
+                      // Skip first anchor if TOC/cover enabled (likely in front matter)
+                      // Find first anchor that's not tf-doc-start
+                      anchorId = anchors.find(a => a.id !== 'tf-doc-start')?.id ?? anchors[0]?.id ?? null;
+                    } else {
+                      // No TOC/cover, use first anchor
+                      anchorId = anchors[0]?.id ?? null;
+                    }
+                  }
                   if (anchorId) {
+                    if (process.env.NODE_ENV !== 'production') {
+                      console.debug('[usePdfRenderer] registering pending anchor', { 
+                        anchorId, 
+                        userInteracted: userInteractedRef.current,
+                        reason: userInteractedRef.current ? 'active-position' : 'startup'
+                      });
+                    }
                     if (registerPendingAnchor) registerPendingAnchor(anchorId);
                     else pendingForcedAnchorRef.current = anchorId;
                   }
                 } else {
                   // Store fallback to be applied when typing stops (handled by useEditorToPdfSync)
                   pendingFallbackRef.current = fallback;
-                  const anchorId = sourceMapRef.current?.anchors[0]?.id ?? null;
+                  if (process.env.NODE_ENV !== 'production') {
+                    console.debug('[usePdfRenderer] stored fallback for later (user actively typing)', { 
+                      size: fallback.size,
+                      isTyping: isTypingRef.current
+                    });
+                  }
+                  // Use active anchor if available, otherwise first anchor
+                  const anchorId = args.activeAnchorId ?? sourceMapRef.current?.anchors[0]?.id ?? null;
                   if (anchorId) {
                     if (registerPendingAnchor) registerPendingAnchor(anchorId);
                     else pendingForcedAnchorRef.current = anchorId;
@@ -216,28 +276,20 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
       if (pendingFallbackTimerRef.current) { window.clearInterval(pendingFallbackTimerRef.current); pendingFallbackTimerRef.current = null; }
       if (pendingForcedTimerRef.current) { window.clearInterval(pendingForcedTimerRef.current); pendingForcedTimerRef.current = null; }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    // Only include non-ref values that should trigger re-render
     compileStatus.status,
     compileStatus.pdf_path,
-    cancelRenderRef,
-    containerRef,
-    pdfMetricsRef,
-    anchorOffsetsRef,
-    sourceMapRef,
-    userInteractedRef,
-    syncModeRef,
-    isTypingRef,
-    pendingFallbackRef,
-    pendingFallbackTimerRef,
-    pendingForcedTimerRef,
-    pendingForcedAnchorRef,
-    initialForcedScrollDoneRef,
+    // Stable callbacks (already memoized)
     recomputeAnchorOffsets,
     scrollToAnchor,
     setRendering,
     setPdfError,
     consumePendingAnchor,
     registerPendingAnchor,
+    // Optional mount signal for forcing re-render
     args.mountSignal,
+    // NOTE: Refs are accessed via .current and are stable - they don't need to be in deps
   ]);
 }

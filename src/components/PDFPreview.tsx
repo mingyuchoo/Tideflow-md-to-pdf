@@ -1,5 +1,5 @@
   // ...existing code...
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useAppStore } from '../store';
 import './PDFPreview.css';
 import * as pdfjsLib from 'pdfjs-dist';
@@ -36,7 +36,7 @@ try {
 
 const PDFPreview: React.FC = () => {
   // Store state
-  const { editor, sourceMap, activeAnchorId, setActiveAnchorId, syncMode, setSyncMode, isTyping } = useAppStore();
+  const { editor, sourceMap, activeAnchorId, setActiveAnchorId, syncMode, setSyncMode, isTyping, preferences } = useAppStore();
   const { compileStatus } = editor;
 
   // Local state
@@ -79,20 +79,28 @@ const PDFPreview: React.FC = () => {
   // Temporary ref for registerPendingAnchor to avoid circular dependency
   const registerPendingAnchorRef = useRef<((anchorId: string) => void) | null>(null);
 
+  // Memoize the callback to prevent recreating it on every render
+  const registerPendingAnchorCallback = useCallback((anchorId: string) => {
+    if (registerPendingAnchorRef.current) {
+      registerPendingAnchorRef.current(anchorId);
+    }
+  }, []); // Empty deps - uses ref which is always stable
+
+  // Memoize the scrollStateRefs object to prevent recreating it on every render
+  // Refs are stable and don't change, so this object can be created once
+  const scrollStateRefs = useMemo(() => ({
+    syncModeRef,
+    activeAnchorRef,
+    userInteractedRef,
+    initialForcedScrollDoneRef,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), []); // Empty deps - all values are refs which are stable
+
   // Use offset manager hook
   const offsetManager = useOffsetManager({
     sourceMap,
-    scrollStateRefs: {
-      syncModeRef,
-      activeAnchorRef,
-      userInteractedRef,
-      initialForcedScrollDoneRef,
-    },
-    registerPendingAnchor: (anchorId: string) => {
-      if (registerPendingAnchorRef.current) {
-        registerPendingAnchorRef.current(anchorId);
-      }
-    },
+    scrollStateRefs,
+    registerPendingAnchor: registerPendingAnchorCallback,
   });
 
   const { anchorOffsetsRef, pdfMetricsRef, sourceMapRef, recomputeAnchorOffsets } = offsetManager;
@@ -115,7 +123,7 @@ const PDFPreview: React.FC = () => {
     // near zero) when the preview is currently scrolled elsewhere or when
     // the user is typing. This prevents jarring jumps produced by fallback
     // offsets or transient races while pages/anchors are still settling.
-    const currentTop = el.scrollTop ?? 0;
+    let currentTop = el.scrollTop ?? 0;
     if (!force && (isTypingRef.current) && Math.abs(currentTop - offset) > UI.SCROLL_POSITION_TOLERANCE_PX) {
       if (process.env.NODE_ENV !== 'production') {
         console.debug('[PDFPreview] skipping scrollToAnchor due to typing', { anchorId, offset, currentTop: el.scrollTop });
@@ -150,13 +158,23 @@ const PDFPreview: React.FC = () => {
     }
     const bias = center ? el.clientHeight / 2 : el.clientHeight * 0.3;
     const target = Math.max(0, offset - bias);
+    
+    // Skip if already at target position (within tolerance)
+    currentTop = el.scrollTop ?? 0;
+    if (Math.abs(currentTop - target) <= UI.SCROLL_POSITION_TOLERANCE_PX) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[PDFPreview] already at target position', { anchorId, offset, target, currentTop });
+      }
+      return;
+    }
+    
     // Avoid jumping to near-top positions for users who are scrolled well
     // below the top. If the computed target is very small but the current
     // scrollTop is significantly larger, skip the programmatic scroll
     // unless explicitly forced.
-    if (!force && (el.scrollTop ?? 0) > 20 && target < 8) {
+    if (!force && currentTop > 20 && target < 8) {
       if (process.env.NODE_ENV !== 'production') {
-        console.debug('[PDFPreview] suppressing near-top jump', { anchorId, offset, target, currentTop: el.scrollTop });
+        console.debug('[PDFPreview] suppressing near-top jump', { anchorId, offset, target, currentTop });
       }
       return;
     }
@@ -209,7 +227,8 @@ const PDFPreview: React.FC = () => {
     if (process.env.NODE_ENV !== 'production') {
       console.debug('[PDFPreview] programmaticScroll set true', { anchorId, target, timestamp: lastProgrammaticScrollAt.current });
     }
-  }, [containerRef, anchorOffsetsRef, isTypingRef, initialForcedScrollDoneRef, programmaticScrollRef, lastProgrammaticScrollAt]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Refs are stable and don't need to be in dependency array
 
   // SIMPLIFIED: Editor → PDF sync (replaces useAnchorSync, usePendingScroll, useStartupSync, useFinalSync)
   useEditorToPdfSync({
@@ -244,9 +263,36 @@ const PDFPreview: React.FC = () => {
     setSyncMode,
   });
 
-  // Dummy for backward compat during migration
-  const registerPendingAnchor = useCallback(() => {}, []);
-  const consumePendingAnchor = useCallback(() => {}, []);
+  // Pending anchor management
+  const registerPendingAnchor = useCallback((anchorId: string) => {
+    pendingForcedAnchorRef.current = anchorId;
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug('[PDFPreview] registered pending anchor', { anchorId });
+    }
+  }, []);
+
+  const consumePendingAnchor = useCallback((checkOffset = true) => {
+    const anchorId = pendingForcedAnchorRef.current;
+    if (!anchorId) return;
+
+    if (checkOffset && anchorOffsetsRef.current.size === 0) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[PDFPreview] consumePendingAnchor: no offsets yet, skipping');
+      }
+      return;
+    }
+
+    pendingForcedAnchorRef.current = null;
+    
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug('[PDFPreview] consuming pending anchor', { anchorId, offsets: anchorOffsetsRef.current.size });
+    }
+
+    requestAnimationFrame(() => {
+      scrollToAnchor(anchorId, false, true);
+    });
+  }, [anchorOffsetsRef, scrollToAnchor]);
+
   const mountSignal = 0;
 
   // Wire up the registerPendingAnchor to the ref
@@ -273,6 +319,10 @@ const PDFPreview: React.FC = () => {
     setPdfError,
     recomputeAnchorOffsets,
     scrollToAnchor,
+    registerPendingAnchor,
+    consumePendingAnchor,
+    activeAnchorId,
+    preferences: { toc: preferences.toc, cover_page: preferences.cover_page },
     mountSignal,
   });
 

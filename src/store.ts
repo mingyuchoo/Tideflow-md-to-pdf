@@ -33,6 +33,7 @@ export const defaultPreferences: Preferences = {
   render_debounce_ms: 400,
   focused_preview_enabled: false,
   preserve_scroll_position: true,
+  gpt5_codex_enabled: true,
 };
 
 // Initial editor state
