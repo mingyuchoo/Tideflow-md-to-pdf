@@ -285,15 +285,8 @@ const PDFPreview: React.FC = () => {
     if (process.env.NODE_ENV !== 'production') {
       console.debug('[PDFPreview] offset-transition watcher mounted');
     }
-    let cancelled = false;
-    const iv = window.setInterval(() => {
-      if (cancelled) return;
-      // Defensive: if containerRef is gone, cancel interval
-      if (!containerRef.current) {
-        cancelled = true;
-        window.clearInterval(iv);
-        return;
-      }
+    const checkPending = () => {
+      if (!containerRef.current) return;
       try {
         const pending = pendingForcedAnchorRef.current;
         if (!pending) return;
@@ -304,10 +297,14 @@ const PDFPreview: React.FC = () => {
           consumePendingAnchor();
         }
       } catch {
-        // swallow; keep polling
+        // swallow silently
       }
-    }, 200);
-    return () => { cancelled = true; window.clearInterval(iv); };
+    };
+    
+    // Check immediately, then once more after a frame (offsets may arrive asynchronously)
+    checkPending();
+    const rafId = requestAnimationFrame(checkPending);
+    return () => cancelAnimationFrame(rafId);
   }, [consumePendingAnchor, anchorOffsetsRef, containerRef]);
 
   // ✅ ALL OLD HOOKS REPLACED WITH 2 NEW SIMPLIFIED HOOKS ABOVE ✅

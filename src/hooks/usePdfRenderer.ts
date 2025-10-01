@@ -167,35 +167,25 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
                 if (avail > 100 && pos < 8) pos = 8;
                 fallback.set(anchors[i].id, pos);
               }
-              if (anchorOffsetsRef.current.size === 0 && !isTypingRef.current) {
-                anchorOffsetsRef.current = fallback;
-              } else if (anchorOffsetsRef.current.size === 0) {
-                pendingFallbackRef.current = fallback;
-                if (pendingFallbackTimerRef.current) { window.clearInterval(pendingFallbackTimerRef.current); pendingFallbackTimerRef.current = null; }
-                pendingFallbackTimerRef.current = window.setInterval(() => {
-                  if (anchorOffsetsRef.current.size === 0 && !isTypingRef.current) {
-                    anchorOffsetsRef.current = pendingFallbackRef.current ?? new Map();
-                    pendingFallbackRef.current = null;
-                    if (pendingFallbackTimerRef.current) { window.clearInterval(pendingFallbackTimerRef.current); pendingFallbackTimerRef.current = null; }
-                    // Register a pending forced anchor and allow the
-                    // post-render block below to perform the actual
-                    // forced scroll; if the user is typing, keep the
-                    // typing-poll timer so the forced scroll happens when
-                    // typing stops.
-                    const anchorId = sourceMapRef.current?.anchors[0]?.id ?? null;
-                    if (anchorId) {
-                      if (registerPendingAnchor) registerPendingAnchor(anchorId);
-                      else pendingForcedAnchorRef.current = anchorId;
-                    }
-                    requestAnimationFrame(() => {
-                      const anchorId = sourceMapRef.current?.anchors[0]?.id ?? null;
-                      if (anchorId) {
-                        const off = anchorOffsetsRef.current.get(anchorId);
-                        if (off !== undefined) { scrollToAnchor(anchorId, true); }
-                      }
-                    });
+              if (anchorOffsetsRef.current.size === 0) {
+                // Apply fallback immediately if not typing, otherwise store for later
+                if (!isTypingRef.current) {
+                  anchorOffsetsRef.current = fallback;
+                  // Register pending anchor for forced scroll
+                  const anchorId = sourceMapRef.current?.anchors[0]?.id ?? null;
+                  if (anchorId) {
+                    if (registerPendingAnchor) registerPendingAnchor(anchorId);
+                    else pendingForcedAnchorRef.current = anchorId;
                   }
-                }, 200);
+                } else {
+                  // Store fallback to be applied when typing stops (handled by useEditorToPdfSync)
+                  pendingFallbackRef.current = fallback;
+                  const anchorId = sourceMapRef.current?.anchors[0]?.id ?? null;
+                  if (anchorId) {
+                    if (registerPendingAnchor) registerPendingAnchor(anchorId);
+                    else pendingForcedAnchorRef.current = anchorId;
+                  }
+                }
               }
             }
           }
