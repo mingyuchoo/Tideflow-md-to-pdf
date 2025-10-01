@@ -24,7 +24,6 @@ const Editor: React.FC = () => {
     setModified,
     setCompileStatus,
     preferences,
-    setSampleDocContent,
     sourceMap,
     setSourceMap,
     activeAnchorId,
@@ -95,10 +94,8 @@ const Editor: React.FC = () => {
   useCodeMirrorSetup({
     editorStateRefs,
     content,
-    currentFile,
     setContent,
     setModified,
-    setSampleDocContent,
     setIsActivelyTyping,
     setIsTyping,
     handleSave,

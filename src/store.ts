@@ -94,9 +94,6 @@ interface AppState {
   // Sample doc injection guard
   initialSampleInjected: boolean;
   setInitialSampleInjected: (v: boolean) => void;
-  // In-memory sample document content so we can return after switching files
-  sampleDocContent: string | null;
-  setSampleDocContent: (content: string) => void;
   clearCache: () => void;
   // Persisted editor scroll positions per-file (in-memory)
   editorScrollPositions: Record<string, number>;
@@ -194,15 +191,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     };
   }),
   
-  closeAllFiles: () => set((state: AppState) => {
+  closeAllFiles: () => set(() => {
     // Return user to sample.md (in-memory). Ensure it's the only open file.
     const sampleName = 'sample.md';
     return {
       editor: {
-        ...state.editor,
-        openFiles: [sampleName],
         currentFile: sampleName,
-        content: state.sampleDocContent ?? SAMPLE_DOC,
+        openFiles: [sampleName],
+        content: SAMPLE_DOC,
         modified: false,
         compileStatus: { status: 'idle' } // Clear previous PDF so stale preview disappears
       }
@@ -255,7 +251,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       modified: false,
       compileStatus: { status: 'idle' }
     },
-    sampleDocContent: SAMPLE_DOC,
     sourceMap: null,
     activeAnchorId: null,
     syncMode: 'auto',
@@ -269,12 +264,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     preferences: defaultPreferences,
     previewVisible: true,
     initialSampleInjected: false,
-    sampleDocContent: null,
   }),
   initialSampleInjected: false,
   setInitialSampleInjected: (v: boolean) => set({ initialSampleInjected: v }),
-  sampleDocContent: null,
-  setSampleDocContent: (content: string) => set({ sampleDocContent: content }),
   // Timestamp when the last compiled event arrived; used to coordinate final-sync
   compiledAt: 0,
   setCompiledAt: (ts: number) => set({ compiledAt: ts }),

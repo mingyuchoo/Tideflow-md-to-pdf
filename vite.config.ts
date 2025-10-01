@@ -3,7 +3,15 @@ import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+  ],
+  
+  // Strip console.debug in production
+  esbuild: {
+    drop: process.env.NODE_ENV === 'production' ? ['debugger'] : [],
+    pure: process.env.NODE_ENV === 'production' ? ['console.debug'] : [],
+  },
   
   // Tauri expects a fixed port, fallback to 5173 if already in use
   server: {

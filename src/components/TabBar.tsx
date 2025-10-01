@@ -15,7 +15,6 @@ const TabBar: React.FC = () => {
     addOpenFile,
     removeOpenFile,
     closeAllFiles,
-    sampleDocContent
   } = useAppStore();
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -94,10 +93,9 @@ const TabBar: React.FC = () => {
     
     try {
       if (filePath === 'sample.md') {
-        // Use in-memory sample content fallback or regenerate minimal sample if missing
-        const sample = sampleDocContent ?? SAMPLE_DOC;
+        // Use in-memory sample content
         setCurrentFile(filePath);
-        setContent(sample);
+        setContent(SAMPLE_DOC);
       } else {
         const content = await readMarkdownFile(filePath);
         setCurrentFile(filePath);
@@ -111,10 +109,9 @@ const TabBar: React.FC = () => {
   // Explicitly (re)open the in-memory sample document
   const handleOpenSample = () => {
     const sampleName = 'sample.md';
-    const sample = sampleDocContent ?? SAMPLE_DOC;
     addOpenFile(sampleName);
     setCurrentFile(sampleName);
-    setContent(sample);
+    setContent(SAMPLE_DOC);
   };
 
   const handleCloseTab = (e: React.MouseEvent, filePath: string) => {

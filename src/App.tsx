@@ -77,17 +77,13 @@ function App() {
               }
             }
 
-            if (session.sampleDocContent) {
-              store.setSampleDocContent(session.sampleDocContent);
-            }
             if (
               session.currentFile === 'sample.md' ||
               (restored.length === 0 && !store.editor.currentFile)
             ) {
               store.setCurrentFile('sample.md');
               store.addOpenFile('sample.md');
-              const content = session.sampleDocContent ?? '# Sample Document\n\nStart writing...';
-              store.setContent(content);
+              store.setContent(SAMPLE_DOC);
             }
 
             if (typeof session.previewVisible === 'boolean') {
@@ -105,7 +101,6 @@ function App() {
           store.setCurrentFile('sample.md');
           store.addOpenFile('sample.md');
           store.setContent(SAMPLE_DOC);
-          store.setSampleDocContent(SAMPLE_DOC);
           store.setInitialSampleInjected(true);
           sampleInjected = true;
         }
@@ -273,7 +268,6 @@ function App() {
 
   // Autosave session when key state changes (debounced to prevent corruption)
   const { openFiles, currentFile } = useAppStore(s => s.editor);
-  const sampleDocContent = useAppStore(s => s.sampleDocContent);
   const previewVisibleState = useAppStore(s => s.previewVisible);
   
   useEffect(() => {
@@ -285,7 +279,6 @@ function App() {
         saveSession({
           openFiles,
           currentFile,
-          sampleDocContent,
           previewVisible: previewVisibleState,
           // Preserve fullscreen from current session (it's saved separately on fullscreen event)
           fullscreen: currentSession?.fullscreen ?? false,
@@ -296,7 +289,7 @@ function App() {
     }, 500); // 500ms debounce
     
     return () => clearTimeout(timeoutId);
-  }, [openFiles, currentFile, sampleDocContent, previewVisibleState]);
+  }, [openFiles, currentFile, previewVisibleState]);
 
   // Simplified toggle: no remount side effects needed.
   if (loading) {

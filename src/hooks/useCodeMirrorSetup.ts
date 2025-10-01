@@ -16,10 +16,8 @@ import type { EditorStateRefs } from './useEditorState';
 interface UseCodeMirrorSetupParams {
   editorStateRefs: EditorStateRefs;
   content: string;
-  currentFile: string | null;
   setContent: (content: string) => void;
   setModified: (modified: boolean) => void;
-  setSampleDocContent: (content: string) => void;
   setIsActivelyTyping: (typing: boolean) => void;
   setIsTyping: (typing: boolean) => void;
   handleSave: () => void;
@@ -34,10 +32,8 @@ export function useCodeMirrorSetup(params: UseCodeMirrorSetupParams) {
   const {
     editorStateRefs,
     content,
-    currentFile,
     setContent,
     setModified,
-    setSampleDocContent,
     setIsActivelyTyping,
     setIsTyping,
     handleSave,
@@ -174,9 +170,6 @@ export function useCodeMirrorSetup(params: UseCodeMirrorSetupParams) {
               const newContent = update.state.doc.toString();
               setContent(newContent);
               setModified(true);
-              if (currentFile === 'sample.md') {
-                setSampleDocContent(newContent);
-              }
               
               // Clear existing timeouts
               if (contentChangeTimeoutRef.current) {
