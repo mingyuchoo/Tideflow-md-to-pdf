@@ -273,19 +273,31 @@ function App() {
     };
   }, []);
 
-  // Autosave session when key state changes
+  // Autosave session when key state changes (debounced to prevent corruption)
   const { openFiles, currentFile } = useAppStore(s => s.editor);
   const sampleDocContent = useAppStore(s => s.sampleDocContent);
   const previewVisibleState = useAppStore(s => s.previewVisible);
+  
   useEffect(() => {
-    saveSession({
-      openFiles,
-      currentFile,
-      sampleDocContent,
-      previewVisible: previewVisibleState,
-      // keep fullscreen preference if present in current session storage
-      fullscreen: loadSession()?.fullscreen ?? false,
-    });
+    // Debounce session saves to prevent high-frequency localStorage writes
+    const timeoutId = setTimeout(() => {
+      try {
+        // Read current session once at the start for atomic update
+        const currentSession = loadSession();
+        saveSession({
+          openFiles,
+          currentFile,
+          sampleDocContent,
+          previewVisible: previewVisibleState,
+          // Preserve fullscreen from current session
+          fullscreen: currentSession?.fullscreen ?? false,
+        });
+      } catch (error) {
+        console.warn('[App] Failed to save session:', error);
+      }
+    }, 500); // 500ms debounce
+    
+    return () => clearTimeout(timeoutId);
   }, [openFiles, currentFile, sampleDocContent, previewVisibleState]);
 
   // Simplified toggle: no remount side effects needed.

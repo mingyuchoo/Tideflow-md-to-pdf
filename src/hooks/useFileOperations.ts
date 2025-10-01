@@ -29,7 +29,7 @@ interface UseFileOperationsParams {
   setSourceMap: (map: SourceMap | null) => void;
   setEditorScrollPosition: (file: string, position: number) => void;
   getEditorScrollPosition: (file: string) => number | null;
-  handleAutoRender: (content: string) => Promise<void>;
+  handleAutoRender: (content: string, signal?: AbortSignal) => Promise<void>;
   computeAnchorFromViewport: (userInitiated: boolean) => void;
 }
 
@@ -99,10 +99,15 @@ export function useFileOperations(params: UseFileOperationsParams) {
   }, [currentFile, modified, content, setModified, handleRender]);
 
   // Load file content ONLY when switching to a different file, not on every keystroke.
+  // Use generation tracking to prevent race conditions on rapid file switches.
   useEffect(() => {
     if (!editorViewRef.current) return;
+    
     // When a new file is selected
     if (currentFile && currentFile !== prevFileRef.current) {
+      // Track the target file to detect if user switches away during loading
+      const targetFile = currentFile;
+      
       // Save current scroll position for the previous file before switching
       if (prevFileRef.current) {
         const sc = getScrollElement(editorViewRef.current);
@@ -112,6 +117,11 @@ export function useFileOperations(params: UseFileOperationsParams) {
           if (process.env.NODE_ENV !== 'production') console.debug('[Editor] saved scroll pos on file switch', { file: prevFileRef.current, pos });
         }
       }
+      
+      // Update tracking refs immediately to prevent double-processing
+      prevFileRef.current = currentFile;
+      lastLoadedContentRef.current = content;
+      
       // Replace document content with the file's content
       editorViewRef.current.dispatch({
         changes: {
@@ -121,24 +131,46 @@ export function useFileOperations(params: UseFileOperationsParams) {
         },
         selection: { anchor: 0, head: 0 } // Set cursor to top to prevent auto-scroll
       });
-      lastLoadedContentRef.current = content;
-      prevFileRef.current = currentFile;
-      // Restore persisted scroll position if available
-      try {
-        const stored = getEditorScrollPosition(currentFile);
-        if (stored !== null && editorViewRef.current) {
-          const sc = getScrollElement(editorViewRef.current);
-          if (sc) {
-            // Don't mark programmatic scroll as user-initiated
-            programmaticScrollRef.current = true;
-            sc.scrollTop = stored;
-            requestAnimationFrame(() => { programmaticScrollRef.current = false; });
-            if (process.env.NODE_ENV !== 'production') console.debug('[Editor] restored scroll pos', { file: currentFile, pos: stored });
-          }
+      
+      // Restore scroll position after content is loaded (async to avoid race)
+      requestAnimationFrame(() => {
+        // Verify we're still on the same file (user might have switched again)
+        if (currentFile !== targetFile) {
+          if (process.env.NODE_ENV !== 'production') console.debug('[Editor] skipped scroll restore - file changed', { targetFile, currentFile });
+          return;
         }
-      } catch { /* ignore */ }
-      computeAnchorFromViewport(false);
-      handleAutoRender(content);
+        
+        try {
+          const stored = getEditorScrollPosition(targetFile);
+          if (stored !== null && editorViewRef.current) {
+            const sc = getScrollElement(editorViewRef.current);
+            if (sc) {
+              programmaticScrollRef.current = true;
+              sc.scrollTop = stored;
+              requestAnimationFrame(() => { programmaticScrollRef.current = false; });
+              if (process.env.NODE_ENV !== 'production') console.debug('[Editor] restored scroll pos', { file: targetFile, pos: stored });
+            }
+          }
+        } catch { /* ignore */ }
+        
+        // Compute anchor and auto-render (only if still on same file)
+        if (currentFile === targetFile) {
+          computeAnchorFromViewport(false);
+          // Debounce auto-render on file switch to avoid race with content loading
+          const abortController = new AbortController();
+          const timerId = setTimeout(() => {
+            if (currentFile === targetFile) {
+              handleAutoRender(content, abortController.signal);
+            }
+          }, 100);
+          
+          // Cleanup: cancel render if component unmounts or file changes
+          return () => {
+            clearTimeout(timerId);
+            abortController.abort();
+          };
+        }
+      });
     }
   }, [
     currentFile,
@@ -154,11 +186,16 @@ export function useFileOperations(params: UseFileOperationsParams) {
   ]);
 
   // If content in store changes for current file (e.g., loaded asynchronously) and differs from editor doc, update it.
+  // This effect is now safer as it only runs when content genuinely changes for the CURRENT file.
   useEffect(() => {
     if (!editorViewRef.current) return;
     if (!currentFile) return;
+    
+    // Only update if this content is for the currently displayed file
+    if (currentFile !== prevFileRef.current) return;
+    
     const currentDoc = editorViewRef.current.state.doc.toString();
-    if (content !== currentDoc && currentFile === prevFileRef.current) {
+    if (content !== currentDoc && content !== lastLoadedContentRef.current) {
       editorViewRef.current.dispatch({
         changes: {
           from: 0,

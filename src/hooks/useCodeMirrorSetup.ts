@@ -24,7 +24,7 @@ interface UseCodeMirrorSetupParams {
   setIsTyping: (typing: boolean) => void;
   handleSave: () => void;
   handleRender: () => void;
-  handleAutoRender: (content: string) => Promise<void>;
+  handleAutoRender: (content: string, signal?: AbortSignal) => Promise<void>;
   renderDebounceMs: number;
   setupScrollListener: () => (() => void) | undefined;
 }
@@ -50,6 +50,7 @@ export function useCodeMirrorSetup(params: UseCodeMirrorSetupParams) {
     editorRef,
     editorViewRef,
     contentChangeTimeoutRef,
+    contentChangeAbortRef,
     typingDetectionTimeoutRef,
     scrollElRef,
     isUserTypingRef,
@@ -190,8 +191,11 @@ export function useCodeMirrorSetup(params: UseCodeMirrorSetupParams) {
               }, TIMING.TYPING_IDLE_THRESHOLD_MS);
               
               // Smart trailing-only debounced render: one render after the last change
+              // Store abort controller in ref so cleanup can access it
+              const abortController = new AbortController();
+              contentChangeAbortRef.current = abortController;
               contentChangeTimeoutRef.current = setTimeout(() => {
-                handleAutoRender(newContent);
+                handleAutoRender(newContent, abortController.signal);
                 isUserTypingRef.current = false;
               }, renderDebounceMs);
             }
@@ -216,6 +220,7 @@ export function useCodeMirrorSetup(params: UseCodeMirrorSetupParams) {
     return () => {
       // Capture refs locally
       const timeoutId = contentChangeTimeoutRef.current;
+      const abortController = contentChangeAbortRef.current;
       const typingId = typingDetectionTimeoutRef.current;
 
       if (editorViewRef.current) {
@@ -234,6 +239,7 @@ export function useCodeMirrorSetup(params: UseCodeMirrorSetupParams) {
         editorViewRef.current = null;
       }
       if (timeoutId) clearTimeout(timeoutId);
+      if (abortController) abortController.abort();
       if (typingId) clearTimeout(typingId);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -39,8 +39,13 @@ export function useContentManagement(params: UseContentManagementParams) {
   } = editorStateRefs;
 
   // Auto-render function (always full content)
-  const handleAutoRender = useCallback(async (content: string) => {
+  const handleAutoRender = useCallback(async (content: string, signal?: AbortSignal) => {
     try {
+      // Check if operation was cancelled before starting
+      if (signal?.aborted) {
+        return;
+      }
+      
       if (autoRenderInFlightRef.current) {
         // A render is already in progress; remember the latest content to render afterwards.
         pendingRenderRef.current = content;
@@ -49,7 +54,14 @@ export function useContentManagement(params: UseContentManagementParams) {
       autoRenderInFlightRef.current = true;
       const wasSourceMapNull = !sourceMap;
       setCompileStatus({ status: 'running' });
+      
       const document = await renderTypst(content, 'pdf');
+      
+      // Check if operation was cancelled after async operation
+      if (signal?.aborted) {
+        return;
+      }
+      
       setSourceMap(document.sourceMap);
       setCompileStatus({
         status: 'ok',
@@ -69,6 +81,10 @@ export function useContentManagement(params: UseContentManagementParams) {
         console.warn('Failed to cleanup temp PDFs:', err);
       }
     } catch (err) {
+      // Don't update state if operation was cancelled
+      if (signal?.aborted) {
+        return;
+      }
       setCompileStatus({
         status: 'error',
         message: 'Auto-render failed',
@@ -80,9 +96,9 @@ export function useContentManagement(params: UseContentManagementParams) {
       // If there is a pending update queued during render, render once more with latest snapshot
       const pending = pendingRenderRef.current;
       pendingRenderRef.current = null;
-      if (pending) {
+      if (pending && !signal?.aborted) {
         // Fire-and-forget; guard will re-enter to in-flight again
-        handleAutoRender(pending);
+        handleAutoRender(pending, signal);
       }
     }
   }, [

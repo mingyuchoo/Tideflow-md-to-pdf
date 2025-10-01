@@ -14,6 +14,7 @@ export interface EditorStateRefs {
   
   // Timeout refs
   contentChangeTimeoutRef: React.MutableRefObject<NodeJS.Timeout | null>;
+  contentChangeAbortRef: React.MutableRefObject<AbortController | null>;
   typingDetectionTimeoutRef: React.MutableRefObject<NodeJS.Timeout | null>;
   scrollIdleTimeoutRef: React.MutableRefObject<NodeJS.Timeout | null>;
   
@@ -60,6 +61,7 @@ export function useEditorState(params: UseEditorStateParams): EditorStateRefs {
   
   // Timeout refs
   const contentChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const contentChangeAbortRef = useRef<AbortController | null>(null);
   const typingDetectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const scrollIdleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -115,6 +117,7 @@ export function useEditorState(params: UseEditorStateParams): EditorStateRefs {
     editorRef,
     editorViewRef,
     contentChangeTimeoutRef,
+    contentChangeAbortRef,
     typingDetectionTimeoutRef,
     scrollIdleTimeoutRef,
     scrollElRef,

@@ -66,14 +66,22 @@ export async function renderMarkdown(filePath: string): Promise<RenderedDocument
 }
 
 // Latest-wins coalesced render queue for Typst
-// If multiple renderTypst calls happen rapidly, coalesce them so only the latest
-// content is rendered. All callers receive the final output path.
+// Proper queue management with generation tracking to prevent race conditions
 type RenderArgs = { content: string; format: string };
-let typstRenderInFlight = false;
-let typstPending: RenderArgs | null = null;
-let typstSharedPromise: Promise<RenderedDocument> | null = null;
-let typstSharedResolve: ((doc: RenderedDocument) => void) | null = null;
-let typstSharedReject: ((err: unknown) => void) | null = null;
+
+interface RenderQueueState {
+  inFlight: boolean;
+  pending: RenderArgs | null;
+  currentGeneration: number;
+  subscribers: Map<number, { resolve: (doc: RenderedDocument) => void; reject: (err: unknown) => void }>;
+}
+
+const renderQueue: RenderQueueState = {
+  inFlight: false,
+  pending: null,
+  currentGeneration: 0,
+  subscribers: new Map(),
+};
 
 function normalizeSourceMap(map: SourceMap | undefined): SourceMap {
   if (!map) {
@@ -103,96 +111,63 @@ async function invokeRenderTypst(args: RenderArgs): Promise<RenderedDocument> {
   return normalizeRenderedDocument(raw);
 }
 
-export function renderTypst(content: string, format: string): Promise<RenderedDocument> {
-  const nextArgs: RenderArgs = { content, format };
-  if (typstRenderInFlight) {
-    // Replace any previously pending args with the latest
-    typstPending = nextArgs;
-    // Return a shared promise that resolves when the final render completes
-    if (!typstSharedPromise) {
-      typstSharedPromise = new Promise<RenderedDocument>((resolve, reject) => {
-        typstSharedResolve = resolve;
-        typstSharedReject = reject;
-      });
-    }
-    return typstSharedPromise;
-  }
-
-  // Start a rendering loop processing the initial args and any pending ones
-  typstRenderInFlight = true;
-  return new Promise<RenderedDocument>((resolve, reject) => {
-    let current: RenderArgs = nextArgs;
-    // Ensure a shared promise exists so concurrent callers during the loop get the final path
-    if (!typstSharedPromise) {
-      typstSharedPromise = new Promise<RenderedDocument>((res, rej) => {
-        typstSharedResolve = res;
-        typstSharedReject = rej;
-      });
-    }
-    (async () => {
+async function processRenderQueue(): Promise<void> {
+  if (renderQueue.inFlight) return;
+  
+  renderQueue.inFlight = true;
+  
+  try {
+    while (renderQueue.pending) {
+      const args = renderQueue.pending;
+      renderQueue.pending = null;
+      
       try {
-  // Loop processes current request and any queued latest args; last one wins
-  // We break explicitly when no pending is left
-  for (;;) {
-          const document = await invokeRenderTypst(current);
-          // If a newer request was queued during this render, render that next
-          if (typstPending) {
-            current = typstPending;
-            typstPending = null;
-            continue;
-          }
-          // No more pending: finalize and resolve
-          typstRenderInFlight = false;
-          const finalDocument = document;
-          // Resolve both the shared and this specific promise
-          if (typstSharedResolve) typstSharedResolve(finalDocument);
-          // Reset shared handles after settling
-          typstSharedPromise = null;
-          typstSharedResolve = null;
-          typstSharedReject = null;
-          resolve(finalDocument);
+        const document = await invokeRenderTypst(args);
+        
+        // If no new requests came in, resolve all subscribers
+        if (!renderQueue.pending) {
+          const subscribers = new Map(renderQueue.subscribers);
+          renderQueue.subscribers.clear();
+          renderQueue.currentGeneration++;
+          
+          subscribers.forEach(({ resolve }) => resolve(document));
           break;
         }
+        // Otherwise continue loop with new pending request
       } catch (err) {
-        // If there was a failure but another request arrived, try that next
-        if (typstPending) {
-          const retryArgs = typstPending;
-          typstPending = null;
-          try {
-            const document = await invokeRenderTypst(retryArgs);
-            // Drain any additional pending
-            while (typstPending) {
-              const next = typstPending;
-              typstPending = null;
-              await invokeRenderTypst(next);
-            }
-            typstRenderInFlight = false;
-            if (typstSharedResolve) typstSharedResolve(document);
-            typstSharedPromise = null;
-            typstSharedResolve = null;
-            typstSharedReject = null;
-            resolve(document);
-            return;
-          } catch (err2) {
-            typstRenderInFlight = false;
-            if (typstSharedReject) typstSharedReject(err2);
-            typstSharedPromise = null;
-            typstSharedResolve = null;
-            typstSharedReject = null;
-            reject(err2);
-            return;
-          }
+        // If error and no pending retry, fail all subscribers
+        if (!renderQueue.pending) {
+          const subscribers = new Map(renderQueue.subscribers);
+          renderQueue.subscribers.clear();
+          renderQueue.currentGeneration++;
+          
+          subscribers.forEach(({ reject }) => reject(err));
+          break;
         }
-        // No pending retry available; fail the queue
-        typstRenderInFlight = false;
-        if (typstSharedReject) typstSharedReject(err);
-        typstSharedPromise = null;
-        typstSharedResolve = null;
-        typstSharedReject = null;
-        reject(err);
+        // Otherwise continue loop with pending retry
       }
-    })();
+    }
+  } finally {
+    renderQueue.inFlight = false;
+  }
+}
+
+export function renderTypst(content: string, format: string): Promise<RenderedDocument> {
+  const args: RenderArgs = { content, format };
+  
+  // Update pending with latest content (last one wins)
+  renderQueue.pending = args;
+  
+  // Create a new subscriber promise
+  const generation = renderQueue.currentGeneration;
+  const promise = new Promise<RenderedDocument>((resolve, reject) => {
+    renderQueue.subscribers.set(generation + renderQueue.subscribers.size, { resolve, reject });
   });
+  
+  // Start processing if not already running
+  processRenderQueue();
+  
+  return promise;
 }
 
 export async function exportMarkdown(filePath: string): Promise<string> {
