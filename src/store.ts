@@ -29,11 +29,15 @@ export const defaultPreferences: Preferences = {
     main: 'Times New Roman',
     mono: 'Courier New',
   },
+  font_size: 11,
+  page_bg_color: '#ffffff',
+  font_color: '#000000',
+  heading_scale: 1.0,
+  accent_color: '#1e40af',
   // Preview optimization settings
   render_debounce_ms: 400,
   focused_preview_enabled: false,
   preserve_scroll_position: true,
-  gpt5_codex_enabled: true,
 };
 
 // Initial editor state
@@ -65,6 +69,9 @@ interface AppState {
   // Typing state (suppresses aggressive scroll sync while user is entering text)
   isTyping: boolean;
   setIsTyping: (v: boolean) => void;
+  // PDF zoom level (1.0 = 100%, 0.5 = 50%, 2.0 = 200%)
+  pdfZoom: number;
+  setPdfZoom: (zoom: number) => void;
   
   // Tab management
   addOpenFile: (path: string) => void;
@@ -114,6 +121,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSyncMode: (mode: SyncMode) => set({ syncMode: mode }),
   isTyping: false,
   setIsTyping: (v: boolean) => set({ isTyping: v }),
+  pdfZoom: 1.0,
+  setPdfZoom: (zoom: number) => set({ pdfZoom: zoom }),
   setCurrentFile: (path: string | null) => set((state: AppState) => {
     return {
       editor: {

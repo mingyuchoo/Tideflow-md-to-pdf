@@ -190,6 +190,11 @@ interface BackendPreferences {
   default_image_width: string;
   default_image_alignment: string;
   fonts: { main: string; mono: string };
+  font_size: number;
+  page_bg_color: string;
+  font_color: string;
+  heading_scale: number;
+  accent_color: string;
   render_debounce_ms: number;
   focused_preview_enabled?: boolean;
   preserve_scroll_position: boolean;
@@ -211,6 +216,11 @@ export async function getPreferences(): Promise<Preferences> {
     default_image_width: raw.default_image_width,
     default_image_alignment: raw.default_image_alignment,
     fonts: raw.fonts,
+    font_size: raw.font_size ?? 11,
+    page_bg_color: raw.page_bg_color ?? '#ffffff',
+    font_color: raw.font_color ?? '#000000',
+    heading_scale: raw.heading_scale ?? 1.0,
+    accent_color: raw.accent_color ?? '#1e40af',
     render_debounce_ms: raw.render_debounce_ms,
     focused_preview_enabled: raw.focused_preview_enabled,
     preserve_scroll_position: raw.preserve_scroll_position,
@@ -232,6 +242,11 @@ export async function setPreferences(preferences: Preferences): Promise<void> {
     default_image_width: preferences.default_image_width,
     default_image_alignment: preferences.default_image_alignment,
     fonts: preferences.fonts,
+    font_size: preferences.font_size,
+    page_bg_color: preferences.page_bg_color,
+    font_color: preferences.font_color,
+    heading_scale: preferences.heading_scale,
+    accent_color: preferences.accent_color,
     render_debounce_ms: preferences.render_debounce_ms,
     focused_preview_enabled: preferences.focused_preview_enabled,
     preserve_scroll_position: preferences.preserve_scroll_position,

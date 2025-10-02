@@ -34,6 +34,16 @@ pub struct Preferences {
     pub default_image_width: String,
     pub default_image_alignment: String,
     pub fonts: Fonts,
+    #[serde(default = "default_font_size")]
+    pub font_size: f32,
+    #[serde(default = "default_page_bg_color")]
+    pub page_bg_color: String,
+    #[serde(default = "default_font_color")]
+    pub font_color: String,
+    #[serde(default = "default_heading_scale")]
+    pub heading_scale: f32,
+    #[serde(default = "default_accent_color")]
+    pub accent_color: String,
     // Preview optimization settings
     pub render_debounce_ms: u32,
     pub focused_preview_enabled: bool,
@@ -50,6 +60,26 @@ pub struct Margins {
 pub struct Fonts {
     pub main: String,
     pub mono: String,
+}
+
+fn default_font_size() -> f32 {
+    11.0
+}
+
+fn default_page_bg_color() -> String {
+    "#ffffff".to_string()
+}
+
+fn default_font_color() -> String {
+    "#000000".to_string()
+}
+
+fn default_heading_scale() -> f32 {
+    1.0
+}
+
+fn default_accent_color() -> String {
+    "#1e40af".to_string()
 }
 
 impl Default for Preferences {
@@ -75,6 +105,11 @@ impl Default for Preferences {
                 main: "New Computer Modern".to_string(),
                 mono: "Liberation Mono".to_string(),
             },
+            font_size: 11.0,
+            page_bg_color: "#ffffff".to_string(),
+            font_color: "#000000".to_string(),
+            heading_scale: 1.0,
+            accent_color: "#1e40af".to_string(),
             // Preview optimization defaults
             render_debounce_ms: 400, // 400ms for responsive feel
             focused_preview_enabled: true,

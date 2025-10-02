@@ -18,6 +18,11 @@
     "main": "New Computer Modern",
     "mono": "New Computer Modern Mono"
   },
+  "font_size": 11,
+  "page_bg_color": "#ffffff",
+  "font_color": "#000000",
+  "heading_scale": 1.0,
+  "accent_color": "#2d3e50",
   "render_debounce_ms": 400,
   "focused_preview_enabled": true,
   "preserve_scroll_position": true

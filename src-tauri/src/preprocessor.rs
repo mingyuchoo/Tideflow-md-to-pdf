@@ -49,7 +49,8 @@ pub struct PreprocessorOutput {
 pub fn preprocess_markdown(markdown: &str) -> Result<PreprocessorOutput> {
     let admonition_transformed = transform_admonitions(markdown);
     let legacy_normalised = normalise_legacy_callouts(&admonition_transformed);
-    inject_anchors(&legacy_normalised)
+    let cmarker_fixed = fix_cmarker_quirks(&legacy_normalised);
+    inject_anchors(&cmarker_fixed)
 }
 
 fn transform_admonitions(markdown: &str) -> String {
@@ -178,6 +179,55 @@ fn normalise_legacy_callouts(markdown: &str) -> String {
         "<!--raw-typst #admonition(\"warning\")",
     );
     replaced
+}
+
+/// Fix block element adjacency issues by ensuring proper spacing between elements.
+/// Fix quirks in markdown that cause issues with the cmarker parser.
+/// Specifically handles blockquotes immediately followed by headings.
+/// 
+/// The fix: Insert a zero-width space (U+200B) which breaks the blockquote context
+/// without being visible in the rendered output.
+fn fix_cmarker_quirks(markdown: &str) -> String {
+    let lines: Vec<&str> = markdown.split('\n').collect();
+    let mut output = String::with_capacity(markdown.len() + 128);
+    
+    let mut i = 0;
+    while i < lines.len() {
+        let line = lines[i];
+        output.push_str(line);
+        
+        if i < lines.len() - 1 {
+            let next_line = lines[i + 1];
+            let next_is_blockquote = next_line.trim_start().starts_with('>');
+            
+            let current_is_blockquote = line.trim_start().starts_with('>');
+            let prev_is_blockquote = i > 0 && lines[i - 1].trim_start().starts_with('>');
+            
+            // Insert zero-width space before every blockquote (unless previous line was also a blockquote)
+            if next_is_blockquote && !current_is_blockquote {
+                output.push('\n');
+                output.push('\u{200B}'); // Zero-width space separator
+            }
+            
+            // Insert zero-width space after every blockquote (unless next line is also a blockquote)
+            if current_is_blockquote && !next_is_blockquote {
+                output.push('\n');
+                output.push('\u{200B}'); // Zero-width space separator
+            } else if prev_is_blockquote && !current_is_blockquote && !next_is_blockquote {
+                // Handle multi-line blockquote endings
+                output.push('\n');
+                output.push('\u{200B}'); // Zero-width space separator
+            }
+        }
+        
+        if i < lines.len() - 1 {
+            output.push('\n');
+        }
+        
+        i += 1;
+    }
+    
+    output
 }
 
 fn inject_anchors(markdown: &str) -> Result<PreprocessorOutput> {

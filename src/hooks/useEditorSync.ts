@@ -5,7 +5,7 @@
 
 import { useCallback, useEffect } from 'react';
 import type { SourceAnchor, SourceMap, SyncMode } from '../types';
-import { TIMING } from '../constants/timing';
+import { TIMING, ANCHOR } from '../constants/timing';
 import type { EditorStateRefs } from './useEditorState';
 
 interface UseEditorSyncParams {
@@ -58,16 +58,40 @@ export function useEditorSync(params: UseEditorSyncParams) {
     const bottomLine = Math.max(0, editorViewRef.current!.state.doc.lineAt(bottomBlock.to).number - 1);
     const centerLine = Math.max(0, Math.floor((topLine + bottomLine) / 2));
 
+    // Improved anchor selection: prefer anchors in/just after viewport, avoid far anchors
     let closest: SourceAnchor | null = null;
-    let closestDiff = Number.POSITIVE_INFINITY;
+    let closestScore = Number.POSITIVE_INFINITY;
+    
+    // First pass: try to find anchor in or near viewport
     for (const anchor of map.anchors) {
-      const diff = Math.abs(anchor.editor.line - centerLine);
-      if (
-        diff < closestDiff ||
-        (diff === closestDiff && anchor.editor.offset < (closest?.editor.offset ?? Number.POSITIVE_INFINITY))
-      ) {
-        closest = anchor;
-        closestDiff = diff;
+      const isInViewport = anchor.editor.line >= topLine && anchor.editor.line <= bottomLine;
+      const isJustAfter = anchor.editor.line > bottomLine && anchor.editor.line <= bottomLine + ANCHOR.NEARBY_SEARCH_WINDOW;
+      const isJustBefore = anchor.editor.line < topLine && anchor.editor.line >= topLine - ANCHOR.NEARBY_SEARCH_WINDOW;
+      
+      if (isInViewport || isJustAfter || isJustBefore) {
+        const diff = Math.abs(anchor.editor.line - centerLine);
+        let score = diff;
+        
+        // Slight preference for anchors in viewport vs just outside
+        if (!isInViewport) {
+          score = diff + ANCHOR.NEARBY_SCORE_PENALTY;
+        }
+        
+        if (score < closestScore) {
+          closest = anchor;
+          closestScore = score;
+        }
+      }
+    }
+    
+    // If no nearby anchor found, use simple closest by absolute distance
+    if (!closest) {
+      for (const anchor of map.anchors) {
+        const diff = Math.abs(anchor.editor.line - centerLine);
+        if (diff < closestScore) {
+          closest = anchor;
+          closestScore = diff;
+        }
       }
     }
 

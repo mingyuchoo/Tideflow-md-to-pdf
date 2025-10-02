@@ -1,0 +1,5 @@
+# Prevent Tauri from watching generated files
+gen_debug/
+src-tauri/gen_debug/
+target/
+gen/

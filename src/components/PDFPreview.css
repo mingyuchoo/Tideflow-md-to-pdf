@@ -24,6 +24,79 @@
   align-items: center;
 }
 
+.zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 2px 4px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+}
+
+.zoom-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font-size: 1rem;
+  font-weight: bold;
+  line-height: 1;
+  background: #e2e8f0;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.zoom-btn:hover:not(:disabled) {
+  background: #cbd5e1;
+}
+
+.zoom-btn:active:not(:disabled) {
+  background: #94a3b8;
+}
+
+.zoom-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.zoom-display {
+  min-width: 48px;
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.zoom-reset-btn {
+  font-size: 0.65rem;
+  padding: 3px 6px;
+  line-height: 1;
+  background: #e2e8f0;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-weight: 500;
+}
+
+.zoom-reset-btn:hover:not(:disabled) {
+  background: #cbd5e1;
+}
+
+.zoom-reset-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .pdf-preview-header .resync-btn {
   font-size: 0.7rem;
   padding: 2px 6px;
@@ -50,6 +123,11 @@
   border-radius: 4px;
   font-weight: 500;
   margin-left: 4px;
+}
+
+.sync-paused-badge.two-way-badge {
+  background-color: #4a90e2;
+  color: white;
 }
 
 .pdf-preview-header h3 {

@@ -1,17 +1,14 @@
 // Main Tideflow Typst template (lean, preference-driven)
 #import "@preview/cmarker:0.1.6": render
-#import "themes/registry.typ": apply-theme
+#import "themes/registry.typ": get-theme
 
 #let prefs = json("prefs.json")
-
 #let theme-id = if "theme_id" in prefs { prefs.theme_id } else { "default" }
 
-// Theme hooks may set typography; ensure language defaults to English first so
-// theme `set text(...)` calls can fully control font/size/lang.
-#set text(lang: "en")
+// Apply theme to entire document using show rule
+#show: get-theme(theme-id).with(prefs)
 
-#let theme-config = apply-theme(theme-id, prefs)
-#let accent-color = theme-config.at("accent", default: rgb(45, 62, 80))
+#let accent-color = rgb(45, 62, 80) // Default accent
 
 // Capture built-in image to avoid recursive overrides
 #let builtin-image = image
@@ -146,6 +143,11 @@
 #let image = (path, alt: none, ..n) => builtin-image(path, alt: alt, ..n)
 
 #render(md_content,
+  smart-punctuation: false,
+  // Note: cmarker 0.1.6 follows standard Markdown line break rules:
+  // - Single newline = soft break (ignored in output)
+  // - Two spaces + newline = hard break (<br>)
+  // - Blank line = paragraph break
   html: (
     // Handle <img src width data-align> so we can control size and alignment
     img: ("void", attrs => {

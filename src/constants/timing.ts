@@ -5,13 +5,13 @@
 
 export const TIMING = {
   /** Debounce delay for scroll event handlers to avoid excessive computations */
-  SCROLL_DEBOUNCE_MS: 80,
+  SCROLL_DEBOUNCE_MS: 50,
   
   /** Interval for polling operations (offset computation, anchor detection) */
   OFFSET_POLL_INTERVAL_MS: 120,
   
   /** Delay to wait before considering a scroll as user-initiated (not programmatic) */
-  PROGRAMMATIC_SCROLL_GUARD_MS: 300,
+  PROGRAMMATIC_SCROLL_GUARD_MS: 150,
   
   /** Idle threshold after last keystroke before considering user stopped typing */
   TYPING_IDLE_THRESHOLD_MS: 800,
@@ -58,8 +58,25 @@ export const UI = {
   SCROLL_AWAY_FROM_TOP_THRESHOLD_PX: 20,
   
   /** Threshold for considering scrollTop positions as "close enough" */
-  SCROLL_POSITION_TOLERANCE_PX: 10,
+  SCROLL_POSITION_TOLERANCE_PX: 3,
   
   /** Threshold for scroll delta to be considered "no movement" */
   SCROLL_NO_MOVEMENT_THRESHOLD_PX: 2,
+  
+  /** Visual gap between PDF pages in pixels */
+  PAGE_GAP_PX: 8,
+} as const;
+
+/**
+ * Anchor selection and positioning constants
+ */
+export const ANCHOR = {
+  /** Position for smart fallback anchor (25% into document shows content without going too far) */
+  SMART_FALLBACK_POSITION: 0.25,
+  
+  /** Nearby anchor search window (lines before/after viewport) */
+  NEARBY_SEARCH_WINDOW: 50,
+  
+  /** Score penalty for anchors outside viewport but nearby */
+  NEARBY_SCORE_PENALTY: 10,
 } as const;

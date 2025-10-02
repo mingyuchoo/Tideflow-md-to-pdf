@@ -17,10 +17,16 @@ export function computeAnchorOffsets(metrics: { page: number; height: number; sc
 
   const sorted = [...metrics].sort((a, b) => a.page - b.page);
   const pageOffsets = new Map<number, number>();
+  const PAGE_GAP = 8; // Visual gap between pages
   let cumulative = 0;
-  for (const metric of sorted) {
+  for (let i = 0; i < sorted.length; i++) {
+    const metric = sorted[i];
     pageOffsets.set(metric.page, cumulative);
     cumulative += metric.height;
+    // Add gap between pages (but not after last page)
+    if (i < sorted.length - 1) {
+      cumulative += PAGE_GAP;
+    }
   }
 
   let idx = 0;
@@ -30,6 +36,15 @@ export function computeAnchorOffsets(metrics: { page: number; height: number; sc
     const metric = pdf ? sorted.find((m) => m.page === pdf.page) : undefined;
     if (!pdf || !metric) {
       if (idx < 5) samplesForLog.push({ id: anchor.id, hasPdf, metricPage: metric?.page });
+      
+      // FALLBACK: If no PDF position, create a proportional offset based on anchor index
+      if (!pdf && sorted.length > 0) {
+        const totalHeight = sorted.reduce((sum, m) => sum + m.height, 0);
+        const proportionalOffset = (idx / Math.max(1, map.anchors.length - 1)) * totalHeight;
+        offsets.set(anchor.id, Math.round(proportionalOffset));
+        if (idx < 5) samplesForLog.push({ id: anchor.id, hasPdf: false, offset: Math.round(proportionalOffset) });
+      }
+      
       idx++;
       continue;
     }

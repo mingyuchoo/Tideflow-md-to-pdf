@@ -134,6 +134,47 @@ const Toolbar: React.FC = () => {
           <option value="custom">Custom…</option>
         </select>
 
+        <div className="toolbar-button-group">
+          <button
+            onClick={async () => {
+              const prefs = useAppStore.getState().preferences;
+              const newSize = Math.max(8, prefs.font_size - 0.5);
+              const updated = { ...prefs, font_size: newSize };
+              try {
+                setCompileStatus({ status: 'running' });
+                setThemeSelection('custom'); // Switch to custom when adjusting font size
+                setPreferences(updated);
+                await persistPreferences(updated);
+                await rerenderCurrent();
+              } catch (e) {
+                console.warn('[Toolbar] font size change failed', e);
+              }
+            }}
+            title="Decrease font size"
+          >
+            A−
+          </button>
+          <button
+            onClick={async () => {
+              const prefs = useAppStore.getState().preferences;
+              const newSize = Math.min(18, prefs.font_size + 0.5);
+              const updated = { ...prefs, font_size: newSize };
+              try {
+                setCompileStatus({ status: 'running' });
+                setThemeSelection('custom'); // Switch to custom when adjusting font size
+                setPreferences(updated);
+                await persistPreferences(updated);
+                await rerenderCurrent();
+              } catch (e) {
+                console.warn('[Toolbar] font size change failed', e);
+              }
+            }}
+            title="Increase font size"
+          >
+            A+
+          </button>
+        </div>
+
         <button
           onClick={handleTogglePreview}
           className={previewVisible ? 'active' : ''}

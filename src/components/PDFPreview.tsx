@@ -36,7 +36,7 @@ try {
 
 const PDFPreview: React.FC = () => {
   // Store state
-  const { editor, sourceMap, activeAnchorId, setActiveAnchorId, syncMode, setSyncMode, isTyping, preferences } = useAppStore();
+  const { editor, sourceMap, activeAnchorId, setActiveAnchorId, syncMode, setSyncMode, isTyping, preferences, pdfZoom, setPdfZoom } = useAppStore();
   const { compileStatus } = editor;
 
   // Local state
@@ -67,6 +67,7 @@ const PDFPreview: React.FC = () => {
     programmaticScrollRef,
     lastProgrammaticScrollAt,
     userInteractedRef,
+    userManuallyPositionedPdfRef,
     initialForcedScrollDoneRef,
     syncModeRef,
     activeAnchorRef,
@@ -109,126 +110,116 @@ const PDFPreview: React.FC = () => {
   useEffect(() => { renderingRef.current = rendering; }, [rendering]);
 
   const scrollToAnchor = useCallback((anchorId: string, center = false, force = false) => {
-  const el = containerRef.current;
-  // Ensure the container is still attached to the document; during fast
-  // doc switches it may be removed which would make subsequent DOM ops
-  // throw (removeChild). Also guard if parentNode is missing.
-  if (!el || !el.parentNode || !el.isConnected) return;
+    const el = containerRef.current;
+    // Ensure the container is still attached to the document
+    if (!el || !el.parentNode || !el.isConnected) return;
+    
     if (process.env.NODE_ENV !== 'production') {
-      console.log(`[PDFPreview] scrollToAnchor requested: anchor=${anchorId}, offsets=${anchorOffsetsRef.current.size}, topBefore=${el.scrollTop}, clientH=${el.clientHeight}, scrollHeight=${el.scrollHeight}`);
+      console.log(`[PDFPreview] scrollToAnchor: anchor=${anchorId}, force=${force}, center=${center}`);
     }
+    
     const offset = anchorOffsetsRef.current.get(anchorId);
-    if (offset === undefined) return;
-    // Defensive guard: avoid jumping the preview to the very top (offset
-    // near zero) when the preview is currently scrolled elsewhere or when
-    // the user is typing. This prevents jarring jumps produced by fallback
-    // offsets or transient races while pages/anchors are still settling.
-    let currentTop = el.scrollTop ?? 0;
-    if (!force && (isTypingRef.current) && Math.abs(currentTop - offset) > UI.SCROLL_POSITION_TOLERANCE_PX) {
+    if (offset === undefined) {
       if (process.env.NODE_ENV !== 'production') {
-        console.debug('[PDFPreview] skipping scrollToAnchor due to typing', { anchorId, offset, currentTop: el.scrollTop });
+        console.debug('[PDFPreview] no offset for anchor', { anchorId });
       }
       return;
     }
-    // If the computed target would be essentially the document top (<=8px)
-    // but the user is already scrolled well past the top, avoid jumping
-    // them to the top. Allow a single forced startup scroll (controlled by
-    // initialForcedScrollDoneRef) to handle the case where the preview
-    // initially needs to sync on load.
-    if (!force && offset <= UI.MIN_OFFSET_FROM_TOP_PX && Math.abs(currentTop - offset) > UI.SCROLL_POSITION_TOLERANCE_PX) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.debug('[PDFPreview] skipping scrollToAnchor to near-top (guard)', { anchorId, offset, currentTop: el.scrollTop });
-      }
-      return;
-    }
-    if (force && offset <= UI.MIN_OFFSET_FROM_TOP_PX && currentTop > UI.SCROLL_AWAY_FROM_TOP_THRESHOLD_PX) {
-      // If this is a forced scroll but the user is already scrolled down,
-      // only allow it once on startup.
-      if (initialForcedScrollDoneRef.current) {
-        if (process.env.NODE_ENV !== 'production') {
-          console.debug('[PDFPreview] ignoring repeated forced near-top scroll', { anchorId, offset, currentTop });
-        }
-        return;
-      }
-      // Do NOT mark done here; the authoritative place to mark the
-      // one-shot forced-startup scroll as completed is immediately
-      // after we've actually performed a programmatic forced scroll in
-      // this function. That prevents other codepaths from prematurely
-      // blocking future startup sync attempts.
-    }
+    
+    // Calculate target position with bias
     const bias = center ? el.clientHeight / 2 : el.clientHeight * 0.3;
     const target = Math.max(0, offset - bias);
+    const currentTop = el.scrollTop ?? 0;
     
     // Skip if already at target position (within tolerance)
-    currentTop = el.scrollTop ?? 0;
     if (Math.abs(currentTop - target) <= UI.SCROLL_POSITION_TOLERANCE_PX) {
       if (process.env.NODE_ENV !== 'production') {
-        console.debug('[PDFPreview] already at target position', { anchorId, offset, target, currentTop });
+        console.debug('[PDFPreview] already at target', { anchorId, target, currentTop });
       }
       return;
     }
     
-    // Avoid jumping to near-top positions for users who are scrolled well
-    // below the top. If the computed target is very small but the current
-    // scrollTop is significantly larger, skip the programmatic scroll
-    // unless explicitly forced.
-    if (!force && currentTop > 20 && target < 8) {
+    // Only guard against near-top jumps during initial forced scroll (startup)
+    // After that, allow all scrolls to support normal document navigation
+    if (force && !initialForcedScrollDoneRef.current) {
+      // First forced scroll - mark it complete
+      initialForcedScrollDoneRef.current = true;
       if (process.env.NODE_ENV !== 'production') {
-        console.debug('[PDFPreview] suppressing near-top jump', { anchorId, offset, target, currentTop });
+        console.debug('[PDFPreview] initial forced scroll completed', { anchorId });
       }
-      return;
     }
+    
+    // Set programmatic scroll flag
     programmaticScrollRef.current = true;
     lastProgrammaticScrollAt.current = Date.now();
     const beforeTop = el.scrollTop;
-    // Perform the programmatic scroll. We avoid prematurely marking the
-    // one-shot startup sync as completed for a no-op (zero-delta) scroll
-    // because offsets may still be imprecise; instead rely on the rAF
-    // confirmation below which marks the startup sync only if the
-    // scroll actually changed the viewport.
+    
+    // Perform the scroll
     el.scrollTo({ top: target, behavior: 'auto' });
-    // We will mark the one-shot startup guard only after confirming the
-    // programmatic scroll actually moved the viewport. This avoids
-    // premature marking when the attempted scroll was a no-op (for
-    // example when the target equals the current scrollTop) or when a
-    // conservative fallback was applied before precise offsets were
-    // available.
+    
     if (process.env.NODE_ENV !== 'production') {
-      // Wrap RAF checks with a defensive read to ensure the element
-      // is still present when the callback runs.
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          try {
-            const currentEl = containerRef.current;
-            if (!currentEl || !currentEl.isConnected) return;
-            const after = currentEl.scrollTop;
-            const delta = after - beforeTop;
-            console.log(`[PDFPreview] scrollToAnchor effect: anchor=${anchorId}, offset=${offset}, target=${target}, topBefore=${beforeTop}, topAfter=${after}, delta=${delta}, scrollHeight=${currentEl.scrollHeight}`);
-            if (force && !initialForcedScrollDoneRef.current) {
-              if (delta !== 0 || Math.abs(beforeTop - target) > UI.SCROLL_NO_MOVEMENT_THRESHOLD_PX) {
-                programmaticScrollRef.current = true;
-                console.debug('[PDFPreview] initialForcedScrollDone set by scrollToAnchor (confirmed)', { anchorId, target, delta });
-              } else {
-                console.debug('[PDFPreview] initialForcedScrollDone NOT set (no movement)', { anchorId, target, delta });
-              }
-            }
-          } catch {
-            // swallow any exceptions during the diagnostic logging so
-            // they don't bubble up during unmounts or fast switches.
-          }
-        }, 80);
-      });
+      console.debug('[PDFPreview] scrolled', { anchorId, from: beforeTop, to: target, delta: target - beforeTop });
     }
+    
+        // Clear programmatic flag after scroll completes
     requestAnimationFrame(() => {
       setTimeout(() => {
         programmaticScrollRef.current = false;
-      }, 60);
+      }, 50); // Quick clear for responsive two-way sync
     });
-    if (process.env.NODE_ENV !== 'production') {
-      console.debug('[PDFPreview] programmaticScroll set true', { anchorId, target, timestamp: lastProgrammaticScrollAt.current });
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Refs are stable and don't need to be in dependency array
+
+  // Clear manual position flag when switching to locked-to-editor or two-way mode
+  useEffect(() => {
+    if (syncMode === 'locked-to-editor' || syncMode === 'two-way') {
+      userManuallyPositionedPdfRef.current = false;
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[PDFPreview] cleared manual position flag - mode:', syncMode);
+      }
+    }
+  }, [syncMode, userManuallyPositionedPdfRef]);
+
+  // Auto-switch from two-way to auto when typing starts
+  // Two-way mode is for reading/navigation - when editing, switch to one-way (auto)
+  const prevIsTypingForModeRef = useRef(isTyping);
+  useEffect(() => {
+    const startedTyping = !prevIsTypingForModeRef.current && isTyping;
+    prevIsTypingForModeRef.current = isTyping;
+    
+    if (startedTyping && syncMode === 'two-way') {
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[PDFPreview] 🔄 typing detected in two-way mode - switching to auto');
+      }
+      setSyncMode('auto');
+    }
+  }, [isTyping, syncMode, setSyncMode]);
+
+  // Clear manual position flag ONLY on explicit editor scroll (not typing-induced changes)
+  // We detect this by tracking when anchor changes due to editor scroll events, not typing
+  const prevAnchorIdRef = useRef<string | null>(activeAnchorId);
+  const prevIsTypingRef = useRef(isTyping);
+  useEffect(() => {
+    const wasTyping = prevIsTypingRef.current;
+    const anchorChanged = activeAnchorId !== prevAnchorIdRef.current;
+    
+    // Only release lock if:
+    // 1. User is NOT currently typing
+    // 2. User was NOT typing before (prevents clearing on typing→not-typing transition)
+    // 3. Anchor actually changed (user scrolled/navigated editor)
+    if (!isTyping && !wasTyping && anchorChanged && activeAnchorId) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[PDFPreview] 🔓 clearing PDF lock - user SCROLLED/NAVIGATED editor', {
+          from: prevAnchorIdRef.current,
+          to: activeAnchorId
+        });
+      }
+      userManuallyPositionedPdfRef.current = false;
+    }
+    
+    prevAnchorIdRef.current = activeAnchorId;
+    prevIsTypingRef.current = isTyping;
+  }, [activeAnchorId, isTyping, userManuallyPositionedPdfRef]);
 
   // SIMPLIFIED: Editor → PDF sync (replaces useAnchorSync, usePendingScroll, useStartupSync, useFinalSync)
   useEditorToPdfSync({
@@ -243,6 +234,8 @@ const PDFPreview: React.FC = () => {
     sourceMapRef,
     syncModeRef,
     userInteractedRef,
+    userManuallyPositionedPdfRef,
+    programmaticScrollRef,
     scrollToAnchor,
     recomputeAnchorOffsets,
   });
@@ -256,9 +249,12 @@ const PDFPreview: React.FC = () => {
     lastProgrammaticScrollAt,
     mountedAt,
     userInteractedRef,
+    userManuallyPositionedPdfRef,
     activeAnchorRef,
     syncModeRef,
     renderingRef: scrollState.renderingRef,
+    isTypingRef,
+    rendering, // Pass state value so effect can re-run when PDF ready
     setActiveAnchorId,
     setSyncMode,
   });
@@ -301,6 +297,7 @@ const PDFPreview: React.FC = () => {
   // PDF renderer hook
   usePdfRenderer({
     compileStatus,
+    pdfZoom,
     containerRef,
     cancelRenderRef,
     pdfMetricsRef,
@@ -371,6 +368,9 @@ const PDFPreview: React.FC = () => {
         sourceMap={sourceMap}
         anchorOffsetsRef={anchorOffsetsRef}
         containerRef={containerRef}
+        userManuallyPositionedPdfRef={userManuallyPositionedPdfRef}
+        pdfZoom={pdfZoom}
+        setPdfZoom={setPdfZoom}
       />
       
       <div className="pdf-preview-content">

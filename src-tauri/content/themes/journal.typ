@@ -1,5 +1,5 @@
 #let journal_theme = prefs => {
-  set text(font: prefs.fonts.main, size: 11pt, lang: "en")
+  set text(font: prefs.fonts.main, size: 11pt, lang: "tr")
   show raw: set text(font: prefs.fonts.mono)
 
   show heading.where(level: 1): set text(

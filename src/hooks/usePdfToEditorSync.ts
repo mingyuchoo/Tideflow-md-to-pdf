@@ -18,9 +18,14 @@ interface UsePdfToEditorSyncParams {
   lastProgrammaticScrollAt: React.MutableRefObject<number | null>;
   mountedAt: React.MutableRefObject<number>;
   userInteractedRef: React.MutableRefObject<boolean>;
+  userManuallyPositionedPdfRef: React.MutableRefObject<boolean>;
   activeAnchorRef: React.MutableRefObject<string | null>;
   syncModeRef: React.MutableRefObject<SyncMode>;
   renderingRef: React.MutableRefObject<boolean>;
+  isTypingRef: React.MutableRefObject<boolean>;
+  
+  // State values (for proper React dependencies)
+  rendering: boolean; // Used to trigger re-attachment when PDF ready
   
   // Actions
   setActiveAnchorId: (id: string) => void;
@@ -36,31 +41,60 @@ export function usePdfToEditorSync(params: UsePdfToEditorSyncParams): void {
     lastProgrammaticScrollAt,
     mountedAt,
     userInteractedRef,
+    userManuallyPositionedPdfRef,
     activeAnchorRef,
     syncModeRef,
     renderingRef,
+    isTypingRef,
+    rendering, // State value for dependency tracking
     setActiveAnchorId,
     setSyncMode,
   } = params;
 
   // Effect: Handle PDF scroll events
+  // This effect depends on sourceMapRef changes to re-attach when PDF renders
   useEffect(() => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug('[PdfToEditorSync] scroll effect mounting...', {
+        hasContainer: !!containerRef.current,
+        containerClass: containerRef.current?.className,
+        hasSourceMap: !!sourceMapRef.current
+      });
+    }
+    
     const el = containerRef.current;
-    if (!el) return;
+    if (!el) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('[PdfToEditorSync] scroll effect - no container element! Will retry when sourceMap changes.');
+      }
+      return;
+    }
 
     let scrollTimeout: number | null = null;
 
     // Find closest anchor to given scroll position
     const findClosestAnchor = (scrollPos: number): string | null => {
       const map = sourceMapRef.current;
-      if (!map || map.anchors.length === 0) return null;
+      if (!map || map.anchors.length === 0) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.debug('[PdfToEditorSync] no anchors available', { map: !!map, anchorsCount: map?.anchors?.length || 0 });
+        }
+        return null;
+      }
 
       let closestId: string | null = null;
       let bestDist = Number.POSITIVE_INFINITY;
+      let checkedCount = 0;
 
       for (const anchor of map.anchors) {
         const offset = anchorOffsetsRef.current.get(anchor.id);
-        if (offset === undefined) continue;
+        if (offset === undefined) {
+          if (process.env.NODE_ENV !== 'production' && checkedCount < 3) {
+            console.debug('[PdfToEditorSync] no offset for anchor', { anchorId: anchor.id, totalOffsets: anchorOffsetsRef.current.size });
+          }
+          continue;
+        }
+        checkedCount++;
 
         const dist = Math.abs(offset - scrollPos);
         if (dist < bestDist) {
@@ -68,69 +102,161 @@ export function usePdfToEditorSync(params: UsePdfToEditorSyncParams): void {
           closestId = anchor.id;
         }
       }
+      
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[PdfToEditorSync] findClosestAnchor result', {
+          scrollPos,
+          closestId,
+          bestDist,
+          checkedCount,
+          totalAnchors: map.anchors.length,
+          totalOffsets: anchorOffsetsRef.current.size
+        });
+      }
 
       return closestId;
     };
 
     // Update active anchor (debounced logic)
+    // This is only called in two-way mode (see handleScroll above)
     const updateActiveAnchor = () => {
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[PdfToEditorSync] updateActiveAnchor called - checking for anchor update');
+      }
+      
       // Find closest anchor to center of viewport
       const center = el.scrollTop + el.clientHeight / 2;
       const closestId = findClosestAnchor(center);
 
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[PdfToEditorSync] anchor analysis', { 
+          center, 
+          closestId, 
+          currentActive: activeAnchorRef.current,
+          scrollTop: el.scrollTop,
+          clientHeight: el.clientHeight
+        });
+      }
+
       if (closestId && activeAnchorRef.current !== closestId) {
         if (process.env.NODE_ENV !== 'production') {
-          console.debug('[PdfToEditorSync] updating active anchor', { closestId });
+          console.debug('[PdfToEditorSync] two-way sync - updating editor anchor', { 
+            from: activeAnchorRef.current,
+            to: closestId 
+          });
         }
+        // Set programmatic flag to prevent feedback loop (editor->PDF->editor->PDF...)
+        lastProgrammaticScrollAt.current = Date.now();
         setActiveAnchorId(closestId);
+      } else if (process.env.NODE_ENV !== 'production') {
+        console.debug('[PdfToEditorSync] no anchor update needed', {
+          closestId,
+          current: activeAnchorRef.current,
+          same: closestId === activeAnchorRef.current
+        });
       }
     };
 
     // Handle scroll event (debounced)
     const handleScroll = () => {
-      // Ignore programmatic scrolls
-      if (programmaticScrollRef.current) {
+      // Log FIRST before any guards
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[PdfToEditorSync] !!!! SCROLL EVENT FIRED !!!!', {
+          scrollTop: el.scrollTop,
+          timestamp: Date.now()
+        });
+      }
+      
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[PdfToEditorSync] scroll event - checking guards', {
+          syncMode: syncModeRef.current,
+          isTyping: isTypingRef.current,
+          programmatic: programmaticScrollRef.current,
+          rendering: renderingRef.current
+        });
+      }
+      
+      // Ignore programmatic scrolls using timestamp
+      // This prevents processing scroll events during animations/programmatic updates
+      const now = Date.now();
+      const lastProg = lastProgrammaticScrollAt.current ?? 0;
+      if (now - lastProg < TIMING.PROGRAMMATIC_SCROLL_GUARD_MS) {
         if (process.env.NODE_ENV !== 'production') {
-          console.debug('[PdfToEditorSync] ignoring programmatic scroll');
+          console.debug('[PdfToEditorSync] ignoring programmatic scroll within guard window', {
+            timeSinceLastProgrammatic: now - lastProg,
+            guardMs: TIMING.PROGRAMMATIC_SCROLL_GUARD_MS
+          });
         }
         return;
       }
 
       // Ignore if still rendering
       if (renderingRef.current) return;
-
-      // Mark as user interaction (immediate)
-      userInteractedRef.current = true;
-
-      // Lock PDF to prevent it from following editor (immediate)
-      if (syncModeRef.current !== 'locked-to-pdf') {
+      
+      // CRITICAL: Don't process PDF scroll events when user is typing
+      // This prevents feedback loops in two-way mode
+      if (isTypingRef.current) {
         if (process.env.NODE_ENV !== 'production') {
-          console.debug('[PdfToEditorSync] locking PDF (user scrolled)');
+          console.debug('[PdfToEditorSync] ignoring scroll - user is typing');
         }
-        setSyncMode('locked-to-pdf');
+        return;
       }
 
-      // Debounce the anchor update to avoid excessive state changes
-      if (scrollTimeout) window.clearTimeout(scrollTimeout);
-      scrollTimeout = window.setTimeout(updateActiveAnchor, TIMING.SCROLL_DEBOUNCE_MS);
+      // Handle based on sync mode
+      if (syncModeRef.current === 'two-way') {
+        // Two-way mode: update editor position, no lock
+        if (process.env.NODE_ENV !== 'production') {
+          console.debug('[PdfToEditorSync] two-way mode - updating editor');
+        }
+        // Schedule editor update
+        if (scrollTimeout) window.clearTimeout(scrollTimeout);
+        scrollTimeout = window.setTimeout(updateActiveAnchor, TIMING.SCROLL_DEBOUNCE_MS);
+      } else if (syncModeRef.current === 'locked-to-editor') {
+        // Locked to editor - ignore PDF scroll completely
+        return;
+      } else {
+        // Auto mode - activate PERMANENT scroll lock (stays until user scrolls editor!)
+        userInteractedRef.current = true;
+        userManuallyPositionedPdfRef.current = true;
+        
+        if (process.env.NODE_ENV !== 'production') {
+          console.debug('[PdfToEditorSync] 🔒 SCROLL LOCK ACTIVATED - PDF will not move until you scroll editor');
+        }
+        // Lock stays active until:
+        // 1. User scrolls editor (triggers PDFPreview clearing effect)
+        // 2. User clicks "Release Lock" button
+        // 3. User switches to two-way mode
+      }
     };
 
     // Attach scroll listener with passive flag for performance
     el.addEventListener('scroll', handleScroll, { passive: true });
+    
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug('[PdfToEditorSync] scroll listener attached to element', {
+        element: el,
+        className: el.className,
+        scrollTop: el.scrollTop,
+        scrollHeight: el.scrollHeight,
+        clientHeight: el.clientHeight,
+        isScrollable: el.scrollHeight > el.clientHeight,
+        overflow: window.getComputedStyle(el).overflow,
+        overflowY: window.getComputedStyle(el).overflowY
+      });
+    }
 
     return () => {
       if (scrollTimeout) window.clearTimeout(scrollTimeout);
       el.removeEventListener('scroll', handleScroll);
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[PdfToEditorSync] scroll listener removed');
+      }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    containerRef,
-    anchorOffsetsRef,
-    sourceMapRef,
-    programmaticScrollRef,
-    renderingRef,
-    userInteractedRef,
-    activeAnchorRef,
-    syncModeRef,
+    // Key dependency: rendering state triggers re-attachment when PDF ready
+    rendering,
+    // Other dependencies
     setActiveAnchorId,
     setSyncMode,
   ]);
@@ -163,11 +289,13 @@ export function usePdfToEditorSync(params: UsePdfToEditorSyncParams): void {
         return;
       }
 
-      // Mark as user interaction
-      if (process.env.NODE_ENV !== 'production') {
-        console.debug('[PdfToEditorSync] user pointer interaction');
+      // Mark as user interaction (but respect locked-to-editor mode)
+      if (syncModeRef.current !== 'locked-to-editor') {
+        if (process.env.NODE_ENV !== 'production') {
+          console.debug('[PdfToEditorSync] user pointer interaction');
+        }
+        userInteractedRef.current = true;
       }
-      userInteractedRef.current = true;
     };
 
     el.addEventListener('pointerdown', handlePointer);
@@ -175,7 +303,7 @@ export function usePdfToEditorSync(params: UsePdfToEditorSyncParams): void {
     return () => {
       el.removeEventListener('pointerdown', handlePointer);
     };
-  }, [containerRef, lastProgrammaticScrollAt, mountedAt, userInteractedRef]);
+  }, [containerRef, lastProgrammaticScrollAt, mountedAt, userInteractedRef, syncModeRef]);
 
   // Effect: Handle wheel events (for detecting scroll intent)
   useEffect(() => {
@@ -191,11 +319,13 @@ export function usePdfToEditorSync(params: UsePdfToEditorSyncParams): void {
       // Ignore if within guard period
       if (now - lastProg < TIMING.PROGRAMMATIC_SCROLL_GUARD_MS) return;
 
-      // Any wheel event is user interaction
-      userInteractedRef.current = true;
+      // Any wheel event is user interaction (but respect locked-to-editor mode)
+      if (syncModeRef.current !== 'locked-to-editor') {
+        userInteractedRef.current = true;
 
-      if (process.env.NODE_ENV !== 'production') {
-        console.debug('[PdfToEditorSync] wheel event detected');
+        if (process.env.NODE_ENV !== 'production') {
+          console.debug('[PdfToEditorSync] wheel event detected');
+        }
       }
     };
 
@@ -204,5 +334,5 @@ export function usePdfToEditorSync(params: UsePdfToEditorSyncParams): void {
     return () => {
       el.removeEventListener('wheel', handleWheel);
     };
-  }, [containerRef, lastProgrammaticScrollAt, userInteractedRef]);
+  }, [containerRef, lastProgrammaticScrollAt, userInteractedRef, syncModeRef]);
 }

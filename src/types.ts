@@ -29,12 +29,15 @@ export interface Preferences {
   default_image_width: string;
   default_image_alignment: string;
   fonts: Fonts;
+  font_size: number;
+  page_bg_color: string;
+  font_color: string;
+  heading_scale: number;
+  accent_color: string;
   // Preview optimization settings
   render_debounce_ms: number;
   focused_preview_enabled?: boolean; // kept optional (removed in UI) for backend compatibility
   preserve_scroll_position: boolean;
-  // Experimental AI feature flags
-  gpt5_codex_enabled?: boolean; // preview feature, default true if missing
 }
 
 export interface CompileStatus {
@@ -55,7 +58,7 @@ export interface EditorState {
   compileStatus: CompileStatus;
 }
 
-export type SyncMode = 'auto' | 'locked-to-pdf' | 'locked-to-editor';
+export type SyncMode = 'auto' | 'two-way' | 'locked-to-pdf' | 'locked-to-editor';
 
 export interface EditorLocation {
   offset: number;

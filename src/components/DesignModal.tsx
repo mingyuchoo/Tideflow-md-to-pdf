@@ -270,6 +270,58 @@ const DesignModal: React.FC = () => {
         </div>
 
         <div className="design-section">
+          <h3>Colors & Typography</h3>
+          <div className="form-grid">
+            <label>Font Size (pt)
+              <input 
+                type="number" 
+                min="8" 
+                max="18" 
+                step="0.5"
+                value={local.font_size}
+                onChange={e => mutate({ font_size: parseFloat(e.target.value) || 11 })}
+              />
+              <span className="range-value">{local.font_size}pt</span>
+            </label>
+            <label>Heading Scale
+              <input 
+                type="range" 
+                min="0.8" 
+                max="1.5" 
+                step="0.05"
+                value={local.heading_scale}
+                onChange={e => mutate({ heading_scale: parseFloat(e.target.value) })}
+              />
+              <span className="range-value">{local.heading_scale.toFixed(2)}×</span>
+            </label>
+            <label>Page Background
+              <input 
+                type="color"
+                value={local.page_bg_color}
+                onChange={e => mutate({ page_bg_color: e.target.value })}
+              />
+              <span className="range-value">{local.page_bg_color}</span>
+            </label>
+            <label>Font Color
+              <input 
+                type="color"
+                value={local.font_color}
+                onChange={e => mutate({ font_color: e.target.value })}
+              />
+              <span className="range-value">{local.font_color}</span>
+            </label>
+            <label>Accent Color
+              <input 
+                type="color"
+                value={local.accent_color}
+                onChange={e => mutate({ accent_color: e.target.value })}
+              />
+              <span className="range-value">{local.accent_color}</span>
+            </label>
+          </div>
+        </div>
+
+        <div className="design-section">
           <h3>Structure</h3>
           <div className="form-grid two-col">
             <label className="checkbox-label">

@@ -58,12 +58,11 @@ export function useOffsetManager(
         if (
           prevSize === 0 &&
           !scrollStateRefs.initialForcedScrollDoneRef.current &&
-          !scrollStateRefs.userInteractedRef.current &&
-          scrollStateRefs.syncModeRef.current !== 'locked-to-pdf'
+          scrollStateRefs.syncModeRef.current !== 'locked-to-pdf' &&
+          !scrollStateRefs.activeAnchorRef.current
         ) {
-          const anchorId =
-            scrollStateRefs.activeAnchorRef.current ??
-            sourceMapRef.current?.anchors[0]?.id;
+          // Only register pending anchor on true startup (no activeAnchor)
+          const anchorId = sourceMapRef.current?.anchors[0]?.id;
 
           if (anchorId && registerPendingAnchor) {
             registerPendingAnchor(anchorId);

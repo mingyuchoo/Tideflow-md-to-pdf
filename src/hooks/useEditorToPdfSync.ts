@@ -11,7 +11,7 @@ import type { SourceMap } from '../types';
 interface UseEditorToPdfSyncParams {
   // State
   activeAnchorId: string | null;
-  syncMode: 'auto' | 'locked-to-editor' | 'locked-to-pdf';
+  syncMode: 'auto' | 'two-way' | 'locked-to-editor' | 'locked-to-pdf';
   isTyping: boolean;
   sourceMap: SourceMap | null;
   compileStatus: { status: string; pdf_path?: string | null };
@@ -21,8 +21,10 @@ interface UseEditorToPdfSyncParams {
   anchorOffsetsRef: React.MutableRefObject<Map<string, number>>;
   pdfMetricsRef: React.MutableRefObject<{ page: number; height: number; scale: number }[]>;
   sourceMapRef: React.MutableRefObject<SourceMap | null>;
-  syncModeRef: React.MutableRefObject<'auto' | 'locked-to-editor' | 'locked-to-pdf'>;
+  syncModeRef: React.MutableRefObject<'auto' | 'two-way' | 'locked-to-editor' | 'locked-to-pdf'>;
   userInteractedRef: React.MutableRefObject<boolean>;
+  userManuallyPositionedPdfRef: React.MutableRefObject<boolean>;
+  programmaticScrollRef: React.MutableRefObject<boolean>;
   
   // Actions
   scrollToAnchor: (anchorId: string, center?: boolean, force?: boolean) => void;
@@ -42,6 +44,8 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
     sourceMapRef,
     syncModeRef,
     userInteractedRef,
+    userManuallyPositionedPdfRef,
+    programmaticScrollRef,
     scrollToAnchor,
     recomputeAnchorOffsets,
   } = params;
@@ -50,6 +54,7 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
   const initialSyncDoneRef = useRef(false);
   const lastSourceMapRef = useRef<SourceMap | null>(null);
   const lastActiveAnchorIdRef = useRef<string | null>(null);
+  const lastScrolledToAnchorRef = useRef<string | null>(null); // Track what we actually scrolled to
   const wasTypingRef = useRef(isTyping);
 
   // Effect 1: Sync PDF to active anchor when it changes (normal operation)
@@ -57,15 +62,6 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
     // Don't sync if same anchor as last time (prevents feedback loop from PDF scroll handler)
     if (activeAnchorId === lastActiveAnchorIdRef.current) return;
     
-    // Don't sync if PDF is locked
-    if (syncMode === 'locked-to-pdf') {
-      lastActiveAnchorIdRef.current = activeAnchorId;
-      if (process.env.NODE_ENV !== 'production') {
-        console.debug('[EditorToPdfSync] skipped - PDF locked');
-      }
-      return;
-    }
-
     // Don't sync if no anchor
     if (!activeAnchorId) {
       lastActiveAnchorIdRef.current = activeAnchorId;
@@ -81,46 +77,65 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
       return;
     }
 
+    // TEXT EDITOR FIRST PRINCIPLE:
+    // When typing, DON'T scroll at all - it's jarring and breaks concentration
+    // Only scroll when user explicitly navigates (clicks, arrow keys when not typing)
+    if (isTyping) {
+      // Just update the tracking ref, but DON'T scroll
+      lastActiveAnchorIdRef.current = activeAnchorId;
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[EditorToPdfSync] skipped - user is typing, no scroll');
+      }
+      return;
+    }
+
+    // CRITICAL: SCROLL LOCK - If user manually scrolled PDF in auto mode, STOP syncing
+    // The PDF should stay exactly where they put it until they click "Release Lock"
+    // This lock releases when: user scrolls editor (not typing), or clicks Release button
+    // NOTE: In two-way mode, scroll lock is disabled (flag cleared)
+    if (syncMode === 'auto' && userManuallyPositionedPdfRef.current) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[EditorToPdfSync] LOCKED - PDF will not scroll until lock released', {
+          syncMode,
+          lockFlag: userManuallyPositionedPdfRef.current,
+          activeAnchorId
+        });
+      }
+      lastActiveAnchorIdRef.current = activeAnchorId;
+      return; // ← This BLOCKS the scroll - PDF doesn't move!
+    }
+
     // Update last anchor BEFORE scrolling to prevent re-triggering
     lastActiveAnchorIdRef.current = activeAnchorId;
 
-    // Debounce: wait longer if user is typing
-    // During typing, we debounce more to reduce scroll spam
-    // When not typing (e.g., just scrolling editor), sync quickly
-    const debounceMs = isTyping ? 150 : 30;
+    // Debounce: light debounce for smooth scrolling
+    const debounceMs = 20; // Always fast when not typing
 
     const timerId = setTimeout(() => {
       if (process.env.NODE_ENV !== 'production') {
-        console.debug('[EditorToPdfSync] syncing to anchor', { activeAnchorId, isTyping, debounceMs });
+        console.debug('[EditorToPdfSync] syncing to anchor', { activeAnchorId });
       }
       scrollToAnchor(activeAnchorId, false, false);
+      lastScrolledToAnchorRef.current = activeAnchorId; // Remember where we scrolled
     }, debounceMs);
 
     return () => clearTimeout(timerId);
-  }, [activeAnchorId, syncMode, isTyping, anchorOffsetsRef, scrollToAnchor]);
+  }, [activeAnchorId, syncMode, isTyping, anchorOffsetsRef, containerRef, scrollToAnchor, userInteractedRef, userManuallyPositionedPdfRef, programmaticScrollRef]);
 
-  // Effect 1b: Trigger sync when user stops typing (to catch up if needed)
+  // Effect 1b: When user stops typing, clear the movement threshold
+  // This allows the next scroll (from clicking elsewhere, etc) to work immediately
   useEffect(() => {
-    // Track if typing state changed from true to false
     const stoppedTyping = wasTypingRef.current && !isTyping;
     wasTypingRef.current = isTyping;
 
-    if (!stoppedTyping) return;
-    if (syncMode === 'locked-to-pdf') return;
-    if (!activeAnchorId) return;
-    if (anchorOffsetsRef.current.size === 0) return;
-
-    // User stopped typing - sync to current anchor position
-    if (process.env.NODE_ENV !== 'production') {
-      console.debug('[EditorToPdfSync] user stopped typing, syncing', { activeAnchorId });
+    if (stoppedTyping) {
+      // User stopped typing - reset last scrolled position on next real navigation
+      // This ensures that clicking elsewhere in the document will scroll properly
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[EditorToPdfSync] user stopped typing - ready for next navigation');
+      }
     }
-
-    const timerId = setTimeout(() => {
-      scrollToAnchor(activeAnchorId, false, false);
-    }, 100);
-
-    return () => clearTimeout(timerId);
-  }, [isTyping, syncMode, activeAnchorId, anchorOffsetsRef, scrollToAnchor]);
+  }, [isTyping]);
 
   // Effect 2: Handle sourceMap changes (new render completed)
   useEffect(() => {
@@ -151,23 +166,38 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
         return;
       }
 
-      // Find anchor to scroll to
-      const targetAnchor = activeAnchorId ?? sourceMap.anchors[0]?.id;
-      if (!targetAnchor) return;
-
-      // Don't force scroll if user has interacted and PDF is locked
-      if (userInteractedRef.current && syncModeRef.current === 'locked-to-pdf') {
+      // Use current activeAnchorId - don't default to first anchor!
+      // If no activeAnchorId, don't scroll at all (user hasn't interacted yet)
+      if (!activeAnchorId) {
         if (process.env.NODE_ENV !== 'production') {
-          console.debug('[EditorToPdfSync] skipping post-render scroll - user has control');
+          console.debug('[EditorToPdfSync] no activeAnchorId yet, skipping post-render scroll');
+        }
+        return;
+      }
+      const targetAnchor = activeAnchorId;
+
+      // Only skip post-render scroll if user has manually positioned PDF
+      // AND we're not on initial render (when lastScrolledToAnchorRef is set)
+      if (userManuallyPositionedPdfRef.current && 
+          syncModeRef.current === 'auto' && 
+          lastScrolledToAnchorRef.current !== null) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.debug('[EditorToPdfSync] skipping post-render scroll - user has PDF positioned elsewhere');
         }
         return;
       }
 
       if (process.env.NODE_ENV !== 'production') {
-        console.debug('[EditorToPdfSync] scrolling after sourceMap change', { targetAnchor });
+        console.debug('[EditorToPdfSync] scrolling after sourceMap change', { 
+          targetAnchor,
+          activeAnchorId,
+          isTyping,
+          userManuallyPositioned: userManuallyPositionedPdfRef.current
+        });
       }
 
       scrollToAnchor(targetAnchor, true, false);
+      lastScrolledToAnchorRef.current = targetAnchor; // Remember where we scrolled
     };
 
     // Give PDF renderer time to update metrics
@@ -176,12 +206,15 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
   }, [
     sourceMap,
     activeAnchorId,
+    isTyping,
     containerRef,
     anchorOffsetsRef,
     syncModeRef,
     userInteractedRef,
+    userManuallyPositionedPdfRef,
     scrollToAnchor,
     recomputeAnchorOffsets,
+    lastScrolledToAnchorRef,
   ]);
 
   // Effect 3: Initial startup sync (when app first loads)
@@ -253,10 +286,10 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
     const resizeObserver = new ResizeObserver(() => {
       if (!sourceMapRef.current) return;
       
-      // Only recompute if size actually changed significantly (more than 5px)
+      // Only recompute if size actually changed significantly (more than 10px)
       const newWidth = el.clientWidth;
       const newHeight = el.clientHeight;
-      if (Math.abs(newWidth - lastWidth) < 5 && Math.abs(newHeight - lastHeight) < 5) {
+      if (Math.abs(newWidth - lastWidth) < 10 && Math.abs(newHeight - lastHeight) < 10) {
         return; // Ignore tiny fluctuations
       }
       
@@ -270,13 +303,20 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
         }
         recomputeAnchorOffsets(sourceMapRef.current);
         
-        // Re-sync to current anchor after resize (if not locked)
-        if (syncModeRef.current !== 'locked-to-pdf' && activeAnchorId) {
+        // Re-sync to current anchor after resize ONLY if not locked
+        // Check the lock flag, not the mode!
+        const isLocked = syncModeRef.current === 'auto' && userManuallyPositionedPdfRef.current;
+        if (!isLocked && syncModeRef.current !== 'locked-to-pdf' && activeAnchorId) {
+          if (process.env.NODE_ENV !== 'production') {
+            console.debug('[EditorToPdfSync] re-syncing after resize');
+          }
           setTimeout(() => {
             scrollToAnchor(activeAnchorId, false, false);
-          }, 50);
+          }, 30);
+        } else if (isLocked && process.env.NODE_ENV !== 'production') {
+          console.debug('[EditorToPdfSync] 🔒 resize detected but PDF is locked - not scrolling');
         }
-      }, 150); // Debounce resize recomputation
+      }, 200); // Debounce resize recomputation
     });
 
     resizeObserver.observe(el);
@@ -284,5 +324,5 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
       if (resizeTimeout) window.clearTimeout(resizeTimeout);
       resizeObserver.disconnect();
     };
-  }, [containerRef, sourceMapRef, syncModeRef, activeAnchorId, scrollToAnchor, recomputeAnchorOffsets]);
+  }, [containerRef, sourceMapRef, syncModeRef, activeAnchorId, scrollToAnchor, recomputeAnchorOffsets, userManuallyPositionedPdfRef]);
 }

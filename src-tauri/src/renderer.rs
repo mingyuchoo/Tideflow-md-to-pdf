@@ -57,7 +57,12 @@ fn build_source_map(
         if ver_out.status.success() {
             let ver_txt = String::from_utf8_lossy(&ver_out.stdout).to_string();
             if ver_txt.contains("0.13.") {
-                println!("[renderer] detected Typst version 0.13.x ({}); skipping typst query selectors and emitting typst-query-failed", ver_txt.trim());
+                // Only log once to avoid spam during development
+                use std::sync::atomic::{AtomicBool, Ordering};
+                static LOGGED_ONCE: AtomicBool = AtomicBool::new(false);
+                if !LOGGED_ONCE.swap(true, Ordering::Relaxed) {
+                    println!("[renderer] detected Typst version 0.13.x ({}); skipping typst query for all renders", ver_txt.trim());
+                }
                 let _ = app_handle.emit("typst-query-failed", "typst-0.13-incompatible");
                 return attach_pdf_positions(anchors, &pdf_lookup);
             }

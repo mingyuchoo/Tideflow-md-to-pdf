@@ -20,6 +20,38 @@
 .toolbar-actions {
   display: flex;
   gap: 0.5rem;
+  align-items: center;
+}
+
+.toolbar-button-group {
+  display: flex;
+  gap: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.toolbar-button-group button {
+  border-radius: 0 !important;
+  border-right: 1px solid rgba(255,255,255,0.15) !important;
+  padding: 0.6rem 0.75rem !important;
+  font-size: 0.85rem !important;
+}
+
+.toolbar-button-group button:first-child {
+  border-top-left-radius: 6px !important;
+  border-bottom-left-radius: 6px !important;
+}
+
+.toolbar-button-group button:last-child {
+  border-top-right-radius: 6px !important;
+  border-bottom-right-radius: 6px !important;
+  border-right: none !important;
+}
+
+.toolbar-button-group button:hover:not(:disabled) {
+  transform: none !important;
+  z-index: 1;
 }
 
 .toolbar-actions button {

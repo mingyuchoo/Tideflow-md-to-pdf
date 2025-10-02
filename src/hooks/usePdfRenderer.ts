@@ -2,10 +2,12 @@ import { useEffect } from 'react';
 import { renderPdfPages } from '../utils/pdfRenderer';
 import { extractOffsetsFromPdfText } from '../utils/offsets';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { ANCHOR } from '../constants/timing';
 import type { SourceMap } from '../types';
 
 interface UsePdfRendererArgs {
   compileStatus: { status: string; pdf_path?: string | null };
+  pdfZoom: number;
   containerRef: React.RefObject<HTMLElement | null>;
   cancelRenderRef: { current: { canceled: boolean } };
   // mutable refs shared with component
@@ -39,6 +41,7 @@ interface UsePdfRendererArgs {
 export function usePdfRenderer(args: UsePdfRendererArgs) {
   const {
     compileStatus,
+    pdfZoom,
     containerRef,
     cancelRenderRef,
     pdfMetricsRef,
@@ -96,7 +99,7 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
         // running inside Tauri; convertFileSrc handles file:// -> http(s)
         // served blob URLs required by pdf.js.
         const fileUrl = convertFileSrc(compileStatus.pdf_path ?? '') + `?v=${Date.now()}`;
-        const renderScale = 1.0;
+        const renderScale = pdfZoom;
         const { doc, metrics } = await renderPdfPages(fileUrl, containerRef.current, renderScale, localCancel);
         if (localCancel.canceled) return;
         pdfMetricsRef.current = metrics;
@@ -117,8 +120,10 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
                       if (extracted.size > 0) {
                         const prev = anchorOffsetsRef.current.size;
                         anchorOffsetsRef.current = extracted;
-                        if (prev === 0 && extracted.size > 0 && !initialForcedScrollDoneRef.current && !userInteractedRef.current && syncModeRef.current !== 'locked-to-pdf') {
-                          const anchorId = map.anchors[0]?.id ?? null;
+                        if (prev === 0 && extracted.size > 0 && !initialForcedScrollDoneRef.current && syncModeRef.current !== 'locked-to-pdf' && !args.activeAnchorId) {
+                          // Smart fallback: anchor at SMART_FALLBACK_POSITION into document
+                          const targetIndex = Math.floor(map.anchors.length * ANCHOR.SMART_FALLBACK_POSITION);
+                          const anchorId = map.anchors[targetIndex]?.id ?? map.anchors[0]?.id ?? null;
                           if (anchorId) {
                             if (registerPendingAnchor) {
                               registerPendingAnchor(anchorId);
@@ -152,8 +157,10 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
                 // the end of this function will perform the actual scroll
                 // once rendering completes; if the user is typing we keep
                 // a timer that will fire when typing stops.
-                if (prev === 0 && extracted.size > 0 && !initialForcedScrollDoneRef.current && !userInteractedRef.current && syncModeRef.current !== 'locked-to-pdf') {
-                  const anchorId = (map.anchors[0] && map.anchors[0].id) ?? null;
+                if (prev === 0 && extracted.size > 0 && !initialForcedScrollDoneRef.current && syncModeRef.current !== 'locked-to-pdf' && !args.activeAnchorId) {
+                  // Smart fallback: anchor 20-30% into document
+                  const targetIndex = Math.floor(map.anchors.length * 0.25);
+                  const anchorId = map.anchors[targetIndex]?.id ?? map.anchors[0]?.id ?? null;
                   if (anchorId) {
                       if (registerPendingAnchor) registerPendingAnchor(anchorId);
                       else pendingForcedAnchorRef.current = anchorId;
@@ -198,37 +205,38 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
                       sample: Array.from(fallback.entries()).slice(0, 3)
                     });
                   }
-                  // Register pending anchor for forced scroll
-                  // Use active anchor if user has interacted, otherwise find first content anchor
-                  let anchorId: string | null = null;
-                  
-                  if (userInteractedRef.current && args.activeAnchorId) {
-                    // User is actively editing - use current position
-                    anchorId = args.activeAnchorId;
-                  } else {
-                    // Startup: find first content anchor (skip TOC/cover if present)
+                  // Register pending anchor ONLY on true initial startup (no activeAnchorId yet AND no initial scroll done)
+                  // Once initial scroll is done, normal sync handles all position updates
+                  if (!args.activeAnchorId && !initialForcedScrollDoneRef.current) {
+                    // True startup: pick a smart initial anchor
                     const anchors = sourceMapRef.current?.anchors ?? [];
-                    const hasTocOrCover = args.preferences?.toc || args.preferences?.cover_page;
+                    let anchorId: string | null = null;
+                    let targetIndex = 0;
                     
-                    if (hasTocOrCover && anchors.length > 1) {
-                      // Skip first anchor if TOC/cover enabled (likely in front matter)
-                      // Find first anchor that's not tf-doc-start
-                      anchorId = anchors.find(a => a.id !== 'tf-doc-start')?.id ?? anchors[0]?.id ?? null;
-                    } else {
-                      // No TOC/cover, use first anchor
-                      anchorId = anchors[0]?.id ?? null;
+                    if (anchors.length > 0) {
+                      // Smart fallback: use anchor at SMART_FALLBACK_POSITION into document (better than start)
+                      // This shows some content without being too far in
+                      targetIndex = Math.floor(anchors.length * ANCHOR.SMART_FALLBACK_POSITION);
+                      anchorId = anchors[targetIndex]?.id ?? anchors[0]?.id;
                     }
-                  }
-                  if (anchorId) {
-                    if (process.env.NODE_ENV !== 'production') {
-                      console.debug('[usePdfRenderer] registering pending anchor', { 
-                        anchorId, 
-                        userInteracted: userInteractedRef.current,
-                        reason: userInteractedRef.current ? 'active-position' : 'startup'
-                      });
+                    
+                    if (anchorId) {
+                      if (process.env.NODE_ENV !== 'production') {
+                        console.debug('[usePdfRenderer] registering pending anchor', { 
+                          anchorId, 
+                          activeAnchorId: args.activeAnchorId,
+                          anchorCount: anchors.length,
+                          targetIndex,
+                          reason: 'true startup - smart fallback at 25% into doc'
+                        });
+                      }
+                      if (registerPendingAnchor) registerPendingAnchor(anchorId);
+                      else pendingForcedAnchorRef.current = anchorId;
                     }
-                    if (registerPendingAnchor) registerPendingAnchor(anchorId);
-                    else pendingForcedAnchorRef.current = anchorId;
+                  } else if (process.env.NODE_ENV !== 'production') {
+                    console.debug('[usePdfRenderer] skipping pending anchor - user has position', {
+                      activeAnchorId: args.activeAnchorId
+                    });
                   }
                 } else {
                   // Store fallback to be applied when typing stops (handled by useEditorToPdfSync)
@@ -239,11 +247,28 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
                       isTyping: isTypingRef.current
                     });
                   }
-                  // Use active anchor if available, otherwise first anchor
-                  const anchorId = args.activeAnchorId ?? sourceMapRef.current?.anchors[0]?.id ?? null;
-                  if (anchorId) {
-                    if (registerPendingAnchor) registerPendingAnchor(anchorId);
-                    else pendingForcedAnchorRef.current = anchorId;
+                  // ONLY register pending anchor on true startup (no activeAnchorId AND no initial scroll done)
+                  // Once initial scroll is done, normal sync handles all position updates
+                  if (!args.activeAnchorId && !initialForcedScrollDoneRef.current) {
+                    // Smart fallback: anchor at SMART_FALLBACK_POSITION into document
+                    const anchors = sourceMapRef.current?.anchors ?? [];
+                    const targetIndex = Math.floor(anchors.length * ANCHOR.SMART_FALLBACK_POSITION);
+                    const anchorId = anchors[targetIndex]?.id ?? anchors[0]?.id ?? null;
+                    if (anchorId) {
+                      if (process.env.NODE_ENV !== 'production') {
+                        console.debug('[usePdfRenderer] registering pending anchor (typing)', {
+                          anchorId,
+                          activeAnchorId: args.activeAnchorId,
+                          reason: 'true startup - no activeAnchorId'
+                        });
+                      }
+                      if (registerPendingAnchor) registerPendingAnchor(anchorId);
+                      else pendingForcedAnchorRef.current = anchorId;
+                    }
+                  } else if (process.env.NODE_ENV !== 'production') {
+                    console.debug('[usePdfRenderer] skipping pending anchor - user has position (typing)', {
+                      activeAnchorId: args.activeAnchorId
+                    });
                   }
                 }
               }
@@ -281,6 +306,7 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
     // Only include non-ref values that should trigger re-render
     compileStatus.status,
     compileStatus.pdf_path,
+    pdfZoom,
     // Stable callbacks (already memoized)
     recomputeAnchorOffsets,
     scrollToAnchor,

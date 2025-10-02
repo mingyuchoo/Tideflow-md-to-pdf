@@ -1,5 +1,6 @@
 import React from 'react';
 import { saveSession } from '../utils/session';
+import type { SyncMode } from '../types';
 
 interface AnchorLike {
   id: string;
@@ -9,18 +10,66 @@ interface AnchorLike {
 
 interface Props {
   syncMode: string;
-  setSyncMode: (m: 'auto' | 'locked-to-pdf') => void;
+  setSyncMode: (m: SyncMode) => void;
   activeAnchorId: string | null;
   sourceMap?: { anchors: AnchorLike[] } | null;
   anchorOffsetsRef: { current: Map<string, number> };
   containerRef: React.RefObject<HTMLElement | null>;
+  userManuallyPositionedPdfRef: { current: boolean };
+  pdfZoom: number;
+  setPdfZoom: (zoom: number) => void;
 }
 
-const PDFPreviewHeader: React.FC<Props> = ({ syncMode, setSyncMode, activeAnchorId, sourceMap, anchorOffsetsRef, containerRef }) => {
+const PDFPreviewHeader: React.FC<Props> = ({ syncMode, setSyncMode, activeAnchorId, sourceMap, anchorOffsetsRef, containerRef, userManuallyPositionedPdfRef, pdfZoom, setPdfZoom }) => {
+  const zoomLevels = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+  const currentZoomIndex = zoomLevels.indexOf(pdfZoom);
+  
   return (
     <div className="pdf-preview-header">
       <h3>PDF Preview</h3>
       <div className="pdf-preview-actions sync-controls">
+        <div className="zoom-controls">
+          <button
+            type="button"
+            onClick={() => {
+              const currentIndex = zoomLevels.indexOf(pdfZoom);
+              if (currentIndex > 0) {
+                setPdfZoom(zoomLevels[currentIndex - 1]);
+              }
+            }}
+            title="Zoom out"
+            className="zoom-btn"
+            disabled={currentZoomIndex === 0}
+          >
+            −
+          </button>
+          <span className="zoom-display" title="Current zoom level">
+            {Math.round(pdfZoom * 100)}%
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              const currentIndex = zoomLevels.indexOf(pdfZoom);
+              if (currentIndex < zoomLevels.length - 1) {
+                setPdfZoom(zoomLevels[currentIndex + 1]);
+              }
+            }}
+            title="Zoom in"
+            className="zoom-btn"
+            disabled={currentZoomIndex === zoomLevels.length - 1}
+          >
+            +
+          </button>
+          <button
+            type="button"
+            onClick={() => setPdfZoom(1.0)}
+            title="Reset zoom to 100%"
+            className="zoom-reset-btn"
+            disabled={pdfZoom === 1.0}
+          >
+            Reset
+          </button>
+        </div>
         <button
           type="button"
           onClick={async () => {
@@ -82,7 +131,33 @@ const PDFPreviewHeader: React.FC<Props> = ({ syncMode, setSyncMode, activeAnchor
         <button
           type="button"
           onClick={() => {
-            setSyncMode('auto');
+            const newMode = syncMode === 'two-way' ? 'auto' : 'two-way';
+            setSyncMode(newMode as SyncMode);
+            
+            // Debug: Test scroll event when enabling two-way mode
+            if (newMode === 'two-way' && process.env.NODE_ENV !== 'production') {
+              setTimeout(() => {
+                const container = containerRef.current;
+                if (container) {
+                  console.debug('[PDFPreviewHeader] Testing two-way mode - current state:', {
+                    mode: newMode,
+                    scrollTop: container.scrollTop,
+                    scrollHeight: container.scrollHeight,
+                    hasEventListener: 'scroll event should be attached'
+                  });
+                }
+              }, 100);
+            }
+          }}
+          title={syncMode === 'two-way' ? 'Switch to one-way sync (editor → PDF only)' : 'Enable two-way sync (PDF ↔ editor)'}
+          className={`resync-btn ${syncMode === 'two-way' ? 'active' : ''}`}
+        >
+          {syncMode === 'two-way' ? '↕ Two-Way' : '↓ One-Way'}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            userManuallyPositionedPdfRef.current = false;
             const targetAnchor = activeAnchorId ?? sourceMap?.anchors[0]?.id;
             if (targetAnchor) {
               // delegate to PDFPreview's scrollToAnchor via event (kept simple)
@@ -90,10 +165,11 @@ const PDFPreviewHeader: React.FC<Props> = ({ syncMode, setSyncMode, activeAnchor
               window.dispatchEvent(ev);
             }
           }}
-          title="Resume automatic sync with the editor"
+          title="Release scroll lock and resume sync"
           className="resync-btn"
+          disabled={syncMode !== 'auto' || !userManuallyPositionedPdfRef.current}
         >
-          Resume Sync
+          Release Lock
         </button>
         <button
           type="button"
@@ -104,19 +180,37 @@ const PDFPreviewHeader: React.FC<Props> = ({ syncMode, setSyncMode, activeAnchor
               const offsets = Array.from(anchorOffsetsRef.current.entries()).slice(0, 10);
               const top = containerRef.current?.scrollTop ?? null;
               const clientH = containerRef.current?.clientHeight ?? null;
+              const container = containerRef.current;
+              
               console.log('[PDFPreview][DebugDump] activeAnchorId=', activeAnchorId, 'anchors=', anchors.length, 'sampleAnchors=', sampleAnchors, 'offsetsSample=', offsets, 'scrollTop=', top, 'clientH=', clientH);
+              
+              // Test manual scroll event
+              if (container) {
+                console.log('[DebugDump] Triggering test scroll event...');
+                container.scrollTop = container.scrollTop + 1;
+                container.dispatchEvent(new Event('scroll'));
+                setTimeout(() => {
+                  container.scrollTop = container.scrollTop - 1;
+                  container.dispatchEvent(new Event('scroll'));
+                }, 100);
+              }
             } catch (e) {
               console.error('[PDFPreview][DebugDump] failed', e);
             }
           }}
-          title="Dump sync state to console"
+          title="Dump sync state and test scroll events"
           className="resync-btn"
         >
-          Dump Sync
+          Test Scroll
         </button>
-        {syncMode === 'locked-to-pdf' && (
-          <div className="sync-paused-badge" title="Preview is controlling scroll until you move the editor">
-            Preview Locked
+        {syncMode === 'auto' && userManuallyPositionedPdfRef.current && (
+          <div className="sync-paused-badge" title="Preview scroll is locked. Navigate in editor or click Release Lock.">
+            🔒 Locked
+          </div>
+        )}
+        {syncMode === 'two-way' && (
+          <div className="sync-paused-badge two-way-badge" title="Two-way sync: editor ↔ preview">
+            ↕ Two-Way
           </div>
         )}
       </div>
