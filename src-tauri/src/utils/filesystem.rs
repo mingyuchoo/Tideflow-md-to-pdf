@@ -1,9 +1,39 @@
 //! Filesystem utilities for copying directories and sanitizing filenames.
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use regex::Regex;
 use std::fs;
 use std::path::Path;
+use std::time::Duration;
+use std::thread;
+
+/// Copy a file with retry logic for transient failures
+pub fn copy_file_with_retry(source: &Path, destination: &Path, max_retries: u32) -> Result<u64> {
+    let mut attempts = 0;
+    let mut last_error = None;
+    
+    while attempts < max_retries {
+        match fs::copy(source, destination) {
+            Ok(bytes) => return Ok(bytes),
+            Err(e) => {
+                attempts += 1;
+                last_error = Some(e);
+                
+                if attempts < max_retries {
+                    // Exponential backoff: 50ms, 100ms, 200ms
+                    let delay = Duration::from_millis(50 * (1 << (attempts - 1)));
+                    thread::sleep(delay);
+                }
+            }
+        }
+    }
+    
+    Err(anyhow!(
+        "Failed to copy file after {} attempts: {}",
+        max_retries,
+        last_error.unwrap()
+    ))
+}
 
 /// Copy directory contents with optional overwrite control.
 /// 
@@ -39,7 +69,8 @@ pub fn copy_directory(from: &Path, to: &Path, force_overwrite: bool) -> Result<(
         if file_type.is_dir() {
             copy_directory(&source, &destination, force_overwrite)?;
         } else if force_overwrite || !destination.exists() {
-            fs::copy(&source, &destination)?;
+            // Use retry logic for file copy operations (3 attempts)
+            copy_file_with_retry(&source, &destination, 3)?;
         }
     }
     

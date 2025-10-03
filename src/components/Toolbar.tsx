@@ -1,14 +1,14 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { useAppStore } from '../store';
 import type { Preferences } from '../types';
 import DesignModal from './DesignModal';
-import { clearSession } from '../utils/session';
-// Removed showOpenDialog (export now uses save dialog directly)
+import PrefsModal from './PrefsModal';
 import { invoke } from '@tauri-apps/api/core';
-import { save } from '@tauri-apps/plugin-dialog';
+import { save, open } from '@tauri-apps/plugin-dialog';
 import { handleError, showSuccess } from '../utils/errorHandler';
 import { themePresets } from '../themes';
-import { setPreferences as persistPreferences, renderMarkdown, renderTypst } from '../api';
+import { setPreferences as persistPreferences, renderMarkdown, renderTypst, readMarkdownFile, createFile, writeMarkdownFile } from '../api';
+import { scrubRawTypstAnchors } from '../utils/scrubAnchors';
 import './Toolbar.css';
 
 const Toolbar: React.FC = () => {
@@ -17,11 +17,138 @@ const Toolbar: React.FC = () => {
     setPreviewVisible,
     editor,
     designModalOpen, setDesignModalOpen,
-    themeSelection, setThemeSelection,
     setPreferences,
-    setCompileStatus
+    addToast,
+    setCompileStatus,
+    setCurrentFile,
+    setContent,
+    setModified,
+    addOpenFile,
+    closeAllFiles,
+    recentFiles,
+    addRecentFile,
+    clearRecentFiles,
   } = useAppStore();
-  const { clearCache } = useAppStore.getState();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [prefsModalOpen, setPrefsModalOpen] = useState(false);
+  const [recentDropdownOpen, setRecentDropdownOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = React.useState(false);
+
+  // Close dropdown when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (recentDropdownOpen && !target.closest('.dropdown')) {
+        setRecentDropdownOpen(false);
+      }
+    };
+    
+    if (recentDropdownOpen) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [recentDropdownOpen]);
+
+  React.useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen();
+      setIsFullscreen(false);
+    }
+  };
+
+  // File operations
+  const handleNewFile = async () => {
+    try {
+      const name = prompt('Enter file name (with .md extension):');
+      if (!name) return;
+      
+      const fileName = name.includes('.') ? name : `${name}.md`;
+      const newContent = `# ${name.replace('.md', '')}\n\nStart writing your document.`;
+      const filePath = await createFile(fileName);
+      await writeMarkdownFile(filePath, newContent);
+      
+      addOpenFile(filePath);
+      setCurrentFile(filePath);
+      setContent(newContent);
+      addRecentFile(filePath);
+      addToast({ type: 'success', message: 'File created successfully' });
+    } catch (err) {
+      addToast({ type: 'error', message: 'Failed to create file' });
+      handleError(err, { operation: 'create file', component: 'Toolbar' });
+    }
+  };
+
+  const handleOpenFile = async () => {
+    try {
+      const result = await open({ multiple: false, filters: [{ name: 'Markdown Files', extensions: ['md'] }] });
+      const filePath = Array.isArray(result) ? result?.[0] : result;
+      
+      if (filePath) {
+        try {
+          const content = await readMarkdownFile(filePath);
+          addOpenFile(filePath);
+          setCurrentFile(filePath);
+          setContent(content);
+          addRecentFile(filePath);
+          addToast({ type: 'success', message: 'File opened successfully' });
+          return;
+        } catch (readError) {
+          addToast({ type: 'error', message: 'Failed to read file' });
+          handleError(readError, { operation: 'read file', component: 'Toolbar' });
+        }
+      }
+    } catch {
+      fileInputRef.current?.click();
+    }
+  };
+
+  const handleSaveFile = async () => {
+    const { currentFile, content, modified } = editor;
+    if (!currentFile || !modified) return;
+    
+    try {
+      const cleaned = scrubRawTypstAnchors(content);
+      await writeMarkdownFile(currentFile, cleaned);
+      setModified(false);
+      addToast({ type: 'success', message: 'File saved successfully' });
+    } catch (err) {
+      addToast({ type: 'error', message: 'Failed to save file' });
+      handleError(err, { operation: 'save file', component: 'Toolbar' });
+    }
+  };
+
+  const handleFallbackChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const safeName = file.name.endsWith('.md') ? file.name : file.name + '.md';
+      const newPath = await createFile(safeName);
+      const cleaned = scrubRawTypstAnchors(text);
+      await writeMarkdownFile(newPath, cleaned);
+      
+      addOpenFile(newPath);
+      setCurrentFile(newPath);
+      setContent(cleaned);
+      addToast({ type: 'success', message: 'File imported successfully' });
+    } catch (e2) {
+      addToast({ type: 'error', message: 'Failed to import file' });
+      handleError(e2, { operation: 'open file', component: 'Toolbar' });
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const handleTogglePreview = () => {
     setPreviewVisible(!previewVisible);
@@ -37,41 +164,6 @@ const Toolbar: React.FC = () => {
       await renderTypst(content, 'pdf');
     } else {
       await renderMarkdown(currentFile);
-    }
-  };
-
-  const handleThemeSelect = async (value: string) => {
-    setThemeSelection(value);
-    if (value === 'custom') {
-      const { lastCustomPreferences } = useAppStore.getState();
-      const snapshot: Preferences = {
-        ...lastCustomPreferences,
-        margin: { ...lastCustomPreferences.margin },
-        fonts: { ...lastCustomPreferences.fonts },
-      };
-      try {
-        setCompileStatus({ status: 'running' });
-        setPreferences(snapshot);
-        await persistPreferences(snapshot);
-        await rerenderCurrent();
-      } catch (e) {
-        console.warn('[Toolbar] custom apply failed', e);
-      }
-      setDesignModalOpen(true);
-      return;
-    }
-
-    // Apply theme immediately like the design modal does
-    const preset = themePresets[value];
-    if (preset) {
-      try {
-        setCompileStatus({ status: 'running' });
-        setPreferences(preset.preferences); // Update in-memory store
-        await persistPreferences(preset.preferences); // Persist to backend _prefs.json
-        await rerenderCurrent(); // Trigger re-render
-      } catch (e) {
-        console.warn('[Toolbar] theme apply failed', e);
-      }
     }
   };
 
@@ -101,105 +193,151 @@ const Toolbar: React.FC = () => {
       // Call backend command save_pdf_as which handles md->pdf export if needed.
       await invoke('save_pdf_as', { filePath: pdfSource, destination: dest });
       showSuccess(`Exported PDF to: ${dest}`);
+      addToast({ type: 'success', message: 'PDF exported successfully!' });
     } catch (err) {
+      addToast({ type: 'error', message: 'Failed to export PDF' });
       handleError(err, { operation: 'export PDF', component: 'Toolbar' });
-    }
-  };
-
-  const handleReset = () => {
-    if (!confirm('Reset session? This will close open tabs, clear the current PDF, and restore the sample document. Preferences stay intact.')) return;
-    try {
-      clearSession();
-      clearCache();
-    } catch (e) {
-      handleError(e, { operation: 'reset session', component: 'Toolbar' });
     }
   };
 
   return (
     <div className="toolbar">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".md,.txt,.markdown"
+        onChange={handleFallbackChange}
+        className="hidden-file-input"
+        aria-hidden="true"
+      />
+      
       <div className="toolbar-logo">
         <h1>Tideflow</h1>
       </div>
       
       <div className="toolbar-actions">
-        <select
-          value={themeSelection}
-          onChange={(e) => handleThemeSelect(e.target.value)}
-          title="Select Theme"
-        >
-          {Object.entries(themePresets).map(([id, theme]) => (
-            <option key={id} value={id} title={theme.description}>{theme.name}</option>
-          ))}
-          <option value="custom">Custom…</option>
-        </select>
-
-        <div className="toolbar-button-group">
-          <button
-            onClick={async () => {
-              const prefs = useAppStore.getState().preferences;
-              const newSize = Math.max(8, prefs.font_size - 0.5);
-              const updated = { ...prefs, font_size: newSize };
-              try {
-                setCompileStatus({ status: 'running' });
-                setThemeSelection('custom'); // Switch to custom when adjusting font size
-                setPreferences(updated);
-                await persistPreferences(updated);
-                await rerenderCurrent();
-              } catch (e) {
-                console.warn('[Toolbar] font size change failed', e);
-              }
-            }}
-            title="Decrease font size"
-          >
-            A−
+        {/* File Operations */}
+        <div className="toolbar-section">
+          <button onClick={handleNewFile} title="New File (Ctrl+N)">
+            📄 New
           </button>
+          <div className="toolbar-button-group">
+            <button onClick={handleOpenFile} title="Open File (Ctrl+O)">
+              📂 Open
+            </button>
+            {recentFiles.length > 0 && (
+              <div className="dropdown">
+                <button 
+                  className="dropdown-toggle" 
+                  title="Recent Files"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setRecentDropdownOpen(!recentDropdownOpen);
+                  }}
+                >
+                  ▼
+                </button>
+                {recentDropdownOpen && (
+                  <div className="dropdown-menu">
+                    <div className="dropdown-header">Recent Files</div>
+                    {recentFiles.map((file) => (
+                      <button
+                        key={file}
+                        className="dropdown-item"
+                        onClick={async () => {
+                          try {
+                            const content = await readMarkdownFile(file);
+                            addOpenFile(file);
+                            setCurrentFile(file);
+                            setContent(content);
+                            addRecentFile(file);
+                            setRecentDropdownOpen(false);
+                            addToast({ type: 'success', message: 'File opened successfully' });
+                          } catch (err) {
+                            addToast({ type: 'error', message: 'Failed to open file' });
+                            handleError(err, { operation: 'open recent file', component: 'Toolbar' });
+                          }
+                        }}
+                        title={file}
+                      >
+                        {file.split(/[\\/]/).pop() || file}
+                      </button>
+                    ))}
+                    <div className="dropdown-divider"></div>
+                    <button
+                      className="dropdown-item dropdown-clear"
+                      onClick={() => {
+                        clearRecentFiles();
+                        setRecentDropdownOpen(false);
+                        addToast({ type: 'success', message: 'Recent files cleared' });
+                      }}
+                    >
+                      ✖ Clear Recent
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           <button
-            onClick={async () => {
-              const prefs = useAppStore.getState().preferences;
-              const newSize = Math.min(18, prefs.font_size + 0.5);
-              const updated = { ...prefs, font_size: newSize };
-              try {
-                setCompileStatus({ status: 'running' });
-                setThemeSelection('custom'); // Switch to custom when adjusting font size
-                setPreferences(updated);
-                await persistPreferences(updated);
-                await rerenderCurrent();
-              } catch (e) {
-                console.warn('[Toolbar] font size change failed', e);
-              }
-            }}
-            title="Increase font size"
+            onClick={closeAllFiles}
+            title="Close all tabs and return to sample document"
           >
-            A+
+            ✖ Close All
           </button>
         </div>
 
-        <button
-          onClick={handleTogglePreview}
-          className={previewVisible ? 'active' : ''}
-          title={previewVisible ? 'Hide Preview' : 'Show Preview'}
-        >
-          {previewVisible ? '👁️ Hide Preview' : '👁️‍🗨️ Show Preview'}
-        </button>
-        
-        <button 
-          onClick={handleExportPDF}
-          disabled={!editor.compileStatus.pdf_path}
-          title="Export PDF"
-        >
-          📄 Export PDF
-        </button>
-        <button
-          onClick={() => setDesignModalOpen(true)}
-          title="Open Design & Layout"
-        >🎨 Design</button>
-        <button
-          onClick={handleReset}
-          title="Clear session and restore sample document"
-        >♻ Reset</button>
+        <div className="toolbar-separator"></div>
+
+        {/* View Controls */}
+        <div className="toolbar-section">
+          <button
+            onClick={handleTogglePreview}
+            className={previewVisible ? 'active' : ''}
+            title={previewVisible ? 'Hide Preview (Ctrl+\\)' : 'Show Preview (Ctrl+\\'}
+          >
+            {previewVisible ? '👁️ Preview' : '👁️‍🗨️ Preview'}
+          </button>
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            className="fullscreen-btn"
+          >
+            {isFullscreen ? '⊡ Exit' : '⛶ Fullscreen'}
+          </button>
+        </div>
+
+        <div className="toolbar-separator"></div>
+
+        {/* Document Settings */}
+        <div className="toolbar-section">
+          <button
+            onClick={() => setPrefsModalOpen(true)}
+            title="Settings (Performance, Session)"
+            className="btn-secondary"
+          >
+            ⚙️ Settings
+          </button>
+          <button 
+            onClick={handleSaveFile} 
+            disabled={!editor.modified}
+            title="Save File (Ctrl+S)"
+          >
+            💾 Save
+          </button>
+          <button 
+            onClick={handleExportPDF}
+            disabled={!editor.compileStatus.pdf_path}
+            title="Export PDF (Ctrl+E)"
+            className="btn-primary"
+          >
+            📄 Export
+          </button>
+        </div>
       </div>
       {designModalOpen && <DesignModal />}
+      {prefsModalOpen && <PrefsModal onClose={() => setPrefsModalOpen(false)} />}
     </div>
   );
 };

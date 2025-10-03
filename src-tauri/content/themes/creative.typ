@@ -77,18 +77,16 @@
     ]
   }
   
-  // Blockquotes - Colorful box with gold accent
-  show quote: it => [
+  // Blockquotes with warm colored background
+  show quote: it => block(
+    fill: rgb(255, 250, 240),
+    stroke: (left: 4pt + rgb(221, 171, 53)),
+    inset: (left: 22pt, rest: 14pt),
+    radius: 6pt,
+    width: 100%,
+  )[
     #set text(size: 11pt, style: "italic", fill: rgb(99, 92, 92))
-    #block(
-      width: 100%,
-      inset: 12pt,
-      stroke: (left: 5pt + rgb(221, 171, 53)),
-      fill: rgb(255, 250, 245),
-      radius: 4pt,
-      above: 12pt,
-      below: 12pt,
-    )[#it]
+    #it
   ]
   
   // Code blocks - Dark theme

@@ -11,9 +11,28 @@ const DesignModal: React.FC = () => {
   const [local, setLocal] = useState<Preferences>(preferences);
   const [dirty, setDirty] = useState(false);
   const [autoApply, setAutoApply] = useState(true);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const originalRef = useRef<Preferences | null>(null);
   const applyTimer = useRef<number | null>(null);
   const applySeq = useRef(0);
+
+  const handleBrowseCoverImage = async () => {
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const result = await open({ 
+        multiple: false, 
+        filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'svg'] }] 
+      });
+      const filePath = Array.isArray(result) ? result?.[0] : result;
+      if (filePath) {
+        // Extract just the filename or relative path
+        const fileName = filePath.split(/[\\/]/).pop() || filePath;
+        mutate({ cover_image: fileName });
+      }
+    } catch (err) {
+      console.warn('[DesignModal] Failed to browse for image', err);
+    }
+  };
 
   // Snapshot ONLY when the modal just opened (not on every preferences mutation)
   const prevOpenRef = useRef(false);
@@ -322,8 +341,67 @@ const DesignModal: React.FC = () => {
         </div>
 
         <div className="design-section">
+          <h3>Spacing & Layout</h3>
+          <div className="form-grid">
+            <label>Line Height
+              <input 
+                type="range" 
+                min="1.0" 
+                max="2.5" 
+                step="0.1"
+                value={1.5}
+                onChange={() => {}}
+                disabled
+              />
+              <span className="range-value">1.5 (Coming Soon)</span>
+              <div className="helper-text">Space between lines of text</div>
+            </label>
+            <label>Paragraph Spacing
+              <input 
+                type="range" 
+                min="0.5" 
+                max="2.5" 
+                step="0.1"
+                value={1.0}
+                onChange={() => {}}
+                disabled
+              />
+              <span className="range-value">1.0em (Coming Soon)</span>
+              <div className="helper-text">Space between paragraphs</div>
+            </label>
+          </div>
+        </div>
+
+        <div className="design-section">
+          <h3>Header & Footer</h3>
+          <div className="form-grid">
+            <label className="checkbox-label">
+              <input 
+                type="checkbox" 
+                checked={false}
+                onChange={() => {}}
+                disabled
+              /> 
+              Page Numbers (Coming Soon)
+            </label>
+            <label className="checkbox-label">
+              <input 
+                type="checkbox" 
+                checked={false}
+                onChange={() => {}}
+                disabled
+              /> 
+              Document Title in Header (Coming Soon)
+            </label>
+          </div>
+        </div>
+
+        <div className="design-section">
           <h3>Structure</h3>
           <div className="form-grid two-col">
+            <label className="checkbox-label">
+              <input type="checkbox" checked={local.number_sections} onChange={e => mutate({ number_sections: e.target.checked })} /> Number Sections
+            </label>
             <label className="checkbox-label">
               <input type="checkbox" checked={local.toc} onChange={e => mutate({ toc: e.target.checked })} /> TOC
             </label>
@@ -355,13 +433,21 @@ const DesignModal: React.FC = () => {
                     onChange={e => mutate({ cover_writer: e.target.value })}
                   />
                 </label>
-                <label>Cover Image Path
-                  <input
-                    placeholder="Relative path (optional)"
-                    value={local.cover_image}
-                    onChange={e => mutate({ cover_image: e.target.value })}
-                  />
-                  <div className="helper-text">Provide an image path relative to the document or assets folder.</div>
+                <label>Cover Image
+                  <div className="input-with-button">
+                    <input
+                      placeholder="Relative path or filename"
+                      value={local.cover_image}
+                      onChange={e => mutate({ cover_image: e.target.value })}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleBrowseCoverImage}
+                    >
+                      Browse...
+                    </button>
+                  </div>
+                  <div className="helper-text">Select an image or provide a relative path</div>
                 </label>
               </>
             )}
@@ -385,24 +471,32 @@ const DesignModal: React.FC = () => {
         </div>
 
         <div className="design-section">
-          <h3>Performance</h3>
-          <div className="form-grid">
-            <label>Render Debounce (ms)
-              <input type="number" value={local.render_debounce_ms} onChange={e => mutate({ render_debounce_ms: parseInt(e.target.value || '400', 10) })} />
-            </label>
-            <label className="checkbox-label">
-              <input type="checkbox" checked={local.preserve_scroll_position} onChange={e => mutate({ preserve_scroll_position: e.target.checked })} /> Preserve Scroll
-            </label>
-          </div>
-        </div>
-
-        <div className="design-section placeholders">
-          <h3>Planned (Placeholders)</h3>
-          <ul>
-            <li>Heading Scale (planned)</li>
-            <li>Accent Color (planned)</li>
-            <li>Export Metadata (planned)</li>
-          </ul>
+          <h3 
+            className="collapsible-header"
+            onClick={() => setShowAdvanced(!showAdvanced)} 
+            title="Click to expand/collapse"
+          >
+            Advanced {showAdvanced ? '▼' : '▶'}
+          </h3>
+          {showAdvanced && (
+            <div className="form-grid">
+              <label>Render Debounce (ms)
+                <input 
+                  type="number" 
+                  value={local.render_debounce_ms} 
+                  onChange={e => mutate({ render_debounce_ms: parseInt(e.target.value || '400', 10) })} 
+                  min="100"
+                  max="2000"
+                  step="100"
+                />
+                <div className="helper-text">Delay before re-rendering PDF while typing</div>
+              </label>
+              <label className="checkbox-label">
+                <input type="checkbox" checked={local.preserve_scroll_position} onChange={e => mutate({ preserve_scroll_position: e.target.checked })} /> Preserve Scroll
+                <div className="helper-text">Remember scroll position when switching files</div>
+              </label>
+            </div>
+          )}
         </div>
 
         <div className="design-footer">

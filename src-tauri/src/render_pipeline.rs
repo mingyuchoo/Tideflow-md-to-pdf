@@ -244,7 +244,7 @@ pub fn setup_template(config: &RenderConfig, path_type: &str) -> Result<()> {
     Ok(())
 }
 
-/// Compile Typst to PDF with proper error handling
+/// Compile Typst to PDF with proper error handling and timeout
 pub fn compile_typst(
     config: &RenderConfig,
     typst_path: &Path,
@@ -252,7 +252,10 @@ pub fn compile_typst(
 ) -> Result<()> {
     ensure_cmarker_asset();
     
-    let status = typst_command(typst_path)
+    // Spawn process with timeout (30 seconds)
+    use std::time::Duration;
+    
+    let mut child = typst_command(typst_path)
         .current_dir(&config.build_dir)
         .args([
             "compile",
@@ -263,28 +266,45 @@ pub fn compile_typst(
         ])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .status()?;
+        .spawn()?;
+    
+    // Wait with timeout
+    let timeout = Duration::from_secs(30);
+    let start = std::time::Instant::now();
+    
+    let status = loop {
+        match child.try_wait()? {
+            Some(status) => break status,
+            None => {
+                if start.elapsed() > timeout {
+                    child.kill()?;
+                    return Err(anyhow!("Typst compilation timeout after 30 seconds"));
+                }
+                std::thread::sleep(Duration::from_millis(100));
+            }
+        }
+    };
 
     if !status.success() {
-        let output = typst_command(typst_path)
-            .current_dir(&config.build_dir)
-            .args([
-                "compile",
-                "--root",
-                config.content_dir.to_string_lossy().as_ref(),
-                "tideflow.typ",
-                output_file,
-            ])
-            .output()?;
+        // On error, capture output for detailed error reporting
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        
+        if let Some(mut out) = child.stdout.take() {
+            let _ = std::io::Read::read_to_end(&mut out, &mut stdout);
+        }
+        if let Some(mut err) = child.stderr.take() {
+            let _ = std::io::Read::read_to_end(&mut err, &mut stderr);
+        }
 
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout_str = String::from_utf8_lossy(&stdout);
+        let stderr_str = String::from_utf8_lossy(&stderr);
 
         return Err(anyhow!(
             "Typst compile failed (status {}).\nSTDOUT:\n{}\nSTDERR:\n{}",
             status,
-            stdout.trim(),
-            stderr.trim()
+            stdout_str.trim(),
+            stderr_str.trim()
         ));
     }
     

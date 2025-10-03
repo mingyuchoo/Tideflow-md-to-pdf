@@ -65,16 +65,16 @@
     ]
   }
   
-  // Academic blockquotes
-  show quote: it => [
+  // Academic blockquotes with subtle gray background
+  show quote: it => block(
+    fill: rgb(250, 250, 250),
+    stroke: (left: 2pt + rgb(150, 150, 150)),
+    inset: (left: 16pt, rest: 10pt),
+    radius: 1pt,
+    width: 100%,
+  )[
     #set text(style: "italic", size: 9.5pt, fill: rgb(70, 70, 70))
-    #block(
-      width: 100%,
-      inset: 10pt,
-      stroke: (left: 2pt + rgb(100, 100, 100)),
-      above: 8pt,
-      below: 8pt,
-    )[#it]
+    #it
   ]
   
   // Code blocks

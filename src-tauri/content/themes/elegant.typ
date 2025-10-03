@@ -80,18 +80,17 @@
     ]
   ]
 
-  // Blockquotes elegant with serif styling
-  show quote: it => [
+  // Blockquotes with elegant cream background
+  show quote: it => block(
+    fill: rgb(252, 252, 248),
+    stroke: (left: 2pt + accent.lighten(30%)),
+    inset: (left: 24pt, rest: 14pt),
+    radius: 2pt,
+    width: 100%,
+  )[
     #set text(style: "italic", size: 11pt, fill: rgb(50, 65, 90))
     #set par(first-line-indent: 0pt)
-    #block(
-      width: 100%,
-      inset: 12pt,
-      stroke: (left: 2pt + rgb(25, 35, 55)),
-      fill: rgb(250, 250, 248),
-      above: 12pt,
-      below: 12pt,
-    )[#it]
+    #it
   ]
 
   // Lists refined

@@ -70,18 +70,17 @@
     fill: accent.transparentize(30%)
   )
   
-  // Blockquotes - Dark panel
-  show quote: it => {
-    set text(size: 11pt, style: "italic", fill: rgb(180, 180, 185))
-    block(
-      width: 100%,
-      inset: 12pt,
-      stroke: (left: 4pt + rgb(140, 140, 145)),
-      fill: rgb(55, 55, 60),
-      above: 12pt,
-      below: 12pt,
-    )[#it]
-  }
+  // Blockquotes with darker background panel
+  show quote: it => block(
+    fill: rgb(35, 35, 35),
+    stroke: (left: 3pt + accent.transparentize(50%)),
+    inset: (left: 20pt, rest: 14pt),
+    radius: 4pt,
+    width: 100%,
+  )[
+    #set text(size: 11pt, style: "italic", fill: rgb(180, 180, 185))
+    #it
+  ]
   
   // Code blocks - Darker background
   show raw.where(block: true): it => block(

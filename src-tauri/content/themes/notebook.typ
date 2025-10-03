@@ -78,21 +78,22 @@
     ]
   }
 
-  // Blockquotes - Aged paper inset
-  show quote: it => [
+  // Blockquotes with aged paper background
+  show quote: it => block(
+    fill: rgb("#ebe3d0"),
+    stroke: (
+      left: (
+        paint: rgb("#a0826d"),
+        thickness: 3pt,
+        dash: "dotted"
+      )
+    ),
+    inset: (left: 22pt, rest: 14pt),
+    radius: 0pt,
+    width: 100%,
+  )[
     #set text(size: 10.5pt, fill: rgb("#1a1a1a"), style: "italic")
-    #block(
-      width: 100%,
-      inset: 14pt,
-      fill: rgb("#e8dcc0"),
-      stroke: (left: 3pt + accent, rest: 1pt + rgb("#b8926a")),
-      radius: 0pt,
-      above: 12pt,
-      below: 12pt,
-    )[
-      #text(size: 18pt, fill: rgb("#4a4a4a"))["] #h(4pt)
-      #it
-    ]
+    #it
   ]
 
   // Code blocks - Aged manuscript box

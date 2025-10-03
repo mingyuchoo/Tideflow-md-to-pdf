@@ -5,6 +5,7 @@ import type {
   Preferences,
   SourceMap,
   SyncMode,
+  Toast,
 } from './types';
 import { SAMPLE_DOC } from './sampleDoc';
 
@@ -66,12 +67,20 @@ interface AppState {
   setActiveAnchorId: (id: string | null) => void;
   syncMode: SyncMode;
   setSyncMode: (mode: SyncMode) => void;
+  // Global scroll sync toggle (disable all syncing)
+  syncEnabled: boolean;
+  setSyncEnabled: (enabled: boolean) => void;
+  // Scroll lock state (when PDF is manually positioned)
+  scrollLocked: boolean;
+  setScrollLocked: (locked: boolean) => void;
   // Typing state (suppresses aggressive scroll sync while user is entering text)
   isTyping: boolean;
   setIsTyping: (v: boolean) => void;
   // PDF zoom level (1.0 = 100%, 0.5 = 50%, 2.0 = 200%)
   pdfZoom: number;
   setPdfZoom: (zoom: number) => void;
+  thumbnailsVisible: boolean;
+  setThumbnailsVisible: (visible: boolean) => void;
   
   // Tab management
   addOpenFile: (path: string) => void;
@@ -107,6 +116,16 @@ interface AppState {
   editorScrollPositions: Record<string, number>;
   setEditorScrollPosition: (path: string, pos: number) => void;
   getEditorScrollPosition: (path: string) => number | null;
+  
+  // Toast notifications
+  toasts: Toast[];
+  addToast: (toast: Omit<Toast, 'id'>) => void;
+  removeToast: (id: string) => void;
+  
+  // Recent files
+  recentFiles: string[];
+  addRecentFile: (path: string) => void;
+  clearRecentFiles: () => void;
 }
 
 // Create store
@@ -119,10 +138,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   setActiveAnchorId: (id: string | null) => set({ activeAnchorId: id }),
   syncMode: 'auto',
   setSyncMode: (mode: SyncMode) => set({ syncMode: mode }),
+  syncEnabled: true,
+  setSyncEnabled: (enabled: boolean) => set({ syncEnabled: enabled }),
+  scrollLocked: false,
+  setScrollLocked: (locked: boolean) => set({ scrollLocked: locked }),
   isTyping: false,
   setIsTyping: (v: boolean) => set({ isTyping: v }),
   pdfZoom: 1.0,
   setPdfZoom: (zoom: number) => set({ pdfZoom: zoom }),
+  thumbnailsVisible: false,
+  setThumbnailsVisible: (visible: boolean) => set({ thumbnailsVisible: visible }),
   setCurrentFile: (path: string | null) => set((state: AppState) => {
     return {
       editor: {
@@ -280,4 +305,54 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Timestamp when the last compiled event arrived; used to coordinate final-sync
   compiledAt: 0,
   setCompiledAt: (ts: number) => set({ compiledAt: ts }),
+  
+  // Toast notifications
+  toasts: [],
+  addToast: (toast: Omit<Toast, 'id'>) => set((state) => ({
+    toasts: [
+      ...state.toasts,
+      {
+        ...toast,
+        id: `toast-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      },
+    ],
+  })),
+  removeToast: (id: string) => set((state) => ({
+    toasts: state.toasts.filter((t) => t.id !== id),
+  })),
+  
+  // Recent files (persisted to localStorage)
+  recentFiles: (() => {
+    try {
+      const stored = localStorage.getItem('recentFiles');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  })(),
+  addRecentFile: (path: string) => set((state) => {
+    // Don't add sample.md or empty paths to recent files
+    if (!path || path === 'sample.md') return state;
+    
+    // Remove if already exists, then add to front (max 10)
+    const filtered = state.recentFiles.filter(f => f !== path);
+    const newRecent = [path, ...filtered].slice(0, 10);
+    
+    // Persist to localStorage
+    try {
+      localStorage.setItem('recentFiles', JSON.stringify(newRecent));
+    } catch (e) {
+      console.warn('Failed to save recent files:', e);
+    }
+    
+    return { recentFiles: newRecent };
+  }),
+  clearRecentFiles: () => set(() => {
+    try {
+      localStorage.removeItem('recentFiles');
+    } catch (e) {
+      console.warn('Failed to clear recent files:', e);
+    }
+    return { recentFiles: [] };
+  }),
 }));

@@ -7,6 +7,8 @@
 
 import { useEffect, useRef } from 'react';
 import type { SourceMap } from '../types';
+import { checkEditorToPdfGuards } from '../utils/scrollGuards';
+import { useAppStore } from '../store';
 
 interface UseEditorToPdfSyncParams {
   // State
@@ -50,6 +52,9 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
     recomputeAnchorOffsets,
   } = params;
 
+  // Get syncEnabled from store
+  const syncEnabled = useAppStore((state) => state.syncEnabled);
+
   // Track if we've done initial sync
   const initialSyncDoneRef = useRef(false);
   const lastSourceMapRef = useRef<SourceMap | null>(null);
@@ -59,6 +64,25 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
 
   // Effect 1: Sync PDF to active anchor when it changes (normal operation)
   useEffect(() => {
+    // Run all guards with new utility
+    const guardResult = checkEditorToPdfGuards({
+      containerRef,
+      anchorOffsetsRef,
+      isTypingRef: { current: isTyping },
+      syncModeRef,
+      userManuallyPositionedPdfRef,
+      syncEnabled,
+    });
+
+    if (!guardResult.passed) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[EditorToPdfSync] skipped -', guardResult.reason);
+      }
+      // Still update tracking ref for duplicate check
+      if (activeAnchorId) lastActiveAnchorIdRef.current = activeAnchorId;
+      return;
+    }
+
     // Don't sync if same anchor as last time (prevents feedback loop from PDF scroll handler)
     if (activeAnchorId === lastActiveAnchorIdRef.current) return;
     
@@ -66,43 +90,6 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
     if (!activeAnchorId) {
       lastActiveAnchorIdRef.current = activeAnchorId;
       return;
-    }
-
-    // Don't sync if offsets not ready
-    if (anchorOffsetsRef.current.size === 0) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.debug('[EditorToPdfSync] skipped - no offsets yet');
-      }
-      // Don't update lastActiveAnchorIdRef - we want to retry when offsets are ready
-      return;
-    }
-
-    // TEXT EDITOR FIRST PRINCIPLE:
-    // When typing, DON'T scroll at all - it's jarring and breaks concentration
-    // Only scroll when user explicitly navigates (clicks, arrow keys when not typing)
-    if (isTyping) {
-      // Just update the tracking ref, but DON'T scroll
-      lastActiveAnchorIdRef.current = activeAnchorId;
-      if (process.env.NODE_ENV !== 'production') {
-        console.debug('[EditorToPdfSync] skipped - user is typing, no scroll');
-      }
-      return;
-    }
-
-    // CRITICAL: SCROLL LOCK - If user manually scrolled PDF in auto mode, STOP syncing
-    // The PDF should stay exactly where they put it until they click "Release Lock"
-    // This lock releases when: user scrolls editor (not typing), or clicks Release button
-    // NOTE: In two-way mode, scroll lock is disabled (flag cleared)
-    if (syncMode === 'auto' && userManuallyPositionedPdfRef.current) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.debug('[EditorToPdfSync] LOCKED - PDF will not scroll until lock released', {
-          syncMode,
-          lockFlag: userManuallyPositionedPdfRef.current,
-          activeAnchorId
-        });
-      }
-      lastActiveAnchorIdRef.current = activeAnchorId;
-      return; // ← This BLOCKS the scroll - PDF doesn't move!
     }
 
     // Update last anchor BEFORE scrolling to prevent re-triggering
@@ -120,7 +107,7 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
     }, debounceMs);
 
     return () => clearTimeout(timerId);
-  }, [activeAnchorId, syncMode, isTyping, anchorOffsetsRef, containerRef, scrollToAnchor, userInteractedRef, userManuallyPositionedPdfRef, programmaticScrollRef]);
+  }, [activeAnchorId, syncMode, isTyping, syncEnabled, anchorOffsetsRef, containerRef, scrollToAnchor, userInteractedRef, userManuallyPositionedPdfRef, programmaticScrollRef, syncModeRef]);
 
   // Effect 1b: When user stops typing, clear the movement threshold
   // This allows the next scroll (from clicking elsewhere, etc) to work immediately

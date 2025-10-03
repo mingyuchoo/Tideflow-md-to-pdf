@@ -21,6 +21,7 @@ import PDFErrorBoundary from './components/PDFErrorBoundary';
 import Toolbar from './components/Toolbar';
 import { TIMING } from './constants/timing';
 import StatusBar from './components/StatusBar';
+import { ToastContainer } from './components/ToastContainer';
 
 function App() {
   const [loading, setLoading] = useState(true);
@@ -146,6 +147,7 @@ function App() {
           const state = useAppStore.getState();
           state.setCompileStatus({ status: 'error', message: 'Compile failed', details: evt.payload });
           state.setSourceMap(null);
+          state.addToast({ type: 'error', message: 'Failed to compile document' });
         });
         register(unlistenCompileError);
 
@@ -293,7 +295,12 @@ function App() {
 
   // Simplified toggle: no remount side effects needed.
   if (loading) {
-    return <div className="loading">Loading...</div>;
+    return (
+      <div className="loading">
+        <div className="loading-spinner"></div>
+        <div className="loading-text">Loading Tideflow...</div>
+      </div>
+    );
   }
   // Compute default sizes: if collapsed -> editor 100%, else restored or fallback (55/45)
   const defaultEditorSize = previewCollapsed ? 100 : 50;
@@ -336,6 +343,7 @@ function App() {
         </PanelGroup>
       </div>
       <StatusBar />
+      <ToastContainer />
     </div>
   );
 }

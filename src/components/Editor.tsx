@@ -4,6 +4,7 @@ import './Editor.css';
 import ImagePropsModal, { type ImageProps } from './ImagePropsModal';
 import ImagePlusModal from './ImagePlusModal';
 import EditorToolbar from './EditorToolbar';
+import SearchWidget, { type SearchOptions } from './SearchWidget';
 import { useImageHandlers } from '../hooks/useImageHandlers';
 import { importImage, importImageFromPath, generateImageMarkdown } from '../api';
 import { showSuccess } from '../utils/errorHandler';
@@ -18,6 +19,7 @@ import { useEditorLifecycle } from '../hooks/useEditorLifecycle';
 
 const Editor: React.FC = () => {
   // Store state
+  const addToast = useAppStore((state) => state.addToast);
   const {
     editor: { currentFile, content, modified, openFiles },
     setContent,
@@ -35,6 +37,7 @@ const Editor: React.FC = () => {
   } = useAppStore();
   const setEditorScrollPosition = useAppStore((s) => s.setEditorScrollPosition);
   const getEditorScrollPosition = useAppStore((s) => s.getEditorScrollPosition);
+  const setPreviewVisible = useAppStore((s) => s.setPreviewVisible);
 
   // Local state
   const [isSaving, setIsSaving] = useState(false);
@@ -42,6 +45,7 @@ const Editor: React.FC = () => {
   const [selectedFont, setSelectedFont] = useState<string>("New Computer Modern");
   const [calloutType, setCalloutType] = useState<'box' | 'info' | 'tip' | 'warn'>('box');
   const [editorReady, setEditorReady] = useState(false);
+  const [searchWidgetOpen, setSearchWidgetOpen] = useState(false);
 
   // Use editor state hook - consolidates all refs
   const editorStateRefs = useEditorState({
@@ -87,8 +91,11 @@ const Editor: React.FC = () => {
     computeAnchorFromViewport,
   });
 
-  // Wrap handleSave to pass setIsSaving
-  const handleSave = () => handleSaveBase(setIsSaving);
+  // Wrap handleSave to pass setIsSaving and addToast
+  const handleSave = () => handleSaveBase(setIsSaving, addToast);
+  
+  // Wrap handleRender to pass setPreviewVisible
+  const handleRenderWithPreview = () => handleRender(setPreviewVisible);
 
   // Use CodeMirror setup hook - editor initialization
   useCodeMirrorSetup({
@@ -99,7 +106,7 @@ const Editor: React.FC = () => {
     setIsActivelyTyping,
     setIsTyping,
     handleSave,
-    handleRender,
+    handleRender: handleRenderWithPreview,
     handleAutoRender,
     renderDebounceMs: preferences.render_debounce_ms,
     setupScrollListener,
@@ -150,6 +157,91 @@ const Editor: React.FC = () => {
     },
   });
 
+  // Ctrl+F handler is managed by global keyboard listener
+
+  const handleSearch = (query: string, options: SearchOptions) => {
+    if (!query || !editorStateRefs.editorViewRef.current) return;
+    
+    const view = editorStateRefs.editorViewRef.current;
+    const content = view.state.doc.toString();
+    
+    // Build search regex
+    let searchPattern = query;
+    if (options.wholeWord) {
+      searchPattern = `\\b${query}\\b`;
+    }
+    const flags = options.caseSensitive ? 'g' : 'gi';
+    const regex = new RegExp(searchPattern, flags);
+    
+    // Find first match
+    const match = regex.exec(content);
+    
+    if (match) {
+      const from = match.index;
+      const to = from + match[0].length;
+      
+      // Select the match (without focusing editor)
+      view.dispatch({
+        selection: { anchor: from, head: to },
+        scrollIntoView: true,
+      });
+      
+      // Don't call view.focus() to keep focus in search input
+    }
+  };
+
+  const handleReplace = (replaceText: string) => {
+    if (!editorStateRefs.editorViewRef.current) return;
+    
+    const view = editorStateRefs.editorViewRef.current;
+    const selection = view.state.selection.main;
+    
+    // Replace selected text
+    view.dispatch({
+      changes: { from: selection.from, to: selection.to, insert: replaceText },
+      scrollIntoView: true,
+    });
+    
+    addToast({ type: 'success', message: 'Replaced' });
+  };
+
+  const handleReplaceAll = (searchQuery: string, replaceText: string, options: SearchOptions) => {
+    if (!searchQuery || !editorStateRefs.editorViewRef.current) return;
+    
+    const view = editorStateRefs.editorViewRef.current;
+    const content = view.state.doc.toString();
+    
+    // Build search regex
+    let searchPattern = searchQuery;
+    if (options.wholeWord) {
+      searchPattern = `\\b${searchQuery}\\b`;
+    }
+    const flags = options.caseSensitive ? 'g' : 'gi';
+    const regex = new RegExp(searchPattern, flags);
+    
+    // Find all matches and build changes array
+    const changes: { from: number; to: number; insert: string }[] = [];
+    let match;
+    while ((match = regex.exec(content)) !== null) {
+      changes.push({
+        from: match.index,
+        to: match.index + match[0].length,
+        insert: replaceText,
+      });
+    }
+    
+    if (changes.length > 0) {
+      view.dispatch({
+        changes,
+        scrollIntoView: true,
+      });
+      
+      addToast({ type: 'success', message: `Replaced ${changes.length} occurrence(s)` });
+    } else {
+      addToast({ type: 'warning', message: 'No matches found' });
+    }
+  };
+
   // Handle font changes
   const handleFontChange = async (font: string) => {
     if (!editorStateRefs.editorViewRef.current) {
@@ -171,15 +263,12 @@ const Editor: React.FC = () => {
         <>
           <EditorToolbar
             currentFile={currentFile}
-            modified={modified}
-            isSaving={isSaving}
             isActivelyTyping={isActivelyTyping}
             preferences={preferences}
             selectedFont={selectedFont}
             calloutType={calloutType}
             editorView={editorStateRefs.editorViewRef.current}
-            onSave={handleSave}
-            onRender={handleRender}
+            onRender={handleRenderWithPreview}
             onFontChange={handleFontChange}
             onImageInsert={handleImageInsert}
             onImagePlusOpen={() => setImagePlusOpen(true)}
@@ -189,7 +278,20 @@ const Editor: React.FC = () => {
                 cmd.imageWidth(editorStateRefs.editorViewRef.current, width);
               }
             }}
+            onSearchToggle={() => setSearchWidgetOpen(!searchWidgetOpen)}
+            searchOpen={searchWidgetOpen}
           />
+          
+          {/* Search widget */}
+          {searchWidgetOpen && (
+            <SearchWidget
+              isOpen={searchWidgetOpen}
+              onClose={() => setSearchWidgetOpen(false)}
+              onSearch={handleSearch}
+              onReplace={handleReplace}
+              onReplaceAll={handleReplaceAll}
+            />
+          )}
           
           <div className="editor-content" ref={editorStateRefs.editorRef} />
           

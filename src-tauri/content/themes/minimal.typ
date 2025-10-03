@@ -70,13 +70,9 @@
   // Blockquotes almost invisible
   show quote: it => [
     #set text(style: "italic", size: 9.5pt, fill: rgb(140, 140, 140))
-    #block(
-      width: 100%,
-      inset: 10pt,
-      stroke: (left: 1pt + rgb(220, 220, 220)),
-      above: 10pt,
-      below: 10pt,
-    )[#it]
+    #pad(left: 20pt, right: 20pt, top: 10pt, bottom: 10pt)[
+      #it
+    ]
   ]
 
   // Lists minimal

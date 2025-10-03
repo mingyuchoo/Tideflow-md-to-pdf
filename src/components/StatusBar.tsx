@@ -3,7 +3,7 @@ import { useAppStore } from '../store';
 import './StatusBar.css';
 
 const StatusBar: React.FC = () => {
-  const { editor, preferences } = useAppStore();
+  const { editor, preferences, syncMode, scrollLocked } = useAppStore();
   const { currentFile, modified, compileStatus } = editor;
 
   const getStatusText = () => {
@@ -49,6 +49,11 @@ const StatusBar: React.FC = () => {
       </div>
       
       <div className="status-info">
+        {scrollLocked && (
+          <span className="status-item status-scroll-locked">
+            Scroll Locked
+          </span>
+        )}
         <span className="status-item">
           Paper: {preferences.papersize.toUpperCase()}
         </span>

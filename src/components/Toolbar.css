@@ -23,19 +23,131 @@
   align-items: center;
 }
 
+.toolbar-section {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.toolbar-separator {
+  width: 1px;
+  height: 28px;
+  background: linear-gradient(180deg, transparent, rgba(255,255,255,0.3), transparent);
+  margin: 0 0.25rem;
+}
+
+.hidden-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  border: 0;
+}
+
+.toolbar-select {
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  color: #f8fafc;
+  border: 1px solid #475569;
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.1) inset;
+  transition: all 200ms ease;
+  outline: none;
+}
+
+.toolbar-select:hover {
+  background: linear-gradient(135deg, #334155 0%, #475569 100%);
+  box-shadow: 0 3px 6px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.15) inset;
+}
+
+.toolbar-select:focus-visible {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5), 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.toolbar-actions button.btn-primary {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  border-color: #065f46;
+}
+
+.toolbar-actions button.btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+  box-shadow: 0 4px 8px rgba(5, 150, 105, 0.5), 0 0 0 1px rgba(255,255,255,0.2) inset;
+}
+
+.toolbar-actions button.btn-secondary {
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+  border-color: #374151;
+}
+
+body.light .toolbar-actions button.btn-secondary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+  box-shadow: 0 4px 8px rgba(75, 85, 99, 0.5), 0 0 0 1px rgba(255,255,255,0.2) inset;
+}
+
+/* Prefs modal specific styles */
+.prefs-modal {
+  max-width: 550px;
+}
+
+.btn-reset-session {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  border: 1px solid #991b1b;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  transition: all 200ms ease;
+  width: 100%;
+  font-size: 0.95rem;
+}
+
+.btn-reset-session:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(239, 68, 68, 0.4);
+}
+
+.btn-reset-session:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3) inset;
+}
+
 .toolbar-button-group {
   display: flex;
   gap: 0;
   border-radius: 6px;
-  overflow: hidden;
+  overflow: visible;
   box-shadow: 0 2px 4px rgba(0,0,0,0.3);
 }
 
 .toolbar-button-group button {
   border-radius: 0 !important;
   border-right: 1px solid rgba(255,255,255,0.15) !important;
-  padding: 0.6rem 0.75rem !important;
+  padding: 0.6rem 0.85rem !important;
   font-size: 0.85rem !important;
+  position: relative;
+}
+
+.toolbar-button-group button::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.toolbar-button-group button:hover::after {
+  opacity: 1;
 }
 
 .toolbar-button-group button:first-child {
@@ -52,6 +164,7 @@
 .toolbar-button-group button:hover:not(:disabled) {
   transform: none !important;
   z-index: 1;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.2) inset !important;
 }
 
 .toolbar-actions button {
@@ -65,7 +178,7 @@
   color: var(--btn-text);
   border: 1px solid var(--btn-border);
   border-radius: 6px;
-  padding: 0.6rem 1rem;
+  padding: 0.6rem 1.1rem;
   font-size: 0.9rem;
   font-weight: 600;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif;
@@ -73,41 +186,78 @@
   line-height: 1;
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.5rem;
   box-shadow: 0 2px 4px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.1) inset;
-  transition: background .18s ease, box-shadow .18s ease, transform .15s ease, border-color .2s ease;
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
   outline: none;
+  overflow: hidden;
+}
+
+.toolbar-actions button::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.toolbar-actions button:active::before {
+  width: 300px;
+  height: 300px;
 }
 
 .toolbar-actions button:hover:not(:disabled) {
   background: var(--btn-bg-hover);
-  box-shadow: 0 3px 6px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.15) inset;
-  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.2) inset, 0 0 12px rgba(5, 150, 105, 0.4);
+  transform: translateY(-2px);
 }
 
 .toolbar-actions button:active:not(:disabled) {
   background: var(--btn-bg-active);
-  transform: translateY(1px);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.55) inset;
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.6) inset, 0 0 0 1px rgba(0,0,0,0.2) inset;
 }
 
 .toolbar-actions button.active {
-  background: linear-gradient(145deg,#1d4ed8,#1e40af);
-  border-color: #1e3a8a;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.55) inset, 0 0 0 1px rgba(255,255,255,0.06);
+  background: linear-gradient(145deg, #3b82f6, #2563eb);
+  border-color: #1d4ed8;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4), 0 3px 8px rgba(59, 130, 246, 0.5), 0 0 0 1px rgba(255,255,255,0.1) inset;
+  position: relative;
+}
+
+.toolbar-actions button.active::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.15), transparent);
+  pointer-events: none;
+}
+
+.toolbar-actions button.active:hover {
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5), 0 4px 12px rgba(59, 130, 246, 0.6), 0 0 0 1px rgba(255,255,255,0.15) inset;
 }
 
 .toolbar-actions button:focus-visible {
-  box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #2563eb, 0 1px 2px rgba(0,0,0,0.4);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.8), 0 0 0 6px #3b82f6, 0 2px 8px rgba(0,0,0,0.5);
+  outline: none;
+  transform: translateY(-1px);
 }
 
 .toolbar-actions button:disabled {
-  opacity: 0.55;
+  opacity: 0.5;
   cursor: not-allowed;
   background: #475569;
   border-color: #334155;
-  box-shadow: none;
-  color: #d1d5db;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.3) !important;
+  color: #9ca3af;
+  transform: none !important;
+  filter: grayscale(0.3);
 }
 
 /* High-contrast mode support */
@@ -137,3 +287,104 @@ body.light .toolbar-actions button {
   --btn-text:#ffffff;
 }
 body.light .toolbar-actions button:disabled { background:#94a3b8; border-color:#64748b; color:#f1f5f9; }
+
+/* Dropdown for Recent Files */
+.dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown-toggle {
+  min-width: 32px !important;
+  padding: 0.45rem 0.5rem !important;
+  margin-left: -1px;
+  border-left: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0 6px 6px 0 !important;
+}
+
+.toolbar-button-group {
+  display: flex;
+  align-items: stretch;
+  position: relative;
+}
+
+.toolbar-button-group > button:first-child {
+  border-radius: 6px 0 0 6px !important;
+}
+
+.dropdown-menu {
+  display: block;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 0.5rem;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  min-width: 250px;
+  max-width: 350px;
+  z-index: 1000;
+  overflow: hidden;
+  animation: dropdownFadeIn 150ms ease-out;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dropdown-header {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #94a3b8;
+  border-bottom: 1px solid #334155;
+  background: #0f172a;
+}
+
+.dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 150ms ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dropdown-item:hover {
+  background: #334155;
+  color: #fff;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: #334155;
+  margin: 0.25rem 0;
+}
+
+.dropdown-clear {
+  color: #f87171;
+  font-weight: 500;
+}
+
+.dropdown-clear:hover {
+  background: #7f1d1d;
+  color: #fff;
+}

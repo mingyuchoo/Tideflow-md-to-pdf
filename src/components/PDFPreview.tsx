@@ -36,12 +36,15 @@ try {
 
 const PDFPreview: React.FC = () => {
   // Store state
-  const { editor, sourceMap, activeAnchorId, setActiveAnchorId, syncMode, setSyncMode, isTyping, preferences, pdfZoom, setPdfZoom } = useAppStore();
+  const { editor, sourceMap, activeAnchorId, setActiveAnchorId, syncMode, setSyncMode, isTyping, preferences, pdfZoom, setPdfZoom, thumbnailsVisible } = useAppStore();
   const { compileStatus } = editor;
 
   // Local state
   const [rendering, setRendering] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [thumbnails, setThumbnails] = useState<Map<number, string>>(new Map());
 
   // Rendering control refs
   const cancelRenderRef = useRef<{ canceled: boolean }>({ canceled: false });
@@ -54,6 +57,8 @@ const PDFPreview: React.FC = () => {
   const pendingForcedOneShotRef = useRef<number | null>(null);
   const pendingForcedAnchorRef = useRef<string | null>(null);
 
+
+  
   // Use scroll state hook - consolidates 19 refs
   const scrollState = useScrollState({
     syncMode,
@@ -174,6 +179,7 @@ const PDFPreview: React.FC = () => {
   useEffect(() => {
     if (syncMode === 'locked-to-editor' || syncMode === 'two-way') {
       userManuallyPositionedPdfRef.current = false;
+      useAppStore.getState().setScrollLocked(false);
       if (process.env.NODE_ENV !== 'production') {
         console.debug('[PDFPreview] cleared manual position flag - mode:', syncMode);
       }
@@ -215,6 +221,7 @@ const PDFPreview: React.FC = () => {
         });
       }
       userManuallyPositionedPdfRef.current = false;
+      useAppStore.getState().setScrollLocked(false);
     }
     
     prevAnchorIdRef.current = activeAnchorId;
@@ -359,21 +366,170 @@ const PDFPreview: React.FC = () => {
   // Total removed: ~800 lines of complex sync logic
   // Replaced with: useEditorToPdfSync + usePdfToEditorSync (~400 lines)
 
+  // Track current page and generate thumbnails
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !compileStatus.pdf_path || rendering) return;
+
+    const handleScroll = () => {
+      const canvases = container.querySelectorAll('canvas.pdfjs-page-canvas');
+      if (canvases.length === 0) return;
+
+      const containerRect = container.getBoundingClientRect();
+      const containerMidpoint = containerRect.top + containerRect.height / 2;
+
+      let closestPage = 1;
+      let closestDistance = Infinity;
+
+      canvases.forEach((canvas, index) => {
+        const pageNum = index + 1; // Pages are 1-indexed
+        const rect = canvas.getBoundingClientRect();
+        const pageMidpoint = rect.top + rect.height / 2;
+        const distance = Math.abs(pageMidpoint - containerMidpoint);
+
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestPage = pageNum;
+        }
+      });
+
+      setCurrentPage(closestPage);
+      
+      // Auto-scroll thumbnail list to show current page
+      const thumbnailsList = document.getElementById('thumbnails-list');
+      const activeThumbnail = thumbnailsList?.querySelector('.thumbnail-item.active');
+      if (activeThumbnail && thumbnailsList) {
+        const thumbnailRect = activeThumbnail.getBoundingClientRect();
+        const listRect = thumbnailsList.getBoundingClientRect();
+        
+        // Check if thumbnail is outside visible area
+        if (thumbnailRect.top < listRect.top || thumbnailRect.bottom > listRect.bottom) {
+          activeThumbnail.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
+    };
+
+    // Generate thumbnails when PDF is loaded
+    const generateThumbnails = () => {
+      const canvases = container.querySelectorAll('canvas.pdfjs-page-canvas');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[PDFPreview] Generating thumbnails, found canvases:', canvases.length);
+      }
+      
+      if (canvases.length === 0) {
+        // Retry if canvases not ready yet
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[PDFPreview] No canvases found, retrying in 500ms...');
+        }
+        setTimeout(generateThumbnails, 500);
+        return;
+      }
+
+      const newThumbnails = new Map<number, string>();
+      
+      setTotalPages(canvases.length);
+
+      canvases.forEach((canvas, index) => {
+        const pageNum = index + 1;
+        const sourceCanvas = canvas as HTMLCanvasElement;
+        
+        // Use the canvas's intrinsic dimensions (these are the true rendered dimensions)
+        // These are independent of CSS styling and window size
+        const sourceWidth = sourceCanvas.width;
+        const sourceHeight = sourceCanvas.height;
+        const aspectRatio = sourceHeight / sourceWidth;
+        
+        if (process.env.NODE_ENV !== 'production' && index === 0) {
+          console.log('[PDFPreview] Canvas dimensions:', {
+            width: sourceWidth,
+            height: sourceHeight,
+            aspectRatio: aspectRatio.toFixed(3),
+            expectedA4: '1.414'
+          });
+        }
+        
+        // Create thumbnail with fixed width, height based on source aspect ratio
+        const thumbnailCanvas = document.createElement('canvas');
+        const targetWidth = 140;
+        const targetHeight = Math.round(targetWidth * aspectRatio);
+        
+        thumbnailCanvas.width = targetWidth;
+        thumbnailCanvas.height = targetHeight;
+        
+        const ctx = thumbnailCanvas.getContext('2d', { alpha: false });
+        if (ctx && sourceWidth > 0 && sourceHeight > 0) {
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(sourceCanvas, 0, 0, targetWidth, targetHeight);
+          newThumbnails.set(pageNum, thumbnailCanvas.toDataURL('image/png'));
+        }
+      });
+      
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[PDFPreview] Generated thumbnails:', newThumbnails.size);
+      }
+      
+      if (newThumbnails.size > 0) {
+        setThumbnails(newThumbnails);
+      }
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    handleScroll(); // Initial page detection
+
+    // Wait for rendering to complete before generating thumbnails
+    const timer = setTimeout(generateThumbnails, 1000);
+
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      clearTimeout(timer);
+    };
+  }, [compileStatus.pdf_path, rendering, containerRef]);
+
+  const scrollToPage = (pageNum: number) => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const canvases = container.querySelectorAll('canvas.pdfjs-page-canvas');
+    const canvas = canvases[pageNum - 1]; // Convert to 0-indexed
+    if (canvas) {
+      canvas.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
+
   return (
     <div className="pdf-preview">
       <PDFPreviewHeader
-        syncMode={syncMode}
-        setSyncMode={setSyncMode}
-        activeAnchorId={activeAnchorId}
-        sourceMap={sourceMap}
-        anchorOffsetsRef={anchorOffsetsRef}
-        containerRef={containerRef}
-        userManuallyPositionedPdfRef={userManuallyPositionedPdfRef}
         pdfZoom={pdfZoom}
         setPdfZoom={setPdfZoom}
       />
       
       <div className="pdf-preview-content">
+        {thumbnailsVisible && (
+          <div className="pdf-thumbnails-sidebar">
+            <div className="thumbnails-header">Pages ({totalPages || '...'})</div>
+            <div className="thumbnails-list" id="thumbnails-list">
+              {thumbnails.size > 0 ? (
+                Array.from(thumbnails.entries()).map(([pageNum, dataUrl]) => (
+                  <div
+                    key={pageNum}
+                    className={`thumbnail-item ${currentPage === pageNum ? 'active' : ''}`}
+                    onClick={() => scrollToPage(pageNum)}
+                    title={`Go to page ${pageNum}`}
+                  >
+                    <img src={dataUrl} alt={`Page ${pageNum}`} />
+                    <div className="thumbnail-page-number">{pageNum}</div>
+                  </div>
+                ))
+              ) : (
+                <div className="thumbnails-loading">
+                  <p>Generating thumbnails...</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        
         {compileStatus.status === 'error' ? (
           <div className="error-message">
             <h4>Rendering Failed</h4>
@@ -393,6 +549,7 @@ const PDFPreview: React.FC = () => {
             {rendering && (
               <div className="pdfjs-loading-overlay">Rendering pages...</div>
             )}
+
           </>
         ) : (
           <div className="no-pdf-message">

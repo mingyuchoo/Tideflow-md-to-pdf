@@ -73,9 +73,11 @@ fn copy_tideflow_template(
     }
 
     // 3. Try relative to executable directory
-    if let Ok(exe_dir) = std::env::current_exe().and_then(|p| Ok(p.parent().unwrap().to_path_buf())) {
-        template_sources.push(exe_dir.join("content").join("tideflow.typ"));
-        template_sources.push(exe_dir.join("..").join("content").join("tideflow.typ"));
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            template_sources.push(exe_dir.join("content").join("tideflow.typ"));
+            template_sources.push(exe_dir.join("..").join("content").join("tideflow.typ"));
+        }
     }
 
     let mut copied = false;

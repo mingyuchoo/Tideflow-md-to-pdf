@@ -72,17 +72,16 @@
     fill: rgb(220, 220, 220)
   )
   
-  // Blockquotes
-  show quote: it => [
-    #set text(size: 10pt, fill: rgb(80, 80, 80))
-    #block(
-      width: 100%,
-      inset: 10pt,
-      stroke: (left: 4pt + rgb(120, 120, 120)),
-      fill: rgb(248, 248, 248),
-      above: 12pt,
-      below: 12pt,
-    )[#it]
+  // Blockquotes with sleek background
+  show quote: it => block(
+    fill: rgb(248, 250, 252),
+    stroke: (left: 3pt + accent.lighten(50%)),
+    inset: (left: 18pt, rest: 14pt),
+    radius: 4pt,
+    width: 100%,
+  )[
+    #set text(size: 10pt, fill: rgb(80, 80, 80), style: "italic")
+    #it
   ]
   
   // Code blocks

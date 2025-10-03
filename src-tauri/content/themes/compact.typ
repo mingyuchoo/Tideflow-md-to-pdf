@@ -69,15 +69,10 @@
 
   // Blockquotes with gray background
   show quote: it => [
-    #set text(size: 8.5pt)
-    #block(
-      width: 100%,
-      inset: 8pt,
-      stroke: (left: 2pt + rgb(0, 0, 0)),
-      fill: rgb(245, 245, 245),
-      above: 5pt,
-      below: 5pt,
-    )[#it]
+    #set text(size: 8.5pt, style: "italic")
+    #pad(left: 16pt, right: 16pt, top: 5pt, bottom: 5pt)[
+      #it
+    ]
   ]
 
   // Dense lists

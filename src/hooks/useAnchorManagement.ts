@@ -46,11 +46,28 @@ export function useAnchorManagement(params: UseAnchorManagementParams) {
       return;
     }
     if (isTypingStoreRef.current) return;
-    // Scroll editor in both 'locked-to-pdf' and 'two-way' modes
-    if (syncModeRef.current !== 'locked-to-pdf' && syncModeRef.current !== 'two-way') return;
+    
+    // Scroll editor in 'locked-to-pdf', 'two-way' modes, OR when explicitly set from PDF click
+    // We allow auto mode here because click-to-sync is an explicit user action
+    const allowedModes = ['locked-to-pdf', 'two-way', 'auto'];
+    if (!allowedModes.includes(syncModeRef.current)) return;
 
     const anchor = sourceMap.anchors.find((candidate) => candidate.id === activeAnchorId);
-    if (!anchor) return;
+    if (!anchor) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('[useAnchorManagement] anchor not found in sourceMap', { activeAnchorId });
+      }
+      return;
+    }
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug('[useAnchorManagement] scrolling editor to anchor', { 
+        activeAnchorId, 
+        offset: anchor.editor.offset,
+        line: anchor.editor.line,
+        syncMode: syncModeRef.current
+      });
+    }
 
     const view = editorViewRef.current;
     programmaticScrollRef.current = true;

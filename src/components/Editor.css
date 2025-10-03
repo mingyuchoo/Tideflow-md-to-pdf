@@ -5,6 +5,7 @@
   background-color: var(--editor-bg);
   overflow: hidden;
   min-width: 0; /* Important for flex children */
+  position: relative; /* For search widget positioning */
 }
 
 .editor-toolbar {
@@ -37,24 +38,56 @@
 }
 
 .typing-indicator {
-  background: linear-gradient(135deg, #007acc, #0096ff);
+  background: linear-gradient(135deg, #3b82f6, #60a5fa);
   color: white;
-  padding: 3px 8px;
-  border-radius: 4px;
+  padding: 4px 10px;
+  border-radius: 6px;
   font-weight: 600;
   font-size: 0.7rem;
-  animation: pulse 1.5s infinite;
-  box-shadow: 0 2px 4px rgba(0, 122, 204, 0.2);
+  animation: typingPulse 1.5s ease-in-out infinite;
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.2) inset;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.typing-indicator::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: white;
+  animation: typingBlink 1.4s ease-in-out infinite;
 }
 
 .debounce-info {
-  background-color: #f1f5f9;
+  background: linear-gradient(to bottom, #f8fafc, #f1f5f9);
   color: #475569;
-  padding: 3px 8px;
-  border-radius: 4px;
+  padding: 4px 10px;
+  border-radius: 6px;
   border: 1px solid #cbd5e1;
   font-size: 0.7rem;
-  font-weight: 500;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+@keyframes typingPulse {
+  0%, 100% { 
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% { 
+    opacity: 0.85;
+    transform: scale(0.98);
+  }
+}
+
+@keyframes typingBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 
 @keyframes pulse {
@@ -71,43 +104,86 @@
   background: linear-gradient(to bottom, #ffffff, #f8fafc);
   border: 1px solid #cbd5e1;
   border-radius: 6px;
-  padding: 6px 12px;
+  padding: 6px 14px;
   cursor: pointer;
   font-size: 0.8rem;
-  font-weight: 500;
+  font-weight: 600;
   color: #475569;
-  transition: all 0.2s ease;
+  transition: all 200ms ease;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+.editor-actions button::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.08);
+  transform: translate(-50%, -50%);
+  transition: width 0.5s, height 0.5s;
+}
+
+.editor-actions button:active::before {
+  width: 200px;
+  height: 200px;
 }
 
 .editor-actions button:hover:not(:disabled) {
   background: linear-gradient(to bottom, #f8fafc, #f1f5f9);
   border-color: #94a3b8;
   transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.12);
 }
 
 .editor-actions button:active:not(:disabled) {
   transform: translateY(0);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+  background: linear-gradient(to bottom, #f1f5f9, #e2e8f0);
+}
+
+.editor-actions button:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
 }
 
 .editor-actions button:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
   transform: none !important;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
 }
 
+.editor-actions button.active {
+  background: linear-gradient(to bottom, #cbd5e1, #94a3b8);
+  border-color: #64748b;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
 .toggle-button.active {
-  background: linear-gradient(135deg, #007acc, #0096ff) !important;
+  background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
   color: white !important;
-  border-color: #007acc !important;
-  box-shadow: 0 2px 4px rgba(0, 122, 204, 0.3) !important;
+  border-color: #1d4ed8 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2), 0 3px 6px rgba(59, 130, 246, 0.3) !important;
+  position: relative;
+}
+
+.toggle-button.active::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 6px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), transparent);
+  pointer-events: none;
 }
 
 .toggle-button.active:hover {
-  background: linear-gradient(135deg, #005a9e, #007acc) !important;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3), 0 4px 8px rgba(59, 130, 246, 0.4) !important;
 }
 
 .simple-markdown-toolbar {
@@ -125,32 +201,57 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 32px;
-  height: 32px;
-  padding: 0 0.5rem;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 0.6rem;
   border: 1px solid #cbd5e1;
-  border-radius: 4px;
+  border-radius: 5px;
   background: linear-gradient(to bottom, #ffffff, #f8fafc);
   color: #475569;
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 200ms ease;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+}
+
+.simple-markdown-toolbar button::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.06);
+  transform: translate(-50%, -50%);
+  transition: width 0.4s, height 0.4s;
+}
+
+.simple-markdown-toolbar button:active::before {
+  width: 100px;
+  height: 100px;
 }
 
 .simple-markdown-toolbar button:hover {
   background: linear-gradient(to bottom, #f8fafc, #f1f5f9);
   border-color: #94a3b8;
   transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
 }
 
 .simple-markdown-toolbar button:active {
   transform: translateY(0);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
   background: linear-gradient(to bottom, #f1f5f9, #e2e8f0);
+}
+
+.simple-markdown-toolbar button:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
 }
 
 .simple-markdown-toolbar .toolbar-divider {
@@ -303,23 +404,29 @@
 }
 
 /* Hide horizontal scrollbar to prevent layout issues */
+/* Consistent scrollbar styling across the app */
 .cm-scroller::-webkit-scrollbar:horizontal {
   display: none;
 }
 
- .cm-scroller {
-  -ms-overflow-style: none;  /* IE and Edge */
-}
-
-/* Progressive enhancement: hide scrollbar in Firefox */
-@supports (scrollbar-width: none) {
-  .cm-scroller {
-    scrollbar-width: none;
-  }
-}
-
-/* Hide vertical & horizontal scrollbars in WebKit when we opt-out visually */
 .cm-scroller::-webkit-scrollbar {
-  width: 0;
-  height: 0;
+  width: 10px;
+}
+
+.cm-scroller::-webkit-scrollbar-track {
+  background: linear-gradient(to right, #f1f5f9, #e2e8f0);
+  border-radius: 5px;
+}
+
+.cm-scroller::-webkit-scrollbar-thumb {
+  background: linear-gradient(to bottom, #64748b, #475569);
+  border-radius: 5px;
+  transition: all 200ms ease;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.cm-scroller::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(to bottom, #3b82f6, #2563eb);
+  box-shadow: 0 0 6px rgba(59, 130, 246, 0.4);
 }

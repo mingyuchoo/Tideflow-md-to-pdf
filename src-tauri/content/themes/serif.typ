@@ -78,13 +78,11 @@
   
   // Blockquotes - Classic style
   show quote: it => [
-    #v(14pt)
-    #pad(left: 30pt, right: 30pt, y: 10pt)[
-      #set text(size: 10.5pt, style: "italic", fill: rgb(70, 70, 70))
-      #set par(first-line-indent: 0pt)
+    #set text(size: 10.5pt, style: "italic", fill: rgb(70, 70, 70))
+    #set par(first-line-indent: 0pt)
+    #pad(left: 32pt, right: 32pt, top: 14pt, bottom: 14pt)[
       #it
     ]
-    #v(14pt)
   ]
   
   // Code blocks

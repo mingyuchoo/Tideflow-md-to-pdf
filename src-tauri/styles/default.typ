@@ -11,6 +11,18 @@
   // Set heading properties
   set heading(numbering: "1.1")
   
+  // Style blockquotes with subtle background
+  show quote: it => {
+    block(
+      fill: luma(245),
+      stroke: (left: 3pt + luma(180)),
+      inset: (left: 15pt, rest: 10pt),
+      radius: 2pt,
+      width: 100%,
+      it.body
+    )
+  }
+  
   // Create simple header
   set page(
     header: [

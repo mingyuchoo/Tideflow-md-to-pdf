@@ -1,16 +1,38 @@
 :root {
   --primary-color: #0066cc;
+  --primary-hover: #0052a3;
+  --primary-active: #003d7a;
   --accent-color: #2a9d8f;
-  --text-color: #333;
+  --text-color: #1f2937;
+  --text-secondary: #6b7280;
+  --text-muted: #9ca3af;
   --background-color: #f8fafc;
   --border-color: #e2e8f0;
+  --border-hover: #cbd5e1;
   --panel-bg: white;
   --hover-bg: #f1f5f9;
-  --error-color: #e53935;
-  --warning-color: #ff9800;
-  --success-color: #4caf50;
+  --active-bg: #e5e7eb;
+  --error-color: #dc2626;
+  --error-bg: #fef2f2;
+  --warning-color: #f59e0b;
+  --warning-bg: #fffbeb;
+  --success-color: #10b981;
+  --success-bg: #ecfdf5;
+  --info-color: #3b82f6;
+  --info-bg: #eff6ff;
   --editor-bg: #fefefe;
   --preview-bg: #ffffff;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
 }
 
 html, body, #root {
@@ -45,8 +67,10 @@ html, body, #root {
   width: 6px;
   background-color: var(--border-color);
   cursor: col-resize;
-  transition: all 0.2s ease;
+  transition: background-color var(--transition-base), width var(--transition-base);
   position: relative;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .resize-handle::before {
@@ -58,26 +82,91 @@ html, body, #root {
   width: 3px;
   height: 24px;
   background-color: var(--border-color);
-  border-radius: 2px;
-  transition: all 0.2s ease;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-base);
+  opacity: 0.6;
 }
 
 .resize-handle:hover {
   background-color: var(--primary-color);
+  width: 8px;
 }
 
 .resize-handle:hover::before {
   background-color: white;
-  height: 32px;
+  height: 40px;
+  width: 4px;
+  opacity: 1;
+  box-shadow: 0 0 8px rgba(0, 102, 204, 0.4);
+}
+
+.resize-handle:active {
+  background-color: var(--primary-active);
+}
+
+.resize-handle:active::before {
+  height: 48px;
 }
 
 .loading {
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   height: 100%;
-  font-size: 1.2rem;
-  color: var(--text-color);
+  gap: 1rem;
+}
+
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--border-color);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.loading-text {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 /* Utility classes */
@@ -107,19 +196,55 @@ html, body, #root {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.5rem;
   padding: 0.5rem 1rem;
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.2s, color 0.2s;
+  transition: all var(--transition-base);
   border: 1px solid var(--border-color);
   background-color: white;
   color: var(--text-color);
+  box-shadow: var(--shadow-sm);
+  outline: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.button::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.1);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.button:active::before {
+  width: 300px;
+  height: 300px;
 }
 
 .button:hover {
   background-color: var(--hover-bg);
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.button:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
 }
 
 .button-primary {
@@ -129,7 +254,34 @@ html, body, #root {
 }
 
 .button-primary:hover {
-  background-color: #0055aa;
+  background-color: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+
+.button-primary:active {
+  background-color: var(--primary-active);
+}
+
+.button-success {
+  background-color: var(--success-color);
+  color: white;
+  border-color: var(--success-color);
+}
+
+.button-success:hover {
+  background-color: #059669;
+  border-color: #059669;
+}
+
+.button-danger {
+  background-color: var(--error-color);
+  color: white;
+  border-color: var(--error-color);
+}
+
+.button-danger:hover {
+  background-color: #b91c1c;
+  border-color: #b91c1c;
 }
 
 .button-small {
@@ -137,7 +289,24 @@ html, body, #root {
   font-size: 0.8rem;
 }
 
+.button-large {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+}
+
 .button:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
+  transform: none !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+.button:disabled:hover {
+  background-color: white;
+  border-color: var(--border-color);
+}
+
+.button-primary:disabled:hover {
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
 }

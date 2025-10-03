@@ -16,7 +16,9 @@ I wanted a dead-simple, elegant writing tool that outputs print‑ready PDFs **w
 * Automatic Table of Contents, optional section numbering, and configurable cover page
 * Image paste, drag‑drop, and import dialogs with accessible metadata capture
 * Math (inline / block) via LaTeX-style syntax
-* Theme registry with bundled Typst themes (Default, Classic, Modern, Academic, Journal, Colorful) plus per-document overrides
+* **12 beautiful themes**: Default, Minimal, Compact, Elegant, Technical, Magazine, Academic, Creative, Modern, Serif, Notebook, Dark
+* Full blockquote support with theme-appropriate backgrounds
+* Admonitions (callouts) with color-coded styling
 * Offline: once installed, **no network required**
 * Cross‑platform (Windows / macOS / Linux)
 * Fast startup: no giant runtime or Electron bloat
@@ -38,10 +40,20 @@ I wanted a dead-simple, elegant writing tool that outputs print‑ready PDFs **w
 | Bullet List | Ctrl+Shift+8 |
 | Numbered List | Ctrl+Shift+7 |
 | Task List | Ctrl+Shift+9 |
-| Quote | Ctrl+Shift+Q |
+| Quote | Ctrl+Shift+. |
 | Code Block | Ctrl+Shift+C |
+| Horizontal Rule | Ctrl+Shift+- |
 | Save | Ctrl+S |
+| Save As | Ctrl+Shift+S |
+| Open File | Ctrl+O |
+| New File | Ctrl+N |
+| Export PDF | Ctrl+E |
 | Force Render | Ctrl+R |
+| Search | Ctrl+F |
+| Find & Replace | Ctrl+H |
+| Toggle Preview | Ctrl+P |
+| Design Modal | Ctrl+D |
+| Preferences | Ctrl+, |
 
 ## Tech Stack
 **Core**
@@ -91,12 +103,18 @@ npm run tauri:build
 4. Export or copy the generated PDF (use **Save PDF As** to pick a destination)
 
 ## Supported Markdown / Extras
-* Headings, emphasis, strike, code, block + inline math
-* Lists (ordered / unordered / tasks)
-* Tables
-* Images (auto asset management)
-* Horizontal rules, page breaks (custom command)
-* TOC + numbering (via Typst template)
+* Headings (H1-H6), emphasis (bold, italic, strikethrough)
+* Code (inline and fenced blocks with syntax highlighting via Typst)
+* Math (inline `$...$` and block `$$...$$` via LaTeX-style syntax)
+* Lists (ordered, unordered, task lists with `- [ ]` / `- [x]`)
+* Blockquotes (single and multi-line with `>`)
+* Admonitions / Callouts (`> [!note]`, `> [!warning]`, `> [!tip]`, etc.)
+* Tables (with alignment support)
+* Images (paste, drag-drop, import with metadata)
+* Horizontal rules (`---` or `***`)
+* Page breaks (via `#pagebreak()` or `<!--raw-typst #pagebreak() -->`)
+* Links (inline and reference-style)
+* HTML comments for Typst directives
 
 ## Preferences / Configuration
 Open the **Design** modal from the toolbar to adjust layout, typography, and document chrome without leaving the editor.
@@ -135,17 +153,30 @@ Md-to-PDF/
 ```
 
 ## Roadmap
+**Completed:**
 * [x] PDF export dialog with destination picker
-* [x] Real theme system with Typst partials & persisted presets
+* [x] Full theme system with 12 polished Typst themes
 * [x] Anchor-based scroll sync with bidirectional lock controls
-* [x] Cover page toggle + metadata editor
-* [ ] Dark theme + high-contrast mode
-* [ ] Incremental / partial rendering optimization
-* [ ] Built-in template gallery (report, memo, article)
-* [ ] Image optimization pipeline (resize/compress)
-* [ ] Spellcheck + grammar hooks
+* [x] Cover page toggle + metadata editor (title, author, date, logo)
+* [x] Blockquote rendering with theme-appropriate backgrounds
+* [x] Admonitions / callouts with color-coded styling
+* [x] Image paste, drag-drop, and metadata capture
+* [x] Multi-tab document management
+* [x] Recent files list with persistence
+* [x] Search & replace functionality
+* [x] Keyboard shortcuts for all major operations
+
+**In Progress:**
+* [ ] Dark mode for editor UI (themes already support dark PDFs)
+* [ ] PDF thumbnail sidebar for quick page navigation
+
+**Future:**
+* [ ] Built-in template gallery (report, memo, article, resume)
+* [ ] Image optimization pipeline (resize/compress before embedding)
+* [ ] Spellcheck integration
 * [ ] PDF annotation / outline navigation
-* [ ] Plugin system (postprocessors)
+* [ ] Plugin system for custom postprocessors
+* [ ] Collaborative editing support
 
 ## Contributing
 PRs welcome. Please:
@@ -159,8 +190,11 @@ PRs welcome. Please:
 | Issue | Fix |
 | ----- | --- |
 | Blank PDF preview | Ensure Typst binary present in `src-tauri/bin/typst/<platform>` |
-| No re-render | Force render with Ctrl+R (debounce is internal for now) |
-| Fonts not applied | Currently fixed defaults; customization not yet reintroduced |
+| No re-render on edit | Force render with Ctrl+R, or check debounce settings in preferences |
+| Blockquotes not rendering | Ensure you're using standard `>` syntax at the start of lines |
+| Images not showing | Check that image paths are relative to the document or use absolute paths |
+| Theme not applying | Switch themes via the toolbar dropdown, changes apply instantly |
+| App won't start | Check that all dependencies are installed: `npm install` then `npm run tauri:dev` |
 
 
 ## License

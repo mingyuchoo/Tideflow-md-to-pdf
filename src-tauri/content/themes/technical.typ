@@ -77,18 +77,16 @@
     stroke: (top: 2pt + accent)
   )[#v(0pt)]
 
-  // Blockquotes in code style
-  show quote: it => [
-    #set text(font: mono-font, size: 9pt, fill: accent)
-    #block(
-      width: 100%,
-      inset: 10pt,
-      fill: rgb(248, 250, 252),
-      stroke: (left: 3pt + accent),
-      radius: 2pt,
-      above: 12pt,
-      below: 12pt,
-    )[#it]
+  // Blockquotes with technical code-style background
+  show quote: it => block(
+    fill: accent.lighten(92%),
+    stroke: (left: 3pt + accent),
+    inset: (left: 16pt, rest: 12pt),
+    radius: 2pt,
+    width: 100%,
+  )[
+    #set text(font: mono-font, size: 9pt, fill: accent, style: "italic")
+    #it
   ]
 
   // Lists with technical markers

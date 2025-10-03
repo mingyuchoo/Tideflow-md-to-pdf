@@ -98,14 +98,10 @@
   // Blockquotes with pull-quote feel
   show quote: it => [
     #set text(size: 12pt, style: "italic", weight: 600, fill: accent)
-    #block(
-      width: 100%,
-      inset: 14pt,
-      stroke: (left: 5pt + accent),
-      fill: rgb(250, 250, 255),
-      above: 12pt,
-      below: 12pt,
-    )[#it]
+    #pad(left: 32pt, right: 32pt, top: 12pt, bottom: 12pt)[
+      #text(size: 20pt, fill: accent)[❝] #h(6pt)
+      #it
+    ]
   ]
 
   // Lists with dramatic markers

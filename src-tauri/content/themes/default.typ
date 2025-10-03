@@ -67,17 +67,16 @@
     )
   )
 
-  // Blockquotes with left border accent
-  show quote: it => [
-    #set text(style: "italic", fill: font-color.lighten(20%))
-    #block(
-      width: 100%,
-      fill: page-bg.darken(3%),
-      inset: 12pt,
-      stroke: (left: 3pt + accent),
-      above: 8pt,
-      below: 8pt,
-    )[#it]
+  // Blockquotes with subtle background and left border
+  show quote: it => block(
+    fill: luma(248),
+    stroke: (left: 3pt + accent.lighten(40%)),
+    inset: (left: 18pt, rest: 12pt),
+    radius: 3pt,
+    width: 100%,
+  )[
+    #set text(style: "italic", fill: font-color.lighten(15%))
+    #it
   ]
 
   // Lists with proper spacing

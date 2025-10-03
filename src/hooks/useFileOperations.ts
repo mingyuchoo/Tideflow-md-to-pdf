@@ -60,7 +60,7 @@ export function useFileOperations(params: UseFileOperationsParams) {
   } = editorStateRefs;
 
   // Handle render
-  const handleRender = useCallback(async () => {
+  const handleRender = useCallback(async (setPreviewVisible?: (visible: boolean) => void) => {
     try {
       setCompileStatus({ status: 'running' });
       const document = await renderTypst(content, 'pdf');
@@ -70,6 +70,10 @@ export function useFileOperations(params: UseFileOperationsParams) {
         pdf_path: document.pdfPath,
         source_map: document.sourceMap,
       });
+      // Show preview if it's hidden
+      if (setPreviewVisible) {
+        setPreviewVisible(true);
+      }
     } catch (err) {
       setCompileStatus({
         status: 'error',
@@ -81,7 +85,7 @@ export function useFileOperations(params: UseFileOperationsParams) {
   }, [content, setCompileStatus, setSourceMap]);
 
   // Save the file
-  const handleSave = useCallback(async (setIsSaving: (saving: boolean) => void) => {
+  const handleSave = useCallback(async (setIsSaving: (saving: boolean) => void, addToast?: (toast: { type: 'success' | 'error' | 'warning' | 'info'; message: string }) => void) => {
     if (!currentFile || !modified) return;
     
     try {
@@ -93,9 +97,18 @@ export function useFileOperations(params: UseFileOperationsParams) {
       await writeMarkdownFile(currentFile, cleaned);
       setModified(false);
       
+      // Show success toast
+      if (addToast) {
+        addToast({ type: 'success', message: 'File saved successfully' });
+      }
+      
       // After saving, render the file
       await handleRender();
     } catch (err) {
+      // Show error toast
+      if (addToast) {
+        addToast({ type: 'error', message: 'Failed to save file' });
+      }
       handleError(err, { operation: 'save file', component: 'Editor' });
     } finally {
       setIsSaving(false);

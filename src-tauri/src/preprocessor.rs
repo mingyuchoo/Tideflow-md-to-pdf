@@ -50,10 +50,11 @@ pub fn preprocess_markdown(markdown: &str) -> Result<PreprocessorOutput> {
     let admonition_transformed = transform_admonitions(markdown);
     let legacy_normalised = normalise_legacy_callouts(&admonition_transformed);
     let cmarker_fixed = fix_cmarker_quirks(&legacy_normalised);
-    inject_anchors(&cmarker_fixed)
+    let result = inject_anchors(&cmarker_fixed)?;
+    Ok(result)
 }
 
-fn transform_admonitions(markdown: &str) -> String {
+pub fn transform_admonitions(markdown: &str) -> String {
     let mut output = String::with_capacity(markdown.len() + 128);
     let segments: Vec<&str> = markdown.split_inclusive('\n').collect();
     let mut idx = 0;
@@ -77,6 +78,7 @@ fn transform_admonitions(markdown: &str) -> String {
         let indent = &line_content[..indent_len];
         let mut after_marker = trimmed[1..].trim_start();
         if !after_marker.starts_with("[!") {
+            // Regular blockquote (not an admonition) - pass through unchanged
             output.push_str(segment);
             idx += 1;
             continue;
@@ -181,53 +183,12 @@ fn normalise_legacy_callouts(markdown: &str) -> String {
     replaced
 }
 
-/// Fix block element adjacency issues by ensuring proper spacing between elements.
 /// Fix quirks in markdown that cause issues with the cmarker parser.
-/// Specifically handles blockquotes immediately followed by headings.
 /// 
-/// The fix: Insert a zero-width space (U+200B) which breaks the blockquote context
-/// without being visible in the rendered output.
+/// cmarker has known issues with blockquote detection (~50% success rate).
+/// For now, we just pass through - the issue requires fixing in cmarker itself.
 fn fix_cmarker_quirks(markdown: &str) -> String {
-    let lines: Vec<&str> = markdown.split('\n').collect();
-    let mut output = String::with_capacity(markdown.len() + 128);
-    
-    let mut i = 0;
-    while i < lines.len() {
-        let line = lines[i];
-        output.push_str(line);
-        
-        if i < lines.len() - 1 {
-            let next_line = lines[i + 1];
-            let next_is_blockquote = next_line.trim_start().starts_with('>');
-            
-            let current_is_blockquote = line.trim_start().starts_with('>');
-            let prev_is_blockquote = i > 0 && lines[i - 1].trim_start().starts_with('>');
-            
-            // Insert zero-width space before every blockquote (unless previous line was also a blockquote)
-            if next_is_blockquote && !current_is_blockquote {
-                output.push('\n');
-                output.push('\u{200B}'); // Zero-width space separator
-            }
-            
-            // Insert zero-width space after every blockquote (unless next line is also a blockquote)
-            if current_is_blockquote && !next_is_blockquote {
-                output.push('\n');
-                output.push('\u{200B}'); // Zero-width space separator
-            } else if prev_is_blockquote && !current_is_blockquote && !next_is_blockquote {
-                // Handle multi-line blockquote endings
-                output.push('\n');
-                output.push('\u{200B}'); // Zero-width space separator
-            }
-        }
-        
-        if i < lines.len() - 1 {
-            output.push('\n');
-        }
-        
-        i += 1;
-    }
-    
-    output
+    markdown.to_string()
 }
 
 fn inject_anchors(markdown: &str) -> Result<PreprocessorOutput> {
@@ -259,13 +220,37 @@ fn inject_anchors(markdown: &str) -> Result<PreprocessorOutput> {
             if !is_block_level(&tag) {
                 continue;
             }
-            if !seen_offsets.insert(range.start) {
+            
+            // SKIP blockquote tags - they cause issues because the anchor gets inserted
+            // between the '>' and the content. We'll still get anchors from the paragraphs
+            // inside the blockquote, which is sufficient for scrolling.
+            if matches!(tag, Tag::BlockQuote) {
+                continue;
+            }
+            
+            let mut insertion_offset = range.start;
+            
+            // If we're inserting into a blockquote line (starts with '>'), 
+            // move insertion to the START of that line to avoid splitting the '>' from content
+            let mut line_start = insertion_offset;
+            while line_start > 0 && markdown.as_bytes()[line_start - 1] != b'\n' {
+                line_start -= 1;
+            }
+            
+            // Check if this line starts with '>' (possibly with whitespace before)
+            let line_text = &markdown[line_start..];
+            let first_line = line_text.split('\n').next().unwrap_or("");
+            if first_line.trim_start().starts_with('>') {
+                insertion_offset = line_start;
+            }
+            
+            if !seen_offsets.insert(insertion_offset) {
                 continue;
             }
             let id = format!("tf-{}-{}", range.start, anchors.len());
             let (line, column) = offset_to_line_column(markdown, range.start);
-            let anchor_markup = build_anchor_markup(markdown, range.start, &id);
-            insertions.push((range.start, anchor_markup));
+            let anchor_markup = build_anchor_markup(markdown, insertion_offset, &id);
+            insertions.push((insertion_offset, anchor_markup));
             anchors.push(AnchorMeta {
                 id,
                 offset: range.start,
@@ -320,6 +305,8 @@ fn offset_to_line_column(source: &str, offset: usize) -> (usize, usize) {
 
 fn build_anchor_markup(source: &str, offset: usize, id: &str) -> String {
     let mut snippet = String::new();
+    
+    // Original logic - ensure we're on a new line
     if offset > 0 {
         let preceding = &source[..offset];
         if !preceding.ends_with('\n') {

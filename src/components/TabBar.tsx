@@ -1,8 +1,6 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import { useAppStore } from '../store';
-import { readMarkdownFile, createFile, writeMarkdownFile } from '../api';
-import { scrubRawTypstAnchors } from '../utils/scrubAnchors';
-import { open } from '@tauri-apps/plugin-dialog';
+import { readMarkdownFile } from '../api';
 import { handleError } from '../utils/errorHandler';
 import './TabBar.css';
 import { SAMPLE_DOC } from '../sampleDoc';
@@ -14,79 +12,8 @@ const TabBar: React.FC = () => {
     setContent,
     addOpenFile,
     removeOpenFile,
-    closeAllFiles,
+    addRecentFile,
   } = useAppStore();
-
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  const handleOpenFile = async () => {
-    try {
-      const result = await open({ multiple: false, filters: [{ name: 'Markdown Files', extensions: ['md'] }] });
-      
-      const filePath = Array.isArray(result) ? result?.[0] : result;
-      
-      if (filePath) {
-        
-        try {
-          const content = await readMarkdownFile(filePath);
-          
-          // Add to open files list and set as current then set content immediately
-          addOpenFile(filePath);
-          setCurrentFile(filePath);
-          setContent(content);
-          return;
-        } catch (readError) {
-          handleError(readError, { operation: 'read file', component: 'TabBar' });
-        }
-      }
-    } catch {
-      // trigger fallback
-      fileInputRef.current?.click();
-    }
-  };
-
-  const handleFallbackChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const text = await file.text();
-      const safeName = file.name.endsWith('.md') ? file.name : file.name + '.md';
-      const newPath = await createFile(safeName);
-      const cleaned = scrubRawTypstAnchors(text);
-      await writeMarkdownFile(newPath, cleaned);
-      
-      // Add to open files and set as current
-      addOpenFile(newPath);
-      setCurrentFile(newPath);
-      setContent(cleaned);
-    } catch (e2) {
-      handleError(e2, { operation: 'open file', component: 'TabBar' });
-    } finally {
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-
-  const handleNewFile = async () => {
-    try {
-      const name = prompt('Enter file name (with .md extension):');
-      if (!name) return;
-      
-      // Add extension if not provided
-      const fileName = name.includes('.') ? name : `${name}.md`;
-      
-      const newContent = `# ${name.replace('.md', '')}\n\nStart writing your document.`;
-      const filePath = await createFile(fileName);
-      // New content is clean, no need to scrub
-      await writeMarkdownFile(filePath, newContent);
-      
-      // Add to open files and set as current
-      addOpenFile(filePath);
-      setCurrentFile(filePath);
-      setContent(newContent);
-    } catch (err) {
-      handleError(err, { operation: 'create file', component: 'TabBar' });
-    }
-  };
 
   const handleTabClick = async (filePath: string) => {
     if (currentFile === filePath) return;
@@ -100,6 +27,7 @@ const TabBar: React.FC = () => {
         const content = await readMarkdownFile(filePath);
         setCurrentFile(filePath);
         setContent(content);
+        addRecentFile(filePath);
       }
     } catch (err) {
       handleError(err, { operation: 'switch to file', component: 'TabBar' });
@@ -125,17 +53,6 @@ const TabBar: React.FC = () => {
 
   return (
     <div className="tab-bar">
-      <label htmlFor="hidden-file-input" className="visually-hidden">Open Markdown File</label>
-      <input
-        id="hidden-file-input"
-        ref={fileInputRef}
-        type="file"
-        accept=".md,.txt,.markdown"
-        onChange={handleFallbackChange}
-        className="hidden-file-input"
-        aria-hidden="true"
-        tabIndex={-1}
-      />
       <div className="tab-container">
         {openFiles.map((file: string) => (
           <div 
@@ -161,32 +78,9 @@ const TabBar: React.FC = () => {
           <button
             onClick={handleOpenSample}
             className="tab-button"
-            title="Open sample document"
+            title="Reopen sample document"
           >
-            Sample
-          </button>
-        )}
-        <button 
-          onClick={handleNewFile}
-          className="tab-button"
-          title="Create new file"
-        >
-          New
-        </button>
-        <button 
-          onClick={handleOpenFile}
-          className="tab-button"
-          title="Open markdown file"
-        >
-          Open
-        </button>
-        {openFiles.length > 0 && (
-          <button 
-            onClick={closeAllFiles}
-            className="tab-button"
-            title="Close all tabs"
-          >
-            Close All
+            📘 Sample
           </button>
         )}
       </div>

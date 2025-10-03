@@ -5,8 +5,6 @@ import { FONT_OPTIONS } from './MarkdownToolbar';
 
 interface EditorToolbarProps {
   currentFile: string | null;
-  modified: boolean;
-  isSaving: boolean;
   isActivelyTyping: boolean;
   preferences: {
     render_debounce_ms: number;
@@ -16,32 +14,45 @@ interface EditorToolbarProps {
   selectedFont: string;
   calloutType: 'box' | 'info' | 'tip' | 'warn';
   editorView: EditorView | null;
-  onSave: () => void;
   onRender: () => void;
   onFontChange: (font: string) => void;
   onImageInsert: () => void;
   onImagePlusOpen: () => void;
   onCalloutTypeChange: (type: 'box' | 'info' | 'tip' | 'warn') => void;
   onImageWidthChange: (width: string) => void;
+  onSearchToggle: () => void;
+  searchOpen: boolean;
 }
 
 const EditorToolbar: React.FC<EditorToolbarProps> = ({
   currentFile,
-  modified,
-  isSaving,
   isActivelyTyping,
   preferences,
   selectedFont,
   calloutType,
   editorView,
-  onSave,
   onRender,
   onFontChange,
   onImageInsert,
   onImagePlusOpen,
   onCalloutTypeChange,
   onImageWidthChange,
+  onSearchToggle,
+  searchOpen,
 }) => {
+  // Handle Ctrl+F
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === 'f') {
+        e.preventDefault();
+        e.stopPropagation();
+        onSearchToggle();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
+  }, [onSearchToggle]);
+
   return (
     <>
       <div className="editor-toolbar">
@@ -58,11 +69,11 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
         </div>
         <div className="editor-actions">
           <button
-            onClick={onSave}
-            disabled={!modified || isSaving}
-            title="Save File"
+            onClick={onSearchToggle}
+            className={searchOpen ? 'active' : ''}
+            title="Find (Ctrl+F)"
           >
-            {isSaving ? 'Saving...' : 'Save'}
+            🔍 Find
           </button>
           <button
             onClick={onRender}

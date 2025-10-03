@@ -1,13 +1,12 @@
 /**
  * Simplified hook to sync editor to PDF scroll position.
- * Handles: PDF manual scroll, pointer events, locking behavior.
- * 
- * Replaces: usePdfSync, usePreviewEvents
+ * Handles: PDF manual scroll, pointer events, locking behavior, click-to-sync.
  */
 
 import { useEffect } from 'react';
 import { TIMING } from '../constants/timing';
 import type { SourceMap, SyncMode } from '../types';
+import { useAppStore } from '../store';
 
 interface UsePdfToEditorSyncParams {
   // Refs
@@ -219,6 +218,9 @@ export function usePdfToEditorSync(params: UsePdfToEditorSyncParams): void {
         userInteractedRef.current = true;
         userManuallyPositionedPdfRef.current = true;
         
+        // Update store state for UI feedback
+        useAppStore.getState().setScrollLocked(true);
+        
         if (process.env.NODE_ENV !== 'production') {
           console.debug('[PdfToEditorSync] 🔒 SCROLL LOCK ACTIVATED - PDF will not move until you scroll editor');
         }
@@ -335,4 +337,52 @@ export function usePdfToEditorSync(params: UsePdfToEditorSyncParams): void {
       el.removeEventListener('wheel', handleWheel);
     };
   }, [containerRef, lastProgrammaticScrollAt, userInteractedRef, syncModeRef]);
+
+  // Effect: Handle PDF canvas clicks (click-to-sync)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const handleCanvasClick = (ev: MouseEvent) => {
+      if (!ev.isTrusted) return;
+
+      const target = ev.target as HTMLElement;
+      if (!target || !target.classList.contains('pdfjs-page-canvas')) return;
+
+      const rect = el.getBoundingClientRect();
+      const clickY = ev.clientY - rect.top + el.scrollTop;
+
+      const map = sourceMapRef.current;
+      if (!map || map.anchors.length === 0) return;
+
+      let closestId: string | null = null;
+      let bestDist = Number.POSITIVE_INFINITY;
+
+      for (const anchor of map.anchors) {
+        const offset = anchorOffsetsRef.current.get(anchor.id);
+        if (offset === undefined) continue;
+
+        const dist = Math.abs(offset - clickY);
+        if (dist < bestDist) {
+          bestDist = dist;
+          closestId = anchor.id;
+        }
+      }
+
+      if (closestId) {
+        if (userManuallyPositionedPdfRef.current) {
+          userManuallyPositionedPdfRef.current = false;
+        }
+        
+        lastProgrammaticScrollAt.current = Date.now();
+        setActiveAnchorId(closestId);
+      }
+    };
+
+    el.addEventListener('click', handleCanvasClick);
+
+    return () => {
+      el.removeEventListener('click', handleCanvasClick);
+    };
+  }, [containerRef, sourceMapRef, anchorOffsetsRef, activeAnchorRef, lastProgrammaticScrollAt, setActiveAnchorId, userManuallyPositionedPdfRef, rendering]);
 }
