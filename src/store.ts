@@ -8,6 +8,10 @@ import type {
   Toast,
 } from './types';
 import { SAMPLE_DOC } from './sampleDoc';
+import { logger } from './utils/logger';
+
+// Create scoped logger for store operations
+const storeLogger = logger.createScoped('Store');
 
 // Initial preferences
 export const defaultPreferences: Preferences = {
@@ -355,7 +359,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       localStorage.setItem('recentFiles', JSON.stringify(newRecent));
     } catch (e) {
-      console.warn('Failed to save recent files:', e);
+      storeLogger.warn('Failed to save recent files', e);
     }
     
     return { recentFiles: newRecent };
@@ -364,7 +368,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       localStorage.removeItem('recentFiles');
     } catch (e) {
-      console.warn('Failed to clear recent files:', e);
+      storeLogger.warn('Failed to clear recent files', e);
     }
     return { recentFiles: [] };
   }),
@@ -388,7 +392,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       localStorage.setItem('customPresets', JSON.stringify(newPresets));
     } catch (e) {
-      console.warn('Failed to save custom preset:', e);
+      storeLogger.warn('Failed to save custom preset', e);
     }
     
     return { customPresets: newPresets };
@@ -401,7 +405,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       localStorage.setItem('customPresets', JSON.stringify(newPresets));
     } catch (e) {
-      console.warn('Failed to delete custom preset:', e);
+      storeLogger.warn('Failed to delete custom preset', e);
     }
     
     return { customPresets: newPresets };
@@ -418,7 +422,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       localStorage.setItem('customPresets', JSON.stringify(newPresets));
     } catch (e) {
-      console.warn('Failed to rename custom preset:', e);
+      storeLogger.warn('Failed to rename custom preset', e);
     }
     
     return { customPresets: newPresets };
