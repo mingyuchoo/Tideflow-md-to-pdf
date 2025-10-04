@@ -1,4 +1,8 @@
 import * as pdfjsLib from 'pdfjs-dist';
+import { logger } from './logger';
+
+// Create scoped logger
+const pdfLogger = logger.createScoped('pdfRenderer');
 
 export interface CancelToken { canceled: boolean }
 export interface PageMetric { page: number; height: number; scale: number }
@@ -65,15 +69,13 @@ export async function renderPdfPages(
     const scrollTop = savedScrollPosition?.top ?? container.scrollTop;
     const scrollLeft = savedScrollPosition?.left ?? container.scrollLeft;
     
-    if (process.env.NODE_ENV !== 'production') {
-      console.debug('[pdfRenderer] Preserving scroll position', { 
-        scrollTop, 
-        scrollLeft, 
-        fromSaved: !!savedScrollPosition,
-        containerScrollTop: container.scrollTop,
-        willRestore: scrollTop > 0
-      });
-    }
+    pdfLogger.debug('Preserving scroll position', { 
+      scrollTop, 
+      scrollLeft, 
+      fromSaved: !!savedScrollPosition,
+      containerScrollTop: container.scrollTop,
+      willRestore: scrollTop > 0
+    });
     
     // Prefer iterative removeChild which is safer across browsers
     // than assigning innerHTML when nodes may be mid-mutation.
@@ -92,15 +94,13 @@ export async function renderPdfPages(
     // Use requestAnimationFrame to ensure content is laid out first
     requestAnimationFrame(() => {
       if (container.isConnected) {
-        if (process.env.NODE_ENV !== 'production') {
-          const before = container.scrollTop;
-          console.debug('[pdfRenderer] Restoring scroll position', { 
-            target: scrollTop,
-            before,
-            scrollHeight: container.scrollHeight,
-            clientHeight: container.clientHeight
-          });
-        }
+        const before = container.scrollTop;
+        pdfLogger.debug('Restoring scroll position', { 
+          target: scrollTop,
+          before,
+          scrollHeight: container.scrollHeight,
+          clientHeight: container.clientHeight
+        });
         
         // Set programmatic scroll guard to prevent scroll events from triggering sync
         if (programmaticScrollRef) {
@@ -110,13 +110,11 @@ export async function renderPdfPages(
         container.scrollTop = scrollTop;
         container.scrollLeft = scrollLeft;
         
-        if (process.env.NODE_ENV !== 'production') {
-          console.debug('[pdfRenderer] Restored scroll position', { 
-            target: scrollTop,
-            actual: container.scrollTop,
-            success: Math.abs(container.scrollTop - scrollTop) < 5
-          });
-        }
+        pdfLogger.debug('Restored scroll position', { 
+          target: scrollTop,
+          actual: container.scrollTop,
+          success: Math.abs(container.scrollTop - scrollTop) < 5
+        });
       }
     });
   } catch (e) {
