@@ -5,9 +5,11 @@
 //! - `filesystem`: File operations (directory copying, filename sanitization)
 //! - `initialization`: Application setup (directory creation, resource copying, default configs)
 //! - `typst`: Typst-specific utilities (image path rewriting for Markdown/HTML/Typst)
+//! - `logger`: Production-safe logging utilities
 
 pub mod filesystem;
 pub mod initialization;
+pub mod logger;
 pub mod paths;
 pub mod typst;
 
