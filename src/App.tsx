@@ -57,7 +57,7 @@ function App() {
 
     const init = async () => {
       try {
-        console.log('[App] init start');
+        appLogger.info('init start');
         const session = loadSession();
         const store = useAppStore.getState();
         let sampleInjected = store.initialSampleInjected;
@@ -65,7 +65,7 @@ function App() {
         const prefs = await getPreferences();
         store.setPreferences(prefs);
         store.setThemeSelection(prefs.theme_id ?? 'default');
-        console.log('[App] preferences loaded', prefs);
+        appLogger.debug('preferences loaded', prefs);
 
         // Check if this is first time running (no previous session with files)
         const isFirstTime = !session || !session.openFiles || session.openFiles.length === 0;
@@ -77,7 +77,7 @@ function App() {
           store.setContent(INSTRUCTIONS_DOC);
           store.setInitialSampleInjected(true);
           sampleInjected = true;
-          if (process.env.NODE_ENV !== 'production') console.debug('[App] loaded instructions on first run');
+          appLogger.debug('loaded instructions on first run');
         } else if (session && !sampleInjected) {
           try {
             const restored = Array.from(new Set(session.openFiles || [])).filter(f => {
@@ -97,7 +97,7 @@ function App() {
                   store.setContent(content);
                 }
               } catch (e) {
-                console.error('[Session] Failed to restore file:', f, 'Error:', e);
+                logger.error('Session', `Failed to restore file: ${f}`, e);
                 // Continue with other files instead of stopping
               }
             }
@@ -119,7 +119,7 @@ function App() {
             store.setInitialSampleInjected(true);
             sampleInjected = true;
           } catch (e) {
-            console.warn('[Session] Failed to restore session, falling back to sample.', e);
+            logger.warn('Session', 'Failed to restore session, falling back to sample', e);
           }
         }
 
@@ -140,7 +140,7 @@ function App() {
           });
           register(unlistenFiles);
         } catch (e) {
-          console.warn('[App] Failed to register file-change listener', e);
+          appLogger.warn('Failed to register file-change listener', e);
         }
 
         const unlistenCompiled = await listen<BackendRenderedDocument>('compiled', (evt) => {
@@ -169,7 +169,7 @@ function App() {
         register(unlistenCompiled);
 
         const unlistenCompileError = await listen<string>('compile-error', (evt) => {
-          console.error('[App] Compile error:', evt.payload);
+          appLogger.error('Compile error', evt.payload);
           const state = useAppStore.getState();
           state.setCompileStatus({ status: 'error', message: 'Compile failed', details: evt.payload });
           state.setSourceMap(null);
@@ -181,39 +181,39 @@ function App() {
           try {
             const json = JSON.parse(evt.payload);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            console.log('[PrefsDump] toc:', (json as any).toc, 'numberSections:', (json as any).numberSections, 'papersize:', (json as any).papersize, 'margin:', (json as any).margin);
+            logger.debug('PrefsDump', 'preferences', { toc: (json as any).toc, numberSections: (json as any).numberSections, papersize: (json as any).papersize, margin: (json as any).margin });
           } catch {
-            console.log('[PrefsDump] raw:', evt.payload);
+            logger.debug('PrefsDump', 'raw preferences', evt.payload);
           }
         });
         register(unlistenPrefsDump);
 
         const unlistenRenderDebug = await listen<string>('render-debug', (evt) => {
           if (process.env.NODE_ENV !== 'production') {
-            console.log('[RenderDebug]', evt.payload);
+            logger.debug('RenderDebug', evt.payload);
           }
         });
         register(unlistenRenderDebug);
 
         const unlistenTypstStdErr = await listen<string>('typst-query-stderr', (evt) => {
-          console.warn('[TypstQuery STDERR]', evt.payload);
+          logger.warn('TypstQuery', 'STDERR: ' + evt.payload);
         });
         register(unlistenTypstStdErr);
 
         const unlistenTypstStdOut = await listen<string>('typst-query-stdout', (evt) => {
-          console.log('[TypstQuery STDOUT]', evt.payload);
+          logger.debug('TypstQuery', 'STDOUT: ' + evt.payload);
         });
         register(unlistenTypstStdOut);
 
         const unlistenTypstFailed = await listen<string>('typst-query-failed', () => {
-          console.warn('[TypstQuery] no positions found, falling back to PDF-text extraction');
+          logger.warn('TypstQuery', 'no positions found, falling back to PDF-text extraction');
         });
         register(unlistenTypstFailed);
 
         // Listen for window close requests
         const appWindow = getCurrentWindow();
         const unlistenCloseRequested = await appWindow.onCloseRequested(async (event) => {
-          console.log('[App] Close requested');
+          appLogger.info('Close requested');
           
           // Always prevent default and handle close manually
           event.preventDefault();
@@ -221,7 +221,7 @@ function App() {
           const state = useAppStore.getState();
           const { editor, preferences, setPreferences } = state;
           
-          console.log('[App] Close handler - modified:', editor.modified, 'confirm_exit_on_unsaved:', preferences.confirm_exit_on_unsaved);
+          appLogger.debug('Close handler', { modified: editor.modified, confirm_exit_on_unsaved: preferences.confirm_exit_on_unsaved });
           
           // Save window state before potential exit
           const isMaximized = await appWindow.isMaximized();
@@ -241,7 +241,7 @@ function App() {
             );
             
             if (result) {
-              console.log('[App] User confirmed exit');
+              appLogger.info('User confirmed exit');
               // Ask if they want to disable future confirmations
               const disableFuturePrompts = await confirm(
                 'Do you want to disable exit confirmation prompts in the future? You can re-enable this in Design → Advanced.',
@@ -254,7 +254,7 @@ function App() {
               );
               
               if (disableFuturePrompts) {
-                console.log('[App] Disabling future prompts');
+                appLogger.info('Disabling future prompts');
                 // Update preference to disable future prompts
                 setPreferences({ ...preferences, confirm_exit_on_unsaved: false });
                 // Also save to backend
@@ -262,12 +262,12 @@ function App() {
                   const { setPreferences: apiSetPrefs } = await import('./api');
                   await apiSetPrefs({ ...preferences, confirm_exit_on_unsaved: false });
                 } catch (e) {
-                  console.error('Failed to save preference:', e);
+                  appLogger.error('Failed to save preference', e);
                 }
               }
               
               // User confirmed exit, save session and close
-              console.log('[App] Saving session and destroying window');
+              appLogger.debug('Saving session and destroying window');
               saveSession({
                 currentFile: editor.currentFile,
                 openFiles: editor.openFiles,
@@ -275,11 +275,11 @@ function App() {
               });
               // Destroy the window
               await appWindow.destroy();
-              console.log('[App] Window destroy called');
+              appLogger.debug('Window destroy called');
             }
             // If not confirmed, do nothing (window stays open)
           } else {
-            console.log('[App] No unsaved changes or confirmation disabled - closing immediately');
+            appLogger.debug('No unsaved changes or confirmation disabled - closing immediately');
             // No unsaved changes or confirmation disabled, save session and close
             saveSession({
               currentFile: editor.currentFile,
@@ -287,9 +287,9 @@ function App() {
               previewVisible: state.previewVisible,
             });
             // Close the window
-            console.log('[App] Calling destroy on window');
+            appLogger.debug('Calling destroy on window');
             await appWindow.destroy();
-            console.log('[App] Window destroy called');
+            appLogger.debug('Window destroy called');
           }
         });
         register(unlistenCloseRequested);
@@ -316,7 +316,7 @@ function App() {
                 const modTyped = mod as { getCurrentWindow?: () => unknown; getCurrent?: () => unknown; appWindow?: unknown };
                 const win = modTyped.getCurrentWindow?.() || modTyped.getCurrent?.() || modTyped.appWindow;
                 if (win && typeof (win as { setFullscreen?: unknown }).setFullscreen === 'function') {
-                  try { await (win as { setFullscreen: (f: boolean) => Promise<void> }).setFullscreen(want); } catch (e) { console.debug('[App] setFullscreen failed', e); }
+                  try { await (win as { setFullscreen: (f: boolean) => Promise<void> }).setFullscreen(want); } catch (e) { appLogger.debug('setFullscreen failed', e); }
                   return;
                 }
               } catch (e) {
@@ -335,7 +335,7 @@ function App() {
                   }
                 }
               } catch (e) {
-                console.debug('[App] DOM fullscreen toggle failed', e);
+                appLogger.debug('DOM fullscreen toggle failed', e);
               }
             })();
           } catch (e) {
@@ -350,24 +350,20 @@ function App() {
       } finally {
         if (!disposed) {
           setLoading(false);
-          console.log('[App] init complete');
+          appLogger.info('init complete');
           // Apply saved fullscreen if requested in session
           try {
             const s = loadSession();
             if (s?.fullscreen) {
-              if (process.env.NODE_ENV !== 'production') console.debug('[App] applying saved fullscreen');
+              appLogger.debug('applying saved fullscreen');
               try {
                 window.dispatchEvent(new CustomEvent('tideflow-request-fullscreen', { detail: { fullscreen: true } }));
               } catch (err) {
-                if (process.env.NODE_ENV !== 'production') {
-                  console.warn('[App] failed to dispatch tideflow-request-fullscreen', err);
-                }
+                appLogger.warn('failed to dispatch tideflow-request-fullscreen', err);
               }
             }
           } catch (err) {
-            if (process.env.NODE_ENV !== 'production') {
-              console.warn('[App] failed to read session for fullscreen', err);
-            }
+            appLogger.warn('failed to read session for fullscreen', err);
           }
         }
       }
@@ -416,9 +412,7 @@ function App() {
           fullscreen: currentSession?.fullscreen ?? false,
         });
       } catch (error) {
-        if (process.env.NODE_ENV !== 'production') {
-          console.warn('[App] Failed to save session:', error);
-        }
+        appLogger.warn('Failed to save session', error);
       }
     }, 500); // 500ms debounce
     
