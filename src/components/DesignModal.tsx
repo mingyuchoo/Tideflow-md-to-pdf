@@ -3,9 +3,13 @@ import { useAppStore, defaultPreferences } from '../store';
 import { setPreferences as persistPreferences, renderTypst, debugPaths } from '../api';
 import type { Preferences } from '../types';
 import { themePresets } from '../themes'; // Import themes
+import { logger } from '../utils/logger';
 import './DesignModal.css';
 
 type TabSection = 'document' | 'typography' | 'spacing' | 'structure' | 'images' | 'presets' | 'advanced';
+
+// Create scoped logger
+const designLogger = logger.createScoped('DesignModal');
 
 const DesignModal: React.FC = () => {
   const { preferences, setPreferences, designModalOpen, setDesignModalOpen, themeSelection, setThemeSelection, customPresets, saveCustomPreset, deleteCustomPreset, renameCustomPreset, addToast } = useAppStore();
@@ -35,7 +39,7 @@ const DesignModal: React.FC = () => {
             const { deleteFile } = await import('../api');
             await deleteFile(local.cover_image);
           } catch (err) {
-            console.warn('[DesignModal] Failed to delete old cover image', err);
+            designLogger.warn('Failed to delete old cover image', err);
           }
         }
         
@@ -45,7 +49,7 @@ const DesignModal: React.FC = () => {
         mutate({ cover_image: relativePath });
       }
     } catch (err) {
-      console.warn('[DesignModal] Failed to browse for image', err);
+      designLogger.warn('Failed to browse for image', err);
     }
   };
 
@@ -74,29 +78,29 @@ const DesignModal: React.FC = () => {
     if (!autoApply) return; // manual mode; only local state updates
     if (applyTimer.current) window.clearTimeout(applyTimer.current);
     const seq = ++applySeq.current;
-    console.log('[DesignModal][schedule]', { seq, toc: next.toc, cover: next.cover_page });
+    designLogger.debug('schedule', { seq, toc: next.toc, cover: next.cover_page });
     applyTimer.current = window.setTimeout(async () => {
       try {
         if (seq !== latestSeq()) {
-          console.log('[DesignModal][apply-skip-stale]', { seq, current: latestSeq() });
+          designLogger.debug('apply-skip-stale', { seq, current: latestSeq() });
           return;
         }
-        console.log('[DesignModal][apply-fire]', { seq, toc: next.toc, cover: next.cover_page });
+        designLogger.debug('apply-fire', { seq, toc: next.toc, cover: next.cover_page });
         setCompileStatus({ status: 'running' });
         setPreferences(next);            // update in-memory store
         await persistPreferences(next);  // persist to backend _prefs.json
-        debugPaths().then(info => console.log('[DesignModal][auto]', info)).catch(()=>{});
+        debugPaths().then(info => designLogger.debug('auto', info)).catch(()=>{});
         await rerenderCurrent();
       } catch (e) {
         // swallow for now; could surface a toast
-        console.warn('[DesignModal] auto apply failed', e);
+        designLogger.warn('auto apply failed', e);
       }
     }, next.render_debounce_ms || 400);
   };
 
   const mutate = (patch: Partial<Preferences>) => {
     const next: Preferences = { ...local, ...patch } as Preferences;
-    console.log('[DesignModal][mutate]', { from: { toc: local.toc, cover: local.cover_page }, to: { toc: next.toc, cover: next.cover_page } });
+    designLogger.debug('mutate', { from: { toc: local.toc, cover: local.cover_page }, to: { toc: next.toc, cover: next.cover_page } });
     setLocal(next);
     setDirty(true);
     if (themeSelection !== 'custom') setThemeSelection('custom');
@@ -107,16 +111,16 @@ const DesignModal: React.FC = () => {
         applyTimer.current = null;
       }
       const seq = ++applySeq.current;
-      console.log('[DesignModal][immediate-structure-apply]', { seq, toc: next.toc, cover: next.cover_page });
+      designLogger.debug('immediate-structure-apply', { seq, toc: next.toc, cover: next.cover_page });
       (async () => {
         try {
           setCompileStatus({ status: 'running' });
           setPreferences(next);
           await persistPreferences(next);
-          debugPaths().then(info => console.log('[DesignModal][immediate-structure-meta]', info)).catch(()=>{});
+          debugPaths().then(info => designLogger.debug('immediate-structure-meta', info)).catch(()=>{});
           await rerenderCurrent();
         } catch (e) {
-          console.warn('[DesignModal] immediate structure apply failed', e);
+          designLogger.warn('immediate structure apply failed', e);
         }
       })();
     } else {
@@ -165,13 +169,13 @@ const DesignModal: React.FC = () => {
       setCompileStatus({ status: 'running' });
       setPreferences(local);             // update store
       await persistPreferences(local);    // API handles backend field mapping
-      debugPaths().then(info => console.log('[DesignModal][save]', info)).catch(()=>{});
+      debugPaths().then(info => designLogger.debug('save', info)).catch(()=>{});
       await rerenderCurrent();
       originalRef.current = local;
       setDirty(false);
       setDesignModalOpen(false);
     } catch (e) {
-      console.warn('[DesignModal] save failed', e);
+      designLogger.warn('save failed', e);
     }
   };
 
@@ -209,11 +213,11 @@ const DesignModal: React.FC = () => {
           setCompileStatus({ status: 'running' });
           setPreferences(merged);
           await persistPreferences(merged);
-          debugPaths().then(info => console.log('[DesignModal][reset]', info)).catch(()=>{});
+          debugPaths().then(info => designLogger.debug('reset', info)).catch(()=>{});
           await rerenderCurrent();
           setDirty(false);
         } catch (e) {
-          console.warn('[DesignModal] reset apply failed', e);
+          designLogger.warn('reset apply failed', e);
         }
       }
     }
@@ -591,7 +595,7 @@ const DesignModal: React.FC = () => {
                               if (!newValue && local.cover_image) {
                                 import('../api').then(({ deleteFile }) => {
                                   deleteFile(local.cover_image).catch(err => 
-                                    console.warn('[DesignModal] Failed to delete cover image', err)
+                                    designLogger.warn('Failed to delete cover image', err)
                                   );
                                 });
                               }
@@ -610,7 +614,7 @@ const DesignModal: React.FC = () => {
                               onClick={() => {
                                 import('../api').then(({ deleteFile }) => {
                                   deleteFile(local.cover_image).catch(err => 
-                                    console.warn('[DesignModal] Failed to delete cover image', err)
+                                    designLogger.warn('Failed to delete cover image', err)
                                   );
                                 });
                                 mutate({ cover_image: '' });
