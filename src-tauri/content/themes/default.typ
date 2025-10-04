@@ -3,7 +3,7 @@
 #let default_theme(prefs, doc) = {
   // Extract preferences with defaults
   let main-font = prefs.fonts.at("main", default: "New Computer Modern")
-  let mono-font = prefs.fonts.at("mono", default: "New Computer Modern Mono")
+  let mono-font = prefs.fonts.at("mono", default: "Liberation Mono")
   let font-size = prefs.at("font_size", default: 11) * 1pt
   let page-bg = rgb(prefs.at("page_bg_color", default: "#ffffff"))
   let font-color = rgb(prefs.at("font_color", default: "#000000"))
@@ -11,9 +11,9 @@
   let heading-scale = prefs.at("heading_scale", default: 1.0)
   
   set page(paper: prefs.papersize, fill: page-bg, margin: (x: 2.5cm, y: 3cm))
-  set text(font: main-font, size: font-size, lang: "tr", fill: font-color)
+  set text(font: main-font, size: font-size, lang: "tr", fill: font-color, fallback: true)
   set par(leading: 0.75em, spacing: 1em, justify: false)
-  show raw: set text(font: mono-font, size: font-size * 0.9)
+  show raw: set text(font: mono-font, size: font-size * 0.9, fallback: true)
   
   // Code blocks with subtle background
   show raw.where(block: true): block.with(
@@ -84,7 +84,7 @@
   set enum(indent: 12pt, body-indent: 8pt)
 
   // Links styled with accent color
-  show link: it => text(fill: accent, underline: true)[#it]
+  show link: it => underline(text(fill: accent)[#it])
 
   // Emphasis and strong text
   show emph: it => text(style: "italic", fill: accent)[#it]

@@ -2,7 +2,7 @@ import React from 'react';
 import { useAppStore } from '../store';
 import type { SyncMode, Preferences } from '../types';
 import { themePresets } from '../themes';
-import { setPreferences as persistPreferences, renderMarkdown, renderTypst } from '../api';
+import { setPreferences as persistPreferences, renderMarkdown, renderTypst, openPdfInViewer } from '../api';
 
 interface Props {
   pdfZoom: number;
@@ -17,6 +17,7 @@ const PDFPreviewHeader: React.FC<Props> = ({ pdfZoom, setPdfZoom }) => {
   const addToast = useAppStore((state) => state.addToast);
   const thumbnailsVisible = useAppStore((state) => state.thumbnailsVisible);
   const setThumbnailsVisible = useAppStore((state) => state.setThumbnailsVisible);
+  const compileStatus = useAppStore((state) => state.editor.compileStatus);
   const {
     themeSelection,
     setThemeSelection,
@@ -189,7 +190,7 @@ const PDFPreviewHeader: React.FC<Props> = ({ pdfZoom, setPdfZoom }) => {
           title={syncMode === 'two-way' ? 'Switch to one-way sync' : 'Enable two-way sync (PDF scroll updates editor)'}
           className="sync-mode-btn"
         >
-          {syncMode === 'two-way' ? '⇅ Two-Way' : '⇊ One-Way'}
+          {syncMode === 'two-way' ? '⇅' : '⇊'}
         </button>
         <button
           type="button"
@@ -204,16 +205,47 @@ const PDFPreviewHeader: React.FC<Props> = ({ pdfZoom, setPdfZoom }) => {
           title={syncEnabled ? 'Disable scroll synchronization' : 'Enable scroll synchronization'}
           className={`sync-toggle-btn ${syncEnabled ? 'sync-enabled' : 'sync-disabled'}`}
         >
-          {syncEnabled ? '🔗 Sync On' : '⛓️‍💥 Sync Off'}
+          {syncEnabled ? '🔗' : '⛓️‍💥'}
         </button>
         <div className="toolbar-separator"></div>
+        <button
+          type="button"
+          onClick={async () => {
+            // Send PDF directly to default printer
+            const pdfPath = compileStatus.pdf_path;
+            if (pdfPath) {
+              try {
+                await openPdfInViewer(pdfPath);
+                addToast({ 
+                  type: 'success', 
+                  message: 'PDF sent to printer' 
+                });
+              } catch (error) {
+                addToast({ 
+                  type: 'error', 
+                  message: `Failed to print PDF: ${error}` 
+                });
+              }
+            } else {
+              addToast({ 
+                type: 'error', 
+                message: 'No PDF available to print' 
+              });
+            }
+          }}
+          title="Print PDF to default printer"
+          className="sync-mode-btn"
+          disabled={!compileStatus.pdf_path || compileStatus.status !== 'ok'}
+        >
+          🖨️
+        </button>
         <button
           type="button"
           onClick={() => setThumbnailsVisible(!thumbnailsVisible)}
           title={thumbnailsVisible ? 'Hide page thumbnails' : 'Show page thumbnails'}
           className="sync-mode-btn"
         >
-          📑 Thumbnails
+          📑
         </button>
       </div>
     </div>

@@ -23,6 +23,7 @@ export const defaultPreferences: Preferences = {
   cover_title: '',
   cover_writer: '',
   cover_image: '',
+  cover_image_width: '60%',
   number_sections: true,
   default_image_width: '80%',
   default_image_alignment: 'center',
@@ -35,10 +36,16 @@ export const defaultPreferences: Preferences = {
   font_color: '#000000',
   heading_scale: 1.0,
   accent_color: '#1e40af',
+  line_height: 1.5,
+  paragraph_spacing: '0.65em',
+  page_numbers: false,
+  header_title: false,
+  header_text: '',
   // Preview optimization settings
   render_debounce_ms: 400,
   focused_preview_enabled: false,
   preserve_scroll_position: true,
+  confirm_exit_on_unsaved: true,
 };
 
 // Initial editor state
@@ -126,6 +133,12 @@ interface AppState {
   recentFiles: string[];
   addRecentFile: (path: string) => void;
   clearRecentFiles: () => void;
+  
+  // Custom presets
+  customPresets: Record<string, { name: string; preferences: Preferences }>;
+  saveCustomPreset: (id: string, name: string, preferences: Preferences) => void;
+  deleteCustomPreset: (id: string) => void;
+  renameCustomPreset: (id: string, newName: string) => void;
 }
 
 // Create store
@@ -227,13 +240,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   }),
   
   closeAllFiles: () => set(() => {
-    // Return user to sample.md (in-memory). Ensure it's the only open file.
-    const sampleName = 'sample.md';
+    // Close all files - don't automatically open instructions
+    // User can click Help button if they want instructions
     return {
       editor: {
-        currentFile: sampleName,
-        openFiles: [sampleName],
-        content: SAMPLE_DOC,
+        currentFile: null,
+        openFiles: [],
+        content: '',
         modified: false,
         compileStatus: { status: 'idle' } // Clear previous PDF so stale preview disappears
       }
@@ -321,7 +334,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     toasts: state.toasts.filter((t) => t.id !== id),
   })),
   
-  // Recent files (persisted to localStorage)
+    // Recent files (persisted to localStorage)
   recentFiles: (() => {
     try {
       const stored = localStorage.getItem('recentFiles');
@@ -354,5 +367,60 @@ export const useAppStore = create<AppState>((set, get) => ({
       console.warn('Failed to clear recent files:', e);
     }
     return { recentFiles: [] };
+  }),
+  
+  // Custom presets (persisted to localStorage)
+  customPresets: (() => {
+    try {
+      const stored = localStorage.getItem('customPresets');
+      return stored ? JSON.parse(stored) : {};
+    } catch {
+      return {};
+    }
+  })() as Record<string, { name: string; preferences: Preferences }>,
+  
+  saveCustomPreset: (id: string, name: string, preferences: Preferences) => set((state) => {
+    const newPresets = {
+      ...state.customPresets,
+      [id]: { name, preferences: { ...preferences, margin: { ...preferences.margin }, fonts: { ...preferences.fonts } } }
+    };
+    
+    try {
+      localStorage.setItem('customPresets', JSON.stringify(newPresets));
+    } catch (e) {
+      console.warn('Failed to save custom preset:', e);
+    }
+    
+    return { customPresets: newPresets };
+  }),
+  
+  deleteCustomPreset: (id: string) => set((state) => {
+    const newPresets = { ...state.customPresets };
+    delete newPresets[id];
+    
+    try {
+      localStorage.setItem('customPresets', JSON.stringify(newPresets));
+    } catch (e) {
+      console.warn('Failed to delete custom preset:', e);
+    }
+    
+    return { customPresets: newPresets };
+  }),
+  
+  renameCustomPreset: (id: string, newName: string) => set((state) => {
+    if (!state.customPresets[id]) return state;
+    
+    const newPresets = {
+      ...state.customPresets,
+      [id]: { ...state.customPresets[id], name: newName }
+    };
+    
+    try {
+      localStorage.setItem('customPresets', JSON.stringify(newPresets));
+    } catch (e) {
+      console.warn('Failed to rename custom preset:', e);
+    }
+    
+    return { customPresets: newPresets };
   }),
 }));

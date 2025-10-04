@@ -18,6 +18,8 @@ interface UsePdfRendererArgs {
   userInteractedRef: { current: boolean };
   syncModeRef: { current: import('../types').SyncMode };
   isTypingRef: { current: boolean };
+  programmaticScrollRef: { current: boolean };
+  savedScrollPositionRef: { current: { top: number; left: number } | null };
   pendingFallbackRef: { current: Map<string, number> | null };
   pendingFallbackTimerRef: { current: number | null };
   pendingForcedTimerRef: { current: number | null };
@@ -50,6 +52,8 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
     userInteractedRef,
     syncModeRef,
     isTypingRef,
+    programmaticScrollRef,
+    savedScrollPositionRef,
     pendingFallbackRef,
     pendingFallbackTimerRef,
     pendingForcedTimerRef,
@@ -87,6 +91,23 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
         return;
       }
       if (!containerRef.current) return;
+      
+      // CRITICAL: Use saved scroll position from ref instead of reading from DOM
+      // The DOM may have been reset to 0 by React before this effect runs
+      const savedPosition = savedScrollPositionRef.current ?? {
+        top: containerRef.current.scrollTop,
+        left: containerRef.current.scrollLeft
+      };
+      
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[usePdfRenderer] Saving scroll position before render', {
+          ...savedPosition,
+          fromRef: !!savedScrollPositionRef.current,
+          scrollHeight: containerRef.current.scrollHeight,
+          clientHeight: containerRef.current.clientHeight
+        });
+      }
+      
       setRendering(true);
       setPdfError(null);
       localCancel.canceled = false;
@@ -100,7 +121,7 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
         // served blob URLs required by pdf.js.
         const fileUrl = convertFileSrc(compileStatus.pdf_path ?? '') + `?v=${Date.now()}`;
         const renderScale = pdfZoom;
-        const { doc, metrics } = await renderPdfPages(fileUrl, containerRef.current, renderScale, localCancel);
+        const { doc, metrics } = await renderPdfPages(fileUrl, containerRef.current, renderScale, localCancel, savedPosition, programmaticScrollRef);
         if (localCancel.canceled) return;
         pdfMetricsRef.current = metrics;
 

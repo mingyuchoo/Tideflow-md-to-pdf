@@ -45,6 +45,13 @@ const PDFPreview: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [thumbnails, setThumbnails] = useState<Map<number, string>>(new Map());
+  
+  // Drag-to-scroll state for thumbnails
+  const [isDragging, setIsDragging] = useState(false);
+  const [startY, setStartY] = useState(0);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [hasDragged, setHasDragged] = useState(false);
+  const thumbnailsRef = useRef<HTMLDivElement>(null);
 
   // Rendering control refs
   const cancelRenderRef = useRef<{ canceled: boolean }>({ canceled: false });
@@ -79,10 +86,7 @@ const PDFPreview: React.FC = () => {
     isTypingRef,
   } = scrollState;
 
-  // Legacy refs no longer used (kept in scrollState for backward compat)
-  // startupOneShotAppliedRef, finalRefreshDoneRef
-
-  // Temporary ref for registerPendingAnchor to avoid circular dependency
+  // Ref for registerPendingAnchor to avoid circular dependency
   const registerPendingAnchorRef = useRef<((anchorId: string) => void) | null>(null);
 
   // Memoize the callback to prevent recreating it on every render
@@ -261,6 +265,7 @@ const PDFPreview: React.FC = () => {
     syncModeRef,
     renderingRef: scrollState.renderingRef,
     isTypingRef,
+    savedScrollPositionRef: scrollState.savedScrollPositionRef,
     rendering, // Pass state value so effect can re-run when PDF ready
     setActiveAnchorId,
     setSyncMode,
@@ -313,6 +318,8 @@ const PDFPreview: React.FC = () => {
     userInteractedRef,
     syncModeRef,
     isTypingRef,
+    programmaticScrollRef,
+    savedScrollPositionRef: scrollState.savedScrollPositionRef,
     pendingFallbackRef,
     pendingFallbackTimerRef,
     pendingForcedTimerRef,
@@ -360,11 +367,6 @@ const PDFPreview: React.FC = () => {
     const rafId = requestAnimationFrame(checkPending);
     return () => cancelAnimationFrame(rafId);
   }, [consumePendingAnchor, anchorOffsetsRef, containerRef]);
-
-  // ✅ ALL OLD HOOKS REPLACED WITH 2 NEW SIMPLIFIED HOOKS ABOVE ✅
-  // Removed: usePdfSync, useAnchorSync, useDocumentLifecycle, useFinalSync, usePreviewEvents
-  // Total removed: ~800 lines of complex sync logic
-  // Replaced with: useEditorToPdfSync + usePdfToEditorSync (~400 lines)
 
   // Track current page and generate thumbnails
   useEffect(() => {
@@ -448,9 +450,10 @@ const PDFPreview: React.FC = () => {
           });
         }
         
-        // Create thumbnail with fixed width, height based on source aspect ratio
+        // Create thumbnail with higher resolution for crisp display
         const thumbnailCanvas = document.createElement('canvas');
-        const targetWidth = 140;
+        // Use smaller size - 200px wide (reduced from 280)
+        const targetWidth = 200;
         const targetHeight = Math.round(targetWidth * aspectRatio);
         
         thumbnailCanvas.width = targetWidth;
@@ -458,10 +461,19 @@ const PDFPreview: React.FC = () => {
         
         const ctx = thumbnailCanvas.getContext('2d', { alpha: false });
         if (ctx && sourceWidth > 0 && sourceHeight > 0) {
+          // Enable high-quality image smoothing
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = 'high';
+          
+          // Use white background for consistency
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, targetWidth, targetHeight);
+          
+          // Draw with high quality scaling
           ctx.drawImage(sourceCanvas, 0, 0, targetWidth, targetHeight);
-          newThumbnails.set(pageNum, thumbnailCanvas.toDataURL('image/png'));
+          
+          // Use higher quality JPEG for better compression with quality
+          newThumbnails.set(pageNum, thumbnailCanvas.toDataURL('image/jpeg', 0.92));
         }
       });
       
@@ -496,6 +508,57 @@ const PDFPreview: React.FC = () => {
       canvas.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   };
+  
+  // Drag-to-scroll handlers for thumbnails
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    const thumbnailsList = thumbnailsRef.current;
+    if (!thumbnailsList) return;
+    
+    setIsDragging(true);
+    setHasDragged(false);
+    setStartY(e.pageY - thumbnailsList.offsetTop);
+    setScrollTop(thumbnailsList.scrollTop);
+    
+    // Prevent text selection while dragging
+    e.preventDefault();
+  };
+  
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    
+    const thumbnailsList = thumbnailsRef.current;
+    if (!thumbnailsList) return;
+    
+    e.preventDefault();
+    const y = e.pageY - thumbnailsList.offsetTop;
+    const walk = (y - startY) * 2; // Multiply by 2 for faster scrolling
+    
+    // If moved more than 5px, consider it a drag
+    if (Math.abs(walk) > 5) {
+      setHasDragged(true);
+    }
+    
+    thumbnailsList.scrollTop = scrollTop - walk;
+  };
+  
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+  
+  const handleMouseLeave = () => {
+    setIsDragging(false);
+  };
+  
+  const handleThumbnailClick = (pageNum: number, e: React.MouseEvent) => {
+    // Prevent click if user was dragging
+    if (hasDragged) {
+      e.preventDefault();
+      e.stopPropagation();
+      setHasDragged(false);
+      return;
+    }
+    scrollToPage(pageNum);
+  };
 
   return (
     <div className="pdf-preview">
@@ -508,13 +571,21 @@ const PDFPreview: React.FC = () => {
         {thumbnailsVisible && (
           <div className="pdf-thumbnails-sidebar">
             <div className="thumbnails-header">Pages ({totalPages || '...'})</div>
-            <div className="thumbnails-list" id="thumbnails-list">
+            <div 
+              className={`thumbnails-list ${isDragging ? 'is-dragging' : ''}`}
+              id="thumbnails-list"
+              ref={thumbnailsRef}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseLeave}
+            >
               {thumbnails.size > 0 ? (
                 Array.from(thumbnails.entries()).map(([pageNum, dataUrl]) => (
                   <div
                     key={pageNum}
                     className={`thumbnail-item ${currentPage === pageNum ? 'active' : ''}`}
-                    onClick={() => scrollToPage(pageNum)}
+                    onClick={(e) => handleThumbnailClick(pageNum, e)}
                     title={`Go to page ${pageNum}`}
                   >
                     <img src={dataUrl} alt={`Page ${pageNum}`} />

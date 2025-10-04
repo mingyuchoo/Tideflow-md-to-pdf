@@ -39,14 +39,21 @@ const SearchWidget: React.FC<Props> = ({ isOpen, onClose, onSearch, onReplace, o
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
-      onClose();
+      handleClose();
     } else if (e.key === 'Enter') {
+      e.preventDefault();
       if (e.shiftKey && onPrevious) {
         onPrevious();
       } else if (onNext) {
         onNext();
       }
     }
+  };
+
+  const handleClose = () => {
+    setSearchQuery('');
+    setReplaceText('');
+    onClose();
   };
 
   return (
@@ -111,7 +118,7 @@ const SearchWidget: React.FC<Props> = ({ isOpen, onClose, onSearch, onReplace, o
             </button>
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="search-close"
               title="Close (Esc)"
             >

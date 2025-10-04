@@ -18,6 +18,7 @@ interface CompileStatus {
 
 interface UseContentManagementParams {
   editorStateRefs: EditorStateRefs;
+  currentFile: string | null;
   sourceMap: SourceMap | null;
   setCompileStatus: (status: CompileStatus) => void;
   setSourceMap: (map: SourceMap | null) => void;
@@ -27,6 +28,7 @@ interface UseContentManagementParams {
 export function useContentManagement(params: UseContentManagementParams) {
   const {
     editorStateRefs,
+    currentFile,
     sourceMap,
     setCompileStatus,
     setSourceMap,
@@ -55,7 +57,7 @@ export function useContentManagement(params: UseContentManagementParams) {
       const wasSourceMapNull = !sourceMap;
       setCompileStatus({ status: 'running' });
       
-      const document = await renderTypst(content, 'pdf');
+      const document = await renderTypst(content, 'pdf', currentFile);
       
       // Check if operation was cancelled after async operation
       if (signal?.aborted) {
@@ -102,6 +104,7 @@ export function useContentManagement(params: UseContentManagementParams) {
       }
     }
   }, [
+    currentFile,
     setCompileStatus,
     setSourceMap,
     sourceMap,

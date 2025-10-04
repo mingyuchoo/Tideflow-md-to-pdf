@@ -1,5 +1,5 @@
 .search-widget {
-  background: linear-gradient(to bottom, #ffffff, #f8fafc);
+  background: #ffffff;
   border-bottom: 1px solid #cbd5e1;
   padding: 8px 12px;
   display: flex;
@@ -122,7 +122,7 @@
 
 @media (prefers-color-scheme: dark) {
   .search-widget {
-    background: linear-gradient(to bottom, #1e293b, #0f172a);
+    background: #1a2332;
     border-bottom-color: #334155;
     border-top-color: #0f172a;
   }

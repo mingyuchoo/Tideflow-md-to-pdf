@@ -19,7 +19,8 @@ use std::os::windows::process::CommandExt;
 pub struct RenderConfig<'a> {
     pub app_handle: &'a AppHandle,
     pub build_dir: PathBuf,
-    pub content_dir: PathBuf,
+    pub content_dir: PathBuf,  // App's content directory (for templates/prefs)
+    pub typst_root: PathBuf,   // Root directory for Typst compilation
 }
 
 /// Result of preferences setup including updated JSON value
@@ -104,6 +105,47 @@ fn sync_theme_assets(template_src: &Path, build_dir: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Detect actual image format by reading file header (magic bytes).
+/// Returns the correct extension for the detected format.
+fn detect_image_format(path: &Path) -> Result<Option<&'static str>> {
+    use std::io::Read;
+    
+    let mut file = fs::File::open(path)?;
+    let mut header = [0u8; 12];
+    let bytes_read = file.read(&mut header)?;
+    
+    if bytes_read < 4 {
+        return Ok(None);
+    }
+    
+    // PNG: 89 50 4E 47
+    if header[0..4] == [0x89, 0x50, 0x4E, 0x47] {
+        return Ok(Some("png"));
+    }
+    
+    // JPEG: FF D8 FF
+    if header[0..3] == [0xFF, 0xD8, 0xFF] {
+        return Ok(Some("jpg"));
+    }
+    
+    // GIF: 47 49 46
+    if header[0..3] == [0x47, 0x49, 0x46] {
+        return Ok(Some("gif"));
+    }
+    
+    // WebP: RIFF....WEBP
+    if bytes_read >= 12 && header[0..4] == [0x52, 0x49, 0x46, 0x46] && header[8..12] == [0x57, 0x45, 0x42, 0x50] {
+        return Ok(Some("webp"));
+    }
+    
+    // BMP: 42 4D
+    if header[0..2] == [0x42, 0x4D] {
+        return Ok(Some("bmp"));
+    }
+    
+    Ok(None)
+}
+
 /// Handle cover image path rewriting and copying to assets directory.
 /// Returns the updated prefs JSON value with cover_image path rewritten if necessary.
 fn handle_cover_image(
@@ -121,24 +163,30 @@ fn handle_cover_image(
             }
             if img_path.exists() {
                 let assets_dir = utils::get_assets_dir(app_handle)?;
-                let mut fname = utils::sanitize_filename(
-                    &img_path.file_name().unwrap().to_string_lossy()
-                );
+                
+                // Detect actual image format and correct extension if needed
+                let detected_ext = detect_image_format(&img_path)?;
+                
+                let original_fname = img_path.file_name().unwrap().to_string_lossy();
+                let stem = img_path
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().to_string())
+                    .unwrap_or_else(|| "image".to_string());
+                
+                // Use detected extension if available, otherwise keep original
+                let correct_ext = if let Some(ext) = detected_ext {
+                    ext
+                } else {
+                    img_path.extension().and_then(|e| e.to_str()).unwrap_or("jpg")
+                };
+                
+                let mut fname = utils::sanitize_filename(&format!("{}.{}", stem, correct_ext));
                 let mut dest = assets_dir.join(&fname);
                 
                 // Deduplicate if necessary
                 let mut counter: u32 = 1;
                 while dest.exists() {
-                    let stem = dest
-                        .file_stem()
-                        .map(|s| s.to_string_lossy().to_string())
-                        .unwrap_or_else(|| "file".to_string());
-                    let ext = dest.extension().and_then(|e| e.to_str()).unwrap_or("");
-                    fname = if ext.is_empty() {
-                        format!("{}-{}", stem, counter)
-                    } else {
-                        format!("{}-{}.{}", stem, counter, ext)
-                    };
+                    fname = utils::sanitize_filename(&format!("{}-{}.{}", stem, counter, correct_ext));
                     dest = assets_dir.join(&fname);
                     counter += 1;
                     if counter > 1000 { break; }
@@ -260,7 +308,7 @@ pub fn compile_typst(
         .args([
             "compile",
             "--root",
-            config.content_dir.to_string_lossy().as_ref(),
+            config.typst_root.to_string_lossy().as_ref(),
             "tideflow.typ",
             output_file,
         ])

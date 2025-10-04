@@ -47,6 +47,11 @@ html, body, #root {
   background-color: var(--background-color);
 }
 
+/* Global checkbox styling - green accent color */
+input[type="checkbox"] {
+  accent-color: #22c55e !important;
+}
+
 .app {
   display: flex;
   flex-direction: column;
@@ -55,11 +60,42 @@ html, body, #root {
   overflow: hidden;
 }
 
+.address-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.35rem 1rem;
+  background: linear-gradient(to bottom, #fefefe, #f9f9f9);
+  border-bottom: 1px solid var(--border-color);
+  min-height: 28px;
+  font-size: 0.8rem;
+  color: #64748b;
+  font-weight: 500;
+  gap: 1rem;
+}
+
+.current-file-path {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: #10b981;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
 .main-content {
   flex: 1;
   overflow: hidden;
   display: flex;
-  margin-top: 5px; /* Add spacing after tabs */
   min-height: 0; /* Important for flex children */
 }
 

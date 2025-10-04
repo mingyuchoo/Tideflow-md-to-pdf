@@ -15,7 +15,21 @@ pub struct FileEntry {
 
 #[tauri::command]
 pub async fn read_markdown_file(path: &str) -> Result<String, String> {
-    fs::read_to_string(path).map_err(|e| e.to_string())
+    // Validate path format
+    if path.is_empty() {
+        return Err("Empty path provided".to_string());
+    }
+    
+    // Check if path exists first to give a better error message
+    let path_obj = Path::new(path);
+    if !path_obj.exists() {
+        return Err(format!("File does not exist: {}", path));
+    }
+    
+    // Read the file
+    fs::read_to_string(path).map_err(|e| {
+        format!("Failed to read file '{}': {} (error code: {:?})", path, e, e.raw_os_error())
+    })
 }
 
 #[tauri::command]
@@ -180,4 +194,65 @@ pub async fn rename_file(old_path: &str, new_name: &str) -> Result<String, Strin
     fs::rename(old_path, &new_path).map_err(|e| e.to_string())?;
     
     Ok(new_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub async fn open_pdf_in_viewer(pdf_path: &str) -> Result<(), String> {
+    let path = Path::new(pdf_path);
+    if !path.exists() {
+        return Err(format!("PDF file does not exist: {}", pdf_path));
+    }
+    
+    // Convert to absolute path
+    let absolute_path = path.canonicalize()
+        .map_err(|e| format!("Failed to resolve path: {}", e))?;
+    
+    // Print the PDF directly to default printer
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        use std::process::Command;
+        
+        let pdf_path_str = absolute_path.to_string_lossy().to_string();
+        
+        // Use PowerShell ShellExecute with 'print' verb
+        // This sends directly to default printer (Windows standard behavior)
+        let ps_command = format!(
+            "(New-Object -ComObject Shell.Application).ShellExecute('{}', '', '', 'print', 0)",
+            pdf_path_str.replace("'", "''")
+        );
+        
+        let result = Command::new("powershell")
+            .args(&[
+                "-WindowStyle", "Hidden",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                &ps_command
+            ])
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW
+            .spawn();
+            
+        result.map_err(|e| format!("Failed to print PDF: {}", e))?;
+    }
+    
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+        Command::new("lpr")
+            .arg(absolute_path)
+            .spawn()
+            .map_err(|e| format!("Failed to print PDF: {}", e))?;
+    }
+    
+    #[cfg(target_os = "linux")]
+    {
+        use std::process::Command;
+        Command::new("lpr")
+            .arg(absolute_path)
+            .spawn()
+            .map_err(|e| format!("Failed to print PDF: {}", e))?;
+    }
+    
+    Ok(())
 }

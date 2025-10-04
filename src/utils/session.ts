@@ -6,6 +6,7 @@ export interface TideflowSessionData {
   currentFile: string | null;
   previewVisible: boolean;
   fullscreen?: boolean;
+  maximized?: boolean;
   sampleDocContent: string | null;
   timestamp: number;
   version: number;
@@ -34,8 +35,9 @@ export function saveSession(partial: Partial<TideflowSessionData>) {
       currentFile: null,
       previewVisible: true,
       fullscreen: false,
-  sampleDocContent: null,
-  version: VERSION,
+      maximized: true,
+      sampleDocContent: null,
+      version: VERSION,
       ...existing,
       ...partial,
   timestamp: Date.now()

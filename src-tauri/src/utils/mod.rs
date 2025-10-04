@@ -19,3 +19,6 @@ pub use paths::{
     get_templates_dir, get_typst_path,
 };
 pub use typst::rewrite_image_paths_in_markdown;
+
+// Make copy_user_images_to_assets available but not re-exported at top level
+// It's used directly via utils::typst::copy_user_images_to_assets

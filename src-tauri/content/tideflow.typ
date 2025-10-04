@@ -63,6 +63,7 @@
 #let cover_title = sanitize-str(if "cover_title" in prefs { prefs.cover_title } else { "" })
 #let cover_writer = sanitize-str(if "cover_writer" in prefs { prefs.cover_writer } else { "" })
 #let cover_image = sanitize-str(if "cover_image" in prefs { prefs.cover_image } else { "" })
+#let cover_image_width = if "cover_image_width" in prefs { prefs.cover_image_width } else { "60%" }
 
 #let render_cover_page = {
   // Only render the cover when enabled in preferences. Use a code-level `if` so
@@ -75,7 +76,7 @@
     align(center, box(width: 100%)[
       #v(5cm)
       #if has_image [
-        #align(center, builtin-image(cover_image, width: 60%))
+        #align(center, builtin-image(cover_image, width: eval(cover_image_width)))
         #v(24pt)
       ]
       #if has_title [
@@ -106,7 +107,26 @@
 #let margin_x = parse-length(prefs.margin.x)
 #let margin_y = parse-length(prefs.margin.y)
 
-#set page(paper: prefs.papersize, margin: (x: margin_x, y: margin_y))
+// Basic page setup without numbering/header (will be set conditionally later)
+#set page(
+  paper: prefs.papersize, 
+  margin: (x: margin_x, y: margin_y)
+)
+
+// Apply line height
+#let line_height_val = if "line_height" in prefs { prefs.line_height } else { 1.5 }
+#set par(leading: (line_height_val - 1.0) * 1em)
+
+// Apply paragraph spacing
+#let para_spacing = if "paragraph_spacing" in prefs { 
+  eval(prefs.paragraph_spacing)
+} else { 
+  0.65em 
+}
+#set block(spacing: para_spacing)
+
+// Store section numbering preference for later
+#let number_sections = if "numberSections" in prefs { prefs.numberSections } else { true }
 
 // CRITICAL: Disable any automatic outline generation by Typst or cmarker
 #set outline(title: none)
@@ -127,10 +147,31 @@
     #v(6pt)
   ]
   
-  // Generate outline explicitly here
+  // Generate outline explicitly here without numbering
+  #set heading(numbering: none)
   #outline(title: none, depth: 3)
   #pagebreak()
 ]
+
+// Now apply page numbering and header AFTER cover and TOC
+#let show_page_numbers = if "page_numbers" in prefs { prefs.page_numbers } else { false }
+#let show_header = if "header_title" in prefs { prefs.header_title } else { false }
+#let header_text = if "header_text" in prefs { prefs.header_text } else { "" }
+
+#set page(
+  numbering: if show_page_numbers { "1" } else { none },
+  header: if show_header and header_text != "" {
+    align(right, text(size: 9pt, fill: gray)[_#header_text _])
+  } else { none }
+)
+
+// Reset page counter to start at 1 for main content
+#if show_page_numbers [
+  #counter(page).update(1)
+]
+
+// Apply section numbering for main content only
+#set heading(numbering: if number_sections { "1.1" } else { none })
 
 // Render markdown content with explicit outline suppression
 #show outline: none
@@ -142,8 +183,33 @@
 #let anchor = (id => none)
 #let image = (path, alt: none, ..n) => builtin-image(path, alt: alt, ..n)
 
+// Safe link function that doesn't fail on missing labels
+// Inspired by laurmaedje's maybe-image pattern
+#let safe-link(target, body) = context {
+  let target-label = if type(target) == label {
+    target
+  } else {
+    label(target)
+  }
+  
+  // Check if the label exists in the document
+  let results = query(target-label)
+  
+  if results.len() > 0 {
+    // Label exists - create a proper link
+    link(target-label, body)
+  } else {
+    // Label doesn't exist - just show the body text
+    body
+  }
+}
+
 #render(md_content,
   smart-punctuation: false,
+  scope: (
+    // Override link to use our safe version
+    link: safe-link,
+  ),
   // Note: cmarker 0.1.6 follows standard Markdown line break rules:
   // - Single newline = soft break (ignored in output)
   // - Two spaces + newline = hard break (<br>)

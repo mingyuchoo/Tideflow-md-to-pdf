@@ -23,6 +23,22 @@ export async function writeMarkdownFile(path: string, content: string): Promise<
   return invoke('write_markdown_file', { path, content: cleaned });
 }
 
+export async function exportCleanMarkdown(content: string, suggestedName?: string): Promise<string | null> {
+  // Export scrubbed markdown (no Typst wrappers) to a new file
+  const { save } = await import('@tauri-apps/plugin-dialog');
+  
+  const filePath = await save({
+    defaultPath: suggestedName,
+    filters: [{ name: 'Markdown Files', extensions: ['md'] }]
+  });
+  
+  if (!filePath) return null;
+  
+  const cleaned = scrubRawTypstAnchors(content);
+  await invoke('write_markdown_file', { path: filePath, content: cleaned });
+  return filePath;
+}
+
 export async function listFiles(dirPath = ''): Promise<FileEntry[]> {
   return invoke('list_files', { dirPath });
 }
@@ -67,7 +83,11 @@ export async function renderMarkdown(filePath: string): Promise<RenderedDocument
 
 // Latest-wins coalesced render queue for Typst
 // Proper queue management with generation tracking to prevent race conditions
-type RenderArgs = { content: string; format: string };
+interface RenderArgs {
+  content: string;
+  format: string;
+  currentFile?: string;
+}
 
 interface RenderQueueState {
   inFlight: boolean;
@@ -107,8 +127,12 @@ function normalizeRenderedDocument(doc: BackendRenderedDocument): RenderedDocume
 }
 
 async function invokeRenderTypst(args: RenderArgs): Promise<RenderedDocument> {
-  const raw = await invoke<BackendRenderedDocument>('render_typst', args);
-  return normalizeRenderedDocument(raw);
+  const result: BackendRenderedDocument = await invoke('render_typst', { 
+    content: args.content, 
+    format: args.format,
+    currentFile: args.currentFile 
+  });
+  return normalizeRenderedDocument(result);
 }
 
 async function processRenderQueue(): Promise<void> {
@@ -152,8 +176,8 @@ async function processRenderQueue(): Promise<void> {
   }
 }
 
-export function renderTypst(content: string, format: string): Promise<RenderedDocument> {
-  const args: RenderArgs = { content, format };
+export function renderTypst(content: string, format: string, currentFile?: string | null): Promise<RenderedDocument> {
+  const args: RenderArgs = { content, format, currentFile: currentFile || undefined };
   
   // Update pending with latest content (last one wins)
   renderQueue.pending = args;
@@ -185,6 +209,7 @@ interface BackendPreferences {
   cover_title?: string;
   cover_writer?: string;
   cover_image?: string;
+  cover_image_width?: string;
   numberSections?: boolean; // backend serialized camelCase
   number_sections?: boolean; // tolerate snake just in case
   default_image_width: string;
@@ -195,9 +220,15 @@ interface BackendPreferences {
   font_color: string;
   heading_scale: number;
   accent_color: string;
+  line_height: number;
+  paragraph_spacing: string;
+  page_numbers: boolean;
+  header_title: boolean;
+  header_text: string;
   render_debounce_ms: number;
   focused_preview_enabled?: boolean;
   preserve_scroll_position: boolean;
+  confirm_exit_on_unsaved?: boolean;
 }
 
 export async function getPreferences(): Promise<Preferences> {
@@ -212,6 +243,7 @@ export async function getPreferences(): Promise<Preferences> {
     cover_title: raw.cover_title ?? '',
     cover_writer: raw.cover_writer ?? '',
     cover_image: raw.cover_image ?? '',
+    cover_image_width: raw.cover_image_width ?? '60%',
     number_sections: raw.numberSections ?? raw.number_sections ?? true,
     default_image_width: raw.default_image_width,
     default_image_alignment: raw.default_image_alignment,
@@ -221,9 +253,15 @@ export async function getPreferences(): Promise<Preferences> {
     font_color: raw.font_color ?? '#000000',
     heading_scale: raw.heading_scale ?? 1.0,
     accent_color: raw.accent_color ?? '#1e40af',
-    render_debounce_ms: raw.render_debounce_ms,
+    line_height: raw.line_height ?? 1.5,
+    paragraph_spacing: raw.paragraph_spacing ?? '0.65em',
+    page_numbers: raw.page_numbers ?? false,
+    header_title: raw.header_title ?? false,
+    header_text: raw.header_text ?? '',
+    render_debounce_ms: raw.render_debounce_ms ?? 400,
     focused_preview_enabled: raw.focused_preview_enabled,
     preserve_scroll_position: raw.preserve_scroll_position,
+    confirm_exit_on_unsaved: raw.confirm_exit_on_unsaved ?? true,
   };
 }
 
@@ -238,7 +276,8 @@ export async function setPreferences(preferences: Preferences): Promise<void> {
     cover_title: preferences.cover_title,
     cover_writer: preferences.cover_writer,
     cover_image: preferences.cover_image,
-    numberSections: preferences.number_sections,
+    cover_image_width: preferences.cover_image_width,
+    numberSections: preferences.number_sections, // Send as numberSections for Rust
     default_image_width: preferences.default_image_width,
     default_image_alignment: preferences.default_image_alignment,
     fonts: preferences.fonts,
@@ -247,9 +286,15 @@ export async function setPreferences(preferences: Preferences): Promise<void> {
     font_color: preferences.font_color,
     heading_scale: preferences.heading_scale,
     accent_color: preferences.accent_color,
+    line_height: preferences.line_height,
+    paragraph_spacing: preferences.paragraph_spacing,
+    page_numbers: preferences.page_numbers,
+    header_title: preferences.header_title,
+    header_text: preferences.header_text,
     render_debounce_ms: preferences.render_debounce_ms,
     focused_preview_enabled: preferences.focused_preview_enabled,
     preserve_scroll_position: preferences.preserve_scroll_position,
+    confirm_exit_on_unsaved: preferences.confirm_exit_on_unsaved,
   };
   await invoke('set_preferences', { preferences: outbound });
 }
@@ -374,4 +419,9 @@ export async function cleanupTempPdfs(keepLastN?: number): Promise<{
   total_space_freed: number;
 }> {
   return invoke('cleanup_temp_pdfs', { keepLastN });
+}
+
+// Open PDF in system viewer for printing or viewing
+export async function openPdfInViewer(pdfPath: string): Promise<void> {
+  return invoke('open_pdf_in_viewer', { pdfPath });
 }

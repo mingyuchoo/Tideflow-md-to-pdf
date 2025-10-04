@@ -22,6 +22,7 @@ interface UsePdfToEditorSyncParams {
   syncModeRef: React.MutableRefObject<SyncMode>;
   renderingRef: React.MutableRefObject<boolean>;
   isTypingRef: React.MutableRefObject<boolean>;
+  savedScrollPositionRef: React.MutableRefObject<{ top: number; left: number } | null>;
   
   // State values (for proper React dependencies)
   rendering: boolean; // Used to trigger re-attachment when PDF ready
@@ -45,6 +46,7 @@ export function usePdfToEditorSync(params: UsePdfToEditorSyncParams): void {
     syncModeRef,
     renderingRef,
     isTypingRef,
+    savedScrollPositionRef,
     rendering, // State value for dependency tracking
     setActiveAnchorId,
     setSyncMode,
@@ -158,6 +160,13 @@ export function usePdfToEditorSync(params: UsePdfToEditorSyncParams): void {
 
     // Handle scroll event (debounced)
     const handleScroll = () => {
+      // CRITICAL: Save scroll position immediately on every scroll
+      // This ensures we have the latest position before any re-render
+      savedScrollPositionRef.current = {
+        top: el.scrollTop,
+        left: el.scrollLeft
+      };
+      
       // Log FIRST before any guards
       if (process.env.NODE_ENV !== 'production') {
         console.debug('[PdfToEditorSync] !!!! SCROLL EVENT FIRED !!!!', {

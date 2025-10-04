@@ -15,9 +15,9 @@
     margin: (x: 3.5cm, y: 4cm),
     fill: page-bg,
   )
-  set text(font: main-font, size: font-size, lang: "en", fill: font-color)
+  set text(font: main-font, size: font-size, lang: "en", fill: font-color, fallback: true)
   set par(leading: 0.85em, spacing: 1.15em, justify: true, first-line-indent: 1.2em)
-  show raw: set text(font: mono-font, size: font-size * 0.85)
+  show raw: set text(font: mono-font, size: font-size * 0.85, fallback: true)
   
   // Code blocks with cream background
   show raw.where(block: true): block.with(

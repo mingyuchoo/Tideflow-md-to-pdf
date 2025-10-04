@@ -3,7 +3,7 @@ import { useAppStore } from '../store';
 import { readMarkdownFile } from '../api';
 import { handleError } from '../utils/errorHandler';
 import './TabBar.css';
-import { SAMPLE_DOC } from '../sampleDoc';
+import { INSTRUCTIONS_DOC } from '../instructionsDoc';
 
 const TabBar: React.FC = () => {
   const { 
@@ -19,10 +19,10 @@ const TabBar: React.FC = () => {
     if (currentFile === filePath) return;
     
     try {
-      if (filePath === 'sample.md') {
-        // Use in-memory sample content
+      if (filePath === 'instructions.md') {
+        // Use embedded instructions content
         setCurrentFile(filePath);
-        setContent(SAMPLE_DOC);
+        setContent(INSTRUCTIONS_DOC);
       } else {
         const content = await readMarkdownFile(filePath);
         setCurrentFile(filePath);
@@ -34,12 +34,14 @@ const TabBar: React.FC = () => {
     }
   };
 
-  // Explicitly (re)open the in-memory sample document
-  const handleOpenSample = () => {
-    const sampleName = 'sample.md';
-    addOpenFile(sampleName);
-    setCurrentFile(sampleName);
-    setContent(SAMPLE_DOC);
+  // Explicitly (re)open the instructions document
+  const handleOpenInstructions = async () => {
+    console.log('[TabBar] Opening instructions...');
+    const instructionsName = 'instructions.md';
+    addOpenFile(instructionsName);
+    setCurrentFile(instructionsName);
+    setContent(INSTRUCTIONS_DOC);
+    console.log('[TabBar] Instructions opened, content length:', INSTRUCTIONS_DOC.length);
   };
 
   const handleCloseTab = (e: React.MouseEvent, filePath: string) => {
@@ -65,7 +67,7 @@ const TabBar: React.FC = () => {
             <button
               className="close-tab"
               onClick={(e) => handleCloseTab(e, file)}
-              title={file === 'sample.md' ? 'Close sample (you can reopen with Sample button)' : 'Close tab'}
+              title={file === 'instructions.md' ? 'Close instructions (you can reopen with Help button)' : 'Close tab'}
             >
               ×
             </button>
@@ -73,14 +75,14 @@ const TabBar: React.FC = () => {
         ))}
       </div>
       <div className="tab-actions">
-        {/* Reopen sample.md if it's not currently open */}
-        {!openFiles.includes('sample.md') && (
+        {/* Reopen instructions.md if it's not currently open */}
+        {!openFiles.includes('instructions.md') && (
           <button
-            onClick={handleOpenSample}
+            onClick={handleOpenInstructions}
             className="tab-button"
-            title="Reopen sample document"
+            title="Open help and instructions"
           >
-            📘 Sample
+            ❓ Help
           </button>
         )}
       </div>

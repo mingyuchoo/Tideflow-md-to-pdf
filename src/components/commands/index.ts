@@ -8,7 +8,7 @@ import { blockCommands } from "./blocks";
 import { imageCommands } from "./images";
 
 // Re-export helper functions for direct use
-export { wrapSel, toggleInline, toggleLinePrefix, getImageAtCursor, insertAtCursor } from "./helpers";
+export { wrapSel, toggleInline, toggleLinePrefix, getImageAtCursor, insertAtCursor, stripTypstWrappers } from "./helpers";
 
 /**
  * All markdown editing commands in a single object

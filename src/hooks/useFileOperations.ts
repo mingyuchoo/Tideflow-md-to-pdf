@@ -8,6 +8,7 @@ import { writeMarkdownFile, renderTypst } from '../api';
 import { scrubRawTypstAnchors } from '../utils/scrubAnchors';
 import { handleError } from '../utils/errorHandler';
 import { getScrollElement } from '../types/codemirror';
+import { programmaticUpdateAnnotation } from './useCodeMirrorSetup';
 import type { SourceMap } from '../types';
 import type { EditorStateRefs } from './useEditorState';
 
@@ -57,13 +58,14 @@ export function useFileOperations(params: UseFileOperationsParams) {
     prevFileRef,
     lastLoadedContentRef,
     programmaticScrollRef,
+    programmaticUpdateRef,
   } = editorStateRefs;
 
   // Handle render
   const handleRender = useCallback(async (setPreviewVisible?: (visible: boolean) => void) => {
     try {
       setCompileStatus({ status: 'running' });
-      const document = await renderTypst(content, 'pdf');
+      const document = await renderTypst(content, 'pdf', currentFile);
       setSourceMap(document.sourceMap);
       setCompileStatus({
         status: 'ok',
@@ -82,7 +84,7 @@ export function useFileOperations(params: UseFileOperationsParams) {
       });
       setSourceMap(null);
     }
-  }, [content, setCompileStatus, setSourceMap]);
+  }, [content, currentFile, setCompileStatus, setSourceMap]);
 
   // Save the file
   const handleSave = useCallback(async (setIsSaving: (saving: boolean) => void, addToast?: (toast: { type: 'success' | 'error' | 'warning' | 'info'; message: string }) => void) => {
@@ -118,10 +120,18 @@ export function useFileOperations(params: UseFileOperationsParams) {
   // Load file content ONLY when switching to a different file, not on every keystroke.
   // Use generation tracking to prevent race conditions on rapid file switches.
   useEffect(() => {
-    if (!editorViewRef.current) return;
+    if (!editorViewRef.current) {
+      if (process.env.NODE_ENV !== 'production') console.debug('[FileOps] No editorView, skipping content sync');
+      return;
+    }
+    if (!currentFile) {
+      if (process.env.NODE_ENV !== 'production') console.debug('[FileOps] No currentFile, skipping content sync');
+      return; // No file selected
+    }
     
-    // When a new file is selected
-    if (currentFile && currentFile !== prevFileRef.current) {
+    // When a new file is selected (including when going from no files to first file)
+    if (currentFile !== prevFileRef.current) {
+      if (process.env.NODE_ENV !== 'production') console.debug('[FileOps] File changed, syncing content', { currentFile, prevFile: prevFileRef.current, contentLength: content.length });
       // Track the target file to detect if user switches away during loading
       const targetFile = currentFile;
       
@@ -140,13 +150,15 @@ export function useFileOperations(params: UseFileOperationsParams) {
       lastLoadedContentRef.current = content;
       
       // Replace document content with the file's content
+      // Mark as programmatic update using annotation
       editorViewRef.current.dispatch({
         changes: {
           from: 0,
           to: editorViewRef.current.state.doc.length,
           insert: content
         },
-        selection: { anchor: 0, head: 0 } // Set cursor to top to prevent auto-scroll
+        selection: { anchor: 0, head: 0 }, // Set cursor to top to prevent auto-scroll
+        annotations: programmaticUpdateAnnotation.of(true)
       });
       
       // Restore scroll position after content is loaded (async to avoid race)
@@ -200,6 +212,7 @@ export function useFileOperations(params: UseFileOperationsParams) {
     prevFileRef,
     lastLoadedContentRef,
     programmaticScrollRef,
+    programmaticUpdateRef,
   ]);
 
   // If content in store changes for current file (e.g., loaded asynchronously) and differs from editor doc, update it.
@@ -213,16 +226,18 @@ export function useFileOperations(params: UseFileOperationsParams) {
     
     const currentDoc = editorViewRef.current.state.doc.toString();
     if (content !== currentDoc && content !== lastLoadedContentRef.current) {
+      // Mark as programmatic update using annotation
       editorViewRef.current.dispatch({
         changes: {
           from: 0,
           to: editorViewRef.current.state.doc.length,
           insert: content
-        }
+        },
+        annotations: programmaticUpdateAnnotation.of(true)
       });
       lastLoadedContentRef.current = content;
     }
-  }, [content, currentFile, editorViewRef, prevFileRef, lastLoadedContentRef]);
+  }, [content, currentFile, editorViewRef, prevFileRef, lastLoadedContentRef, programmaticUpdateRef]);
 
   // Initial render on startup: trigger auto-render when editor is ready with content but no PDF yet
   // This handles the case where the app starts with a file already loaded from session

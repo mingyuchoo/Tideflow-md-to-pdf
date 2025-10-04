@@ -10,6 +10,7 @@ pub fn run() {
   tauri::Builder::default()
     .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_log::Builder::default().build())
+    .plugin(tauri_plugin_shell::init())
     
     .setup(|app| {
         // Initialize app directories if needed
@@ -37,6 +38,7 @@ pub fn run() {
         commands::debug_paths,
         commands::get_runtime_files,
         commands::cleanup_temp_pdfs,
+        commands::open_pdf_in_viewer,
         preferences::get_preferences,
         preferences::set_preferences,
         preferences::apply_preferences

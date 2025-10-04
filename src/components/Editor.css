@@ -19,13 +19,26 @@
   min-height: 52px;
 }
 
+.editor-status-bar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 0.35rem 1rem;
+  border-top: 1px solid var(--border-color);
+  background: linear-gradient(to bottom, #fafafa, #f5f5f5);
+  gap: 1rem;
+  min-height: 28px;
+  font-size: 0.75rem;
+}
+
 .file-path {
   font-size: 0.85rem;
   color: #64748b;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 30%;
+  flex: 1;
+  min-width: 0;
   font-weight: 500;
 }
 
@@ -189,31 +202,30 @@
 .simple-markdown-toolbar {
   display: flex;
   align-items: center;
-  gap: 0.25rem 0.5rem;
-  padding: 0.5rem 1rem;
-  background: linear-gradient(to bottom, #fafafa, #f5f5f5);
-  border-bottom: 1px solid var(--border-color);
-  overflow-x: auto;
-  flex-wrap: wrap; /* allow wrapping to form a second row */
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: var(--bg-gradient-light);
+  border-bottom: var(--border-width) solid var(--border-color);
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+  min-height: 48px;
 }
 
 .simple-markdown-toolbar button {
+  background: var(--bg-white);
+  color: var(--text-primary);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 0.4rem 0.55rem;
+  font-size: var(--font-md);
+  font-weight: 600;
+  cursor: pointer;
+  min-width: var(--control-height);
+  min-height: var(--control-height);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 34px;
-  height: 34px;
-  padding: 0 0.6rem;
-  border: 1px solid #cbd5e1;
-  border-radius: 5px;
-  background: linear-gradient(to bottom, #ffffff, #f8fafc);
-  color: #475569;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 200ms ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
   position: relative;
   overflow: hidden;
 }
@@ -226,9 +238,9 @@
   width: 0;
   height: 0;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--ripple-color);
   transform: translate(-50%, -50%);
-  transition: width 0.4s, height 0.4s;
+  transition: width var(--transition-slow), height var(--transition-slow);
 }
 
 .simple-markdown-toolbar button:active::before {
@@ -238,9 +250,9 @@
 
 .simple-markdown-toolbar button:hover {
   background: linear-gradient(to bottom, #f8fafc, #f1f5f9);
-  border-color: #94a3b8;
+  border-color: var(--border-color-hover);
   transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--shadow-lg);
 }
 
 .simple-markdown-toolbar button:active {
@@ -255,10 +267,10 @@
 }
 
 .simple-markdown-toolbar .toolbar-divider {
-  width: 1px;
-  height: 20px;
+  width: var(--border-width);
+  height: 18px;
   background-color: var(--border-color);
-  margin: 0 0.25rem;
+  margin: 0 0.2rem;
 }
 
 .simple-markdown-toolbar .inline-label {
@@ -268,12 +280,86 @@
 }
 
 .simple-markdown-toolbar select.inline-select {
-  padding: 0.2rem 0.4rem;
-  border: 1px solid #cbd5e1;
-  border-radius: 4px;
-  background: white;
+  padding: 0.25rem 0.4rem;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--border-radius);
+  background: var(--bg-white);
   color: #475569;
-  font-size: 0.75rem;
+  font-size: var(--font-xs);
+  margin-left: 3px;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
+}
+
+.simple-markdown-toolbar select.inline-select:hover {
+  border-color: var(--border-color-hover);
+  box-shadow: var(--shadow-md);
+}
+
+.simple-markdown-toolbar .toolbar-select {
+  background: var(--bg-white);
+  color: var(--text-primary);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 0.4rem var(--spacing-md);
+  font-size: var(--font-md);
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-normal);
+  outline: none;
+  min-width: 110px;
+}
+
+.simple-markdown-toolbar .toolbar-select:hover {
+  background: var(--bg-light);
+  border-color: var(--border-color-hover);
+  box-shadow: var(--shadow-md);
+}
+
+.simple-markdown-toolbar .toolbar-select:focus-visible {
+  border-color: var(--border-color-hover);
+  box-shadow: var(--shadow-md);
+  outline: none;
+}
+
+.font-control-group {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--bg-white);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  height: var(--control-height);
+}
+
+.font-control-group .toolbar-icon-label {
+  font-size: var(--font-sm);
+  font-weight: 700;
+  color: var(--text-secondary);
+  padding: 0 var(--spacing-md);
+  background: transparent;
+  border: none;
+  border-right: var(--border-width) solid var(--border-color-light);
+  border-radius: 0;
+  box-shadow: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.font-control-group .toolbar-select {
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 0 var(--spacing-md);
+  height: 100%;
 }
 
 .font-controls {
@@ -341,11 +427,56 @@
   justify-content: center;
   align-items: center;
   height: 100%;
-  color: #64748b;
-  font-style: italic;
+  color: #94a3b8;
   padding: 2rem;
   text-align: center;
   background-color: var(--editor-bg);
+}
+
+.no-file-message h2 {
+  font-size: 1.25rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  color: #64748b;
+}
+
+.no-file-message p {
+  font-size: 0.875rem;
+  margin-bottom: 1.5rem;
+  max-width: 400px;
+  color: #94a3b8;
+}
+
+.no-file-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.no-file-actions button {
+  background: transparent;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #64748b;
+  transition: all 150ms ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.no-file-actions button:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #475569;
+}
+
+.no-file-actions button:active {
+  background: #f1f5f9;
 }
 
 /* CodeMirror overrides */

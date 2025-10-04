@@ -61,6 +61,7 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
   const lastActiveAnchorIdRef = useRef<string | null>(null);
   const lastScrolledToAnchorRef = useRef<string | null>(null); // Track what we actually scrolled to
   const wasTypingRef = useRef(isTyping);
+  const lastTypingStoppedAtRef = useRef<number>(0); // Track when typing stopped
 
   // Effect 1: Sync PDF to active anchor when it changes (normal operation)
   useEffect(() => {
@@ -116,8 +117,9 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
     wasTypingRef.current = isTyping;
 
     if (stoppedTyping) {
-      // User stopped typing - reset last scrolled position on next real navigation
-      // This ensures that clicking elsewhere in the document will scroll properly
+      // User stopped typing - record the timestamp
+      lastTypingStoppedAtRef.current = Date.now();
+      
       if (process.env.NODE_ENV !== 'production') {
         console.debug('[EditorToPdfSync] user stopped typing - ready for next navigation');
       }
@@ -170,6 +172,23 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
           lastScrolledToAnchorRef.current !== null) {
         if (process.env.NODE_ENV !== 'production') {
           console.debug('[EditorToPdfSync] skipping post-render scroll - user has PDF positioned elsewhere');
+        }
+        return;
+      }
+      
+      // CRITICAL: Don't scroll PDF if we just stopped typing recently AND anchor hasn't changed
+      // This prevents the "jump to top" issue after typing, but allows scrolling when user moves cursor
+      const now = Date.now();
+      const timeSinceTypingStopped = now - lastTypingStoppedAtRef.current;
+      const anchorChanged = targetAnchor !== lastScrolledToAnchorRef.current;
+      
+      if (timeSinceTypingStopped < 2000 && !anchorChanged) { // Only block if anchor is the same
+        if (process.env.NODE_ENV !== 'production') {
+          console.debug('[EditorToPdfSync] skipping post-render scroll - recently stopped typing at same anchor', {
+            timeSinceTypingStopped,
+            targetAnchor,
+            lastScrolledTo: lastScrolledToAnchorRef.current
+          });
         }
         return;
       }

@@ -1,5 +1,5 @@
 import { EditorView } from "@codemirror/view";
-import { insertAtCursor, insertAdmonition } from "./helpers";
+import { insertAtCursor, stripTypstWrappers } from "./helpers";
 
 /**
  * Block-level commands: code blocks, tables, callouts, layouts, spacing
@@ -8,7 +8,11 @@ export const blockCommands = {
   /** Insert code block with language prompt */
   codeBlock: (view: EditorView) => {
     const s = view.state.selection.main;
-    const text = view.state.sliceDoc(s.from, s.to) || "code";
+    let text = view.state.sliceDoc(s.from, s.to) || "code";
+    
+    // Strip code block markers if already wrapped
+    text = text.replace(/^```[\w]*\n?/, '').replace(/\n?```$/, '').trim();
+    
     const lang = prompt("Language (optional):") || "";
     view.dispatch({ 
       changes: { 
@@ -22,7 +26,11 @@ export const blockCommands = {
   /** Insert block math equation */
   blockMath: (view: EditorView) => {
     const s = view.state.selection.main;
-    const text = view.state.sliceDoc(s.from, s.to) || "a^2 + b^2 = c^2";
+    let text = view.state.sliceDoc(s.from, s.to) || "a^2 + b^2 = c^2";
+    
+    // Strip math delimiters if already wrapped
+    text = text.replace(/^\$\$\n?/, '').replace(/\n?\$\$$/, '').trim();
+    
     const block = `$$\n${text}\n$$`;
     view.dispatch({ changes: { from: s.from, to: s.to, insert: block } });
   },
@@ -65,30 +73,14 @@ export const blockCommands = {
     view.dispatch({ changes: { from: s.from, to: s.to, insert } });
   },
 
-  /** Insert note callout/admonition */
-  noteBox: (view: EditorView) => {
-    insertAdmonition(view, 'note', 'Note content');
-  },
-
-  /** Insert info callout */
-  noteInfo: (view: EditorView) => {
-    insertAdmonition(view, 'info', 'Additional information');
-  },
-
-  /** Insert tip callout */
-  noteTip: (view: EditorView) => {
-    insertAdmonition(view, 'tip', 'Helpful tip');
-  },
-
-  /** Insert warning callout */
-  noteWarn: (view: EditorView) => {
-    insertAdmonition(view, 'warning', 'Warning details');
-  },
-
   /** Wrap selection in alignment block (Typst) */
   alignBlock: (view: EditorView, where: "left" | "center" | "right") => {
     const s = view.state.selection.main;
-    const text = view.state.sliceDoc(s.from, s.to) || "Content";
+    let text = view.state.sliceDoc(s.from, s.to) || "Content";
+    
+    // Strip any existing Typst wrappers to prevent nesting
+    text = stripTypstWrappers(text);
+    
     const block = `<!--raw-typst #align(${where})[\n${text}\n] -->`;
     view.dispatch({ changes: { from: s.from, to: s.to, insert: block } });
   },

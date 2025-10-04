@@ -29,6 +29,8 @@ pub struct Preferences {
     pub cover_writer: String,
     #[serde(default)]
     pub cover_image: String,
+    #[serde(default = "default_cover_image_width")]
+    pub cover_image_width: String,
     #[serde(rename = "numberSections")]
     pub number_sections: bool, // Serialize as numberSections for Typst
     pub default_image_width: String,
@@ -44,10 +46,22 @@ pub struct Preferences {
     pub heading_scale: f32,
     #[serde(default = "default_accent_color")]
     pub accent_color: String,
+    #[serde(default = "default_line_height")]
+    pub line_height: f32,
+    #[serde(default = "default_paragraph_spacing")]
+    pub paragraph_spacing: String,
+    #[serde(default)]
+    pub page_numbers: bool,
+    #[serde(default)]
+    pub header_title: bool,
+    #[serde(default)]
+    pub header_text: String,
     // Preview optimization settings
     pub render_debounce_ms: u32,
     pub focused_preview_enabled: bool,
     pub preserve_scroll_position: bool,
+    #[serde(default = "default_confirm_exit")]
+    pub confirm_exit_on_unsaved: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -82,6 +96,22 @@ fn default_accent_color() -> String {
     "#1e40af".to_string()
 }
 
+fn default_line_height() -> f32 {
+    1.5
+}
+
+fn default_paragraph_spacing() -> String {
+    "0.65em".to_string()
+}
+
+fn default_cover_image_width() -> String {
+    "60%".to_string()
+}
+
+fn default_confirm_exit() -> bool {
+    true
+}
+
 impl Default for Preferences {
     fn default() -> Self {
         Self {
@@ -98,6 +128,7 @@ impl Default for Preferences {
             cover_title: String::new(),
             cover_writer: String::new(),
             cover_image: String::new(),
+            cover_image_width: "60%".to_string(),
             number_sections: true,
             default_image_width: "80%".to_string(),
             default_image_alignment: "center".to_string(),
@@ -110,10 +141,16 @@ impl Default for Preferences {
             font_color: "#000000".to_string(),
             heading_scale: 1.0,
             accent_color: "#1e40af".to_string(),
+            line_height: 1.5,
+            paragraph_spacing: "0.65em".to_string(),
+            page_numbers: false,
+            header_title: false,
+            header_text: String::new(),
             // Preview optimization defaults
             render_debounce_ms: 400, // 400ms for responsive feel
             focused_preview_enabled: true,
             preserve_scroll_position: true,
+            confirm_exit_on_unsaved: true,
         }
     }
 }

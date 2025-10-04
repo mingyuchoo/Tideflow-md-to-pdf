@@ -172,7 +172,7 @@ pub async fn render_markdown(app_handle: &AppHandle, file_path: &str) -> Result<
     let path = Path::new(file_path);
 
     // Only render markdown files
-    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
     if ext != "md" && ext != "qmd" {
         return Err(anyhow!("Not a markdown file: {}", file_path));
     }
@@ -202,6 +202,7 @@ pub async fn render_markdown(app_handle: &AppHandle, file_path: &str) -> Result<
         app_handle,
         build_dir: build_dir.clone(),
         content_dir: content_dir.clone(),
+        typst_root: content_dir.clone(),
     };
 
     // Setup preferences (handles cover image rewriting and debug events)
@@ -292,7 +293,7 @@ pub async fn export_markdown(app_handle: &AppHandle, file_path: &str) -> Result<
     let path = Path::new(file_path);
 
     // Only export markdown files
-    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
     if ext != "md" && ext != "qmd" {
         return Err(anyhow!("Not a markdown file: {}", file_path));
     }
@@ -314,6 +315,7 @@ pub async fn export_markdown(app_handle: &AppHandle, file_path: &str) -> Result<
         app_handle,
         build_dir: build_dir.clone(),
         content_dir: content_dir.clone(),
+        typst_root: content_dir.clone(),
     };
 
     // Setup preferences
@@ -360,6 +362,7 @@ pub async fn render_typst(
     app_handle: &AppHandle,
     content: &str,
     _format: &str,
+    current_file: Option<&str>,
 ) -> Result<RenderedDocument> {
     // Acquire render lock to prevent multiple simultaneous renders
     let _lock = RENDER_MUTEX.lock().await;
@@ -381,21 +384,44 @@ pub async fn render_typst(
     // Preprocess content to rewrite image paths so Typst/cmarker can resolve them properly
     // For ad-hoc typst renders, include visible tokens to aid preview extraction
     let preprocess = preprocess_markdown(content)?;
-    let base_dir = &content_dir; // live preview has no specific file path; use content root
+    
+    // Determine base directory for image path resolution
+    // Use the current file's parent directory if available, otherwise fall back to content_dir
+    let base_dir = if let Some(file_path) = current_file {
+        Path::new(file_path)
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| content_dir.clone())
+    } else {
+        content_dir.clone()
+    };
+    
+    // Rewrite image paths so Typst can resolve them
     let assets_root = utils::get_assets_dir(app_handle).ok();
     let assets_root_ref = assets_root.as_deref();
-    let processed = utils::rewrite_image_paths_in_markdown(
+    let mut processed = utils::rewrite_image_paths_in_markdown(
         &preprocess.markdown,
-        base_dir.as_path(),
+        &base_dir,
         assets_root_ref,
     );
+    
+    // Filter out content that cmarker/Typst can't handle to prevent compilation errors
+    // Remove external image URLs that cmarker can't fetch (causes OS error 123)
+    let re_external_img = regex::Regex::new(r"!\[[^\]]*\]\(https?://[^)]+\)").unwrap();
+    processed = re_external_img.replace_all(&processed, "").to_string();
+    
+    // Also remove HTML img tags with external URLs
+    let re_external_html = regex::Regex::new(r#"<img[^>]*src=["']https?://[^"']+["'][^>]*>"#).unwrap();
+    processed = re_external_html.replace_all(&processed, "").to_string();
+    
     fs::write(&temp_content_path, &processed)?;
 
-    // Setup render configuration
+    // Setup render configuration - always use content_dir as Typst root
     let config = RenderConfig {
         app_handle,
         build_dir: build_dir.clone(),
         content_dir: content_dir.clone(),
+        typst_root: content_dir.clone(),
     };
 
     // Setup preferences

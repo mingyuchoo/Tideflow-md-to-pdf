@@ -4,7 +4,7 @@
   align-items: center;
   padding: 0.5rem 1rem;
   background: linear-gradient(135deg, #1f2933 0%, #2c3e50 60%);
-  color: #f8fafc;
+  color: #F7F0F0;
   border-bottom: 1px solid #1a252f;
 }
 
@@ -14,7 +14,7 @@
   font-size: 1.1rem;
   font-weight: 600;
   letter-spacing: 0.5px;
-  color: #fff;
+  color: #F7F0F0;
 }
 
 .toolbar-actions {
@@ -32,7 +32,7 @@
 .toolbar-separator {
   width: 1px;
   height: 28px;
-  background: linear-gradient(180deg, transparent, rgba(255,255,255,0.3), transparent);
+  background: linear-gradient(180deg, transparent, rgba(247,240,240,0.3), transparent);
   margin: 0 0.25rem;
 }
 
@@ -49,21 +49,21 @@
 
 .toolbar-select {
   background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-  color: #f8fafc;
-  border: 1px solid #475569;
+  color: #F7F0F0;
+  border: var(--border-width) solid #475569;
   border-radius: 6px;
   padding: 0.6rem 0.75rem;
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.1) inset;
-  transition: all 200ms ease;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3), 0 0 0 1px rgba(247,240,240,0.1) inset;
+  transition: all var(--transition-normal);
   outline: none;
 }
 
 .toolbar-select:hover {
   background: linear-gradient(135deg, #334155 0%, #475569 100%);
-  box-shadow: 0 3px 6px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.15) inset;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.4), 0 0 0 1px rgba(247,240,240,0.15) inset;
 }
 
 .toolbar-select:focus-visible {
@@ -71,23 +71,62 @@
 }
 
 .toolbar-actions button.btn-primary {
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
-  border-color: #065f46;
+  --btn-bg: #3590F3;
+  --btn-bg-hover: #2a75d1;
+  --btn-bg-active: #1e5bb0;
+  --btn-border: #1e5bb0;
+  background: var(--btn-bg);
+  border-color: var(--btn-border);
+  padding: 0.6rem 1.1rem !important;
 }
 
 .toolbar-actions button.btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #047857 0%, #065f46 100%);
-  box-shadow: 0 4px 8px rgba(5, 150, 105, 0.5), 0 0 0 1px rgba(255,255,255,0.2) inset;
+  background: var(--btn-bg-hover);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.6), 0 0 0 1px rgba(247,240,240,0.2) inset;
+  transform: translateY(-2px);
 }
 
-.toolbar-actions button.btn-secondary {
-  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
-  border-color: #374151;
+.toolbar-actions button.btn-primary:active:not(:disabled) {
+  background: var(--btn-bg-active);
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.6) inset, 0 0 0 1px rgba(0,0,0,0.2) inset;
 }
 
-body.light .toolbar-actions button.btn-secondary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
-  box-shadow: 0 4px 8px rgba(75, 85, 99, 0.5), 0 0 0 1px rgba(255,255,255,0.2) inset;
+/* Blue Save button group styles */
+.file-control-group .file-open-btn.btn-primary,
+.file-control-group .dropdown-toggle.btn-primary {
+  --btn-bg: #3590F3;
+  --btn-bg-hover: #2a75d1;
+  --btn-bg-active: #1e5bb0;
+  --btn-border: #1e5bb0;
+  background: var(--btn-bg);
+  border-color: var(--btn-border);
+}
+
+.file-control-group .file-open-btn.btn-primary:hover:not(:disabled),
+.file-control-group .dropdown-toggle.btn-primary:hover:not(:disabled) {
+  background: var(--btn-bg-hover);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.6), 0 0 0 1px rgba(247,240,240,0.15) inset !important;
+  transform: translateY(-2px);
+}
+
+.file-control-group .file-open-btn.btn-primary:active:not(:disabled),
+.file-control-group .dropdown-toggle.btn-primary:active:not(:disabled) {
+  background: var(--btn-bg-active);
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.6) inset !important;
+}
+
+.file-control-group .file-open-btn.btn-primary::before,
+.file-control-group .dropdown-toggle.btn-primary::before {
+  background: rgba(255, 255, 255, 0.1);
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.file-control-group .file-open-btn.btn-primary:hover::before,
+.file-control-group .dropdown-toggle.btn-primary:hover::before {
+  opacity: 1;
 }
 
 /* Prefs modal specific styles */
@@ -98,13 +137,13 @@ body.light .toolbar-actions button.btn-secondary:hover:not(:disabled) {
 .btn-reset-session {
   background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
   color: white;
-  border: 1px solid #991b1b;
+  border: var(--border-width) solid #991b1b;
   padding: 0.75rem 1.5rem;
   border-radius: 6px;
   cursor: pointer;
   font-weight: 600;
   box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-  transition: all 200ms ease;
+  transition: all var(--transition-normal);
   width: 100%;
   font-size: 0.95rem;
 }
@@ -128,55 +167,155 @@ body.light .toolbar-actions button.btn-secondary:hover:not(:disabled) {
   box-shadow: 0 2px 4px rgba(0,0,0,0.3);
 }
 
-.toolbar-button-group button {
+/* Unified File Control Group (Open + Recents dropdown) */
+.file-control-group {
+  display: flex;
+  gap: 0;
+  border-radius: 6px;
+  overflow: visible;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  position: relative;
+}
+
+.file-control-group .file-open-btn {
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  border: var(--border-width) solid var(--btn-border);
+  border-radius: 6px 0 0 6px !important;
+  border-right: 1px solid rgba(247,240,240,0.15) !important;
+  padding: 0.6rem 1.1rem !important;
+  font-size: 0.9rem !important;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: none !important;
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  margin: 0 !important;
+}
+
+.file-control-group .file-open-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.1);
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.file-control-group .file-open-btn:hover::before {
+  opacity: 1;
+}
+
+.file-control-group .file-open-btn:hover {
+  background: var(--btn-bg-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.6), 0 0 0 1px rgba(247,240,240,0.15) inset !important;
+}
+
+.file-control-group .file-open-btn:active {
+  background: var(--btn-bg-active);
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.6) inset !important;
+}
+
+.file-control-group .dropdown {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.file-control-group .dropdown-toggle {
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  border: var(--border-width) solid var(--btn-border);
+  border-radius: 0 6px 6px 0 !important;
+  padding: 0.6rem 0.75rem !important;
+  font-size: 0.9rem !important;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: none !important;
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  margin: 0 !important;
+  min-width: 40px !important;
+}
+
+.file-control-group .dropdown-toggle::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.1);
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.file-control-group .dropdown-toggle:hover::before {
+  opacity: 1;
+}
+
+.file-control-group .dropdown-toggle:hover {
+  background: var(--btn-bg-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.6), 0 0 0 1px rgba(247,240,240,0.15) inset !important;
+}
+
+.file-control-group .dropdown-toggle:active {
+  background: var(--btn-bg-active);
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.6) inset !important;
+}
+
+.toolbar-button-group > button {
   border-radius: 0 !important;
-  border-right: 1px solid rgba(255,255,255,0.15) !important;
+  border-right: 1px solid rgba(247,240,240,0.15) !important;
   padding: 0.6rem 0.85rem !important;
   font-size: 0.85rem !important;
   position: relative;
 }
 
-.toolbar-button-group button::after {
+.toolbar-button-group > button::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent);
+  background: linear-gradient(180deg, rgba(247, 240, 240, 0.05), transparent);
   pointer-events: none;
   opacity: 0;
   transition: opacity 200ms ease;
 }
 
-.toolbar-button-group button:hover::after {
+.toolbar-button-group > button:hover::after {
   opacity: 1;
 }
 
-.toolbar-button-group button:first-child {
+.toolbar-button-group > button:first-child {
   border-top-left-radius: 6px !important;
   border-bottom-left-radius: 6px !important;
 }
 
-.toolbar-button-group button:last-child {
+.toolbar-button-group > button:last-child {
   border-top-right-radius: 6px !important;
   border-bottom-right-radius: 6px !important;
   border-right: none !important;
 }
 
-.toolbar-button-group button:hover:not(:disabled) {
+.toolbar-button-group > button:hover:not(:disabled) {
   transform: none !important;
   z-index: 1;
-  box-shadow: 0 3px 8px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.2) inset !important;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.55), 0 0 0 1px rgba(247,240,240,0.2) inset !important;
 }
 
 .toolbar-actions button {
-  --btn-bg: #059669;       /* emerald-600 - more visible green */
-  --btn-bg-hover: #047857; /* emerald-700 - darker hover */
-  --btn-bg-active: #065f46;/* emerald-800 - active/pressed */
-  --btn-border: #064e3b;   /* emerald-900 - border accent */
-  --btn-text: #ffffff;
+  --btn-bg: #558B6E;       /* custom green */
+  --btn-bg-hover: #467059; /* darker green hover */
+  --btn-bg-active: #395744;/* darkest green active/pressed */
+  --btn-border: #2d4a34;   /* border accent */
+  --btn-text: #F7F0F0;     /* custom white */
   position: relative;
   background: var(--btn-bg);
   color: var(--btn-text);
-  border: 1px solid var(--btn-border);
+  border: var(--border-width) solid var(--btn-border);
   border-radius: 6px;
   padding: 0.6rem 1.1rem;
   font-size: 0.9rem;
@@ -187,7 +326,7 @@ body.light .toolbar-actions button.btn-secondary:hover:not(:disabled) {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.1) inset;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.5), 0 0 0 1px rgba(247,240,240,0.1) inset;
   transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
   outline: none;
   overflow: hidden;
@@ -201,7 +340,7 @@ body.light .toolbar-actions button.btn-secondary:hover:not(:disabled) {
   width: 0;
   height: 0;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(247, 240, 240, 0.3);
   transform: translate(-50%, -50%);
   transition: width 0.6s, height 0.6s;
 }
@@ -213,7 +352,7 @@ body.light .toolbar-actions button.btn-secondary:hover:not(:disabled) {
 
 .toolbar-actions button:hover:not(:disabled) {
   background: var(--btn-bg-hover);
-  box-shadow: 0 4px 8px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.2) inset, 0 0 12px rgba(5, 150, 105, 0.4);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.6), 0 0 0 1px rgba(247,240,240,0.2) inset, 0 0 12px rgba(85, 139, 110, 0.4);
   transform: translateY(-2px);
 }
 
@@ -224,9 +363,9 @@ body.light .toolbar-actions button.btn-secondary:hover:not(:disabled) {
 }
 
 .toolbar-actions button.active {
-  background: linear-gradient(145deg, #3b82f6, #2563eb);
-  border-color: #1d4ed8;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4), 0 3px 8px rgba(59, 130, 246, 0.5), 0 0 0 1px rgba(255,255,255,0.1) inset;
+  background: linear-gradient(135deg, #558B6E 0%, #467059 100%);
+  border-color: #395744;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3), 0 0 0 1px rgba(247,240,240,0.1) inset;
   position: relative;
 }
 
@@ -235,16 +374,28 @@ body.light .toolbar-actions button.btn-secondary:hover:not(:disabled) {
   position: absolute;
   inset: 0;
   border-radius: 6px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.15), transparent);
+  background: linear-gradient(180deg, rgba(247, 240, 240, 0.08), transparent);
   pointer-events: none;
 }
 
 .toolbar-actions button.active:hover {
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5), 0 4px 12px rgba(59, 130, 246, 0.6), 0 0 0 1px rgba(255,255,255,0.15) inset;
+  background: linear-gradient(135deg, #467059 0%, #395744 100%);
+  box-shadow: 0 3px 6px rgba(0,0,0,0.4), 0 0 0 1px rgba(247,240,240,0.15) inset;
+}
+
+.toolbar-actions button.inactive {
+  opacity: 0.6;
+  background: linear-gradient(135deg, #475569 0%, #334155 100%);
+  border-color: #1e293b;
+}
+
+.toolbar-actions button.inactive:hover {
+  opacity: 0.75;
+  background: linear-gradient(135deg, #4b5563 0%, var(--text-primary) 100%);
 }
 
 .toolbar-actions button:focus-visible {
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.8), 0 0 0 6px #3b82f6, 0 2px 8px rgba(0,0,0,0.5);
+  box-shadow: 0 0 0 3px rgba(247, 240, 240, 0.8), 0 0 0 6px #3590F3, 0 2px 8px rgba(0,0,0,0.5);
   outline: none;
   transform: translateY(-1px);
 }
@@ -284,9 +435,11 @@ body.light .toolbar-actions button {
   --btn-bg-hover:#1d4ed8;
   --btn-bg-active:#1e40af;
   --btn-border:#1e3a8a;
-  --btn-text:#ffffff;
+  --btn-text:#F7F0F0;
 }
 body.light .toolbar-actions button:disabled { background:#94a3b8; border-color:#64748b; color:#f1f5f9; }
+
+/* Dropdown Menu Styles */
 
 /* Dropdown for Recent Files */
 .dropdown {
@@ -298,7 +451,7 @@ body.light .toolbar-actions button:disabled { background:#94a3b8; border-color:#
   min-width: 32px !important;
   padding: 0.45rem 0.5rem !important;
   margin-left: -1px;
-  border-left: 1px solid rgba(255, 255, 255, 0.2);
+  border-left: 1px solid rgba(247, 240, 240, 0.2);
   border-radius: 0 6px 6px 0 !important;
 }
 
@@ -315,13 +468,12 @@ body.light .toolbar-actions button:disabled { background:#94a3b8; border-color:#
 .dropdown-menu {
   display: block;
   position: absolute;
-  top: 100%;
-  left: 0;
-  margin-top: 0.5rem;
+  top: calc(100% + 0.5rem);
+  right: 0;
   background: #1e293b;
-  border: 1px solid #334155;
+  border: var(--border-width) solid #334155;
   border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
   min-width: 250px;
   max-width: 350px;
   z-index: 1000;
@@ -362,7 +514,7 @@ body.light .toolbar-actions button:disabled { background:#94a3b8; border-color:#
   color: #e2e8f0;
   font-size: 0.85rem;
   cursor: pointer;
-  transition: all 150ms ease;
+  transition: all var(--transition-fast);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -370,7 +522,7 @@ body.light .toolbar-actions button:disabled { background:#94a3b8; border-color:#
 
 .dropdown-item:hover {
   background: #334155;
-  color: #fff;
+  color: #F7F0F0;
 }
 
 .dropdown-divider {
@@ -386,5 +538,5 @@ body.light .toolbar-actions button:disabled { background:#94a3b8; border-color:#
 
 .dropdown-clear:hover {
   background: #7f1d1d;
-  color: #fff;
+  color: #F7F0F0;
 }

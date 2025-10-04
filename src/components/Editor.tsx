@@ -4,8 +4,8 @@ import './Editor.css';
 import ImagePropsModal, { type ImageProps } from './ImagePropsModal';
 import ImagePlusModal from './ImagePlusModal';
 import EditorToolbar from './EditorToolbar';
-import SearchWidget, { type SearchOptions } from './SearchWidget';
 import { useImageHandlers } from '../hooks/useImageHandlers';
+import { openSearchPanel, closeSearchPanel } from '@codemirror/search';
 import { importImage, importImageFromPath, generateImageMarkdown } from '../api';
 import { showSuccess } from '../utils/errorHandler';
 import { cmd } from './commands';
@@ -16,6 +16,9 @@ import { useFileOperations } from '../hooks/useFileOperations';
 import { useCodeMirrorSetup } from '../hooks/useCodeMirrorSetup';
 import { useAnchorManagement } from '../hooks/useAnchorManagement';
 import { useEditorLifecycle } from '../hooks/useEditorLifecycle';
+import { showOpenDialog, readMarkdownFile } from '../api';
+import { INSTRUCTIONS_DOC } from '../instructionsDoc';
+import { handleError } from '../utils/errorHandler';
 
 const Editor: React.FC = () => {
   // Store state
@@ -38,14 +41,14 @@ const Editor: React.FC = () => {
   const setEditorScrollPosition = useAppStore((s) => s.setEditorScrollPosition);
   const getEditorScrollPosition = useAppStore((s) => s.getEditorScrollPosition);
   const setPreviewVisible = useAppStore((s) => s.setPreviewVisible);
+  const setCurrentFile = useAppStore((s) => s.setCurrentFile);
+  const addOpenFile = useAppStore((s) => s.addOpenFile);
+  const addRecentFile = useAppStore((s) => s.addRecentFile);
 
   // Local state
-  const [isSaving, setIsSaving] = useState(false);
-  const [isActivelyTyping, setIsActivelyTyping] = useState(false);
+  const [, setIsSaving] = useState(false);
   const [selectedFont, setSelectedFont] = useState<string>("New Computer Modern");
-  const [calloutType, setCalloutType] = useState<'box' | 'info' | 'tip' | 'warn'>('box');
   const [editorReady, setEditorReady] = useState(false);
-  const [searchWidgetOpen, setSearchWidgetOpen] = useState(false);
 
   // Use editor state hook - consolidates all refs
   const editorStateRefs = useEditorState({
@@ -68,6 +71,7 @@ const Editor: React.FC = () => {
   // Use content management hook - auto-render
   const { handleAutoRender } = useContentManagement({
     editorStateRefs,
+    currentFile,
     sourceMap,
     setCompileStatus,
     setSourceMap,
@@ -103,7 +107,6 @@ const Editor: React.FC = () => {
     content,
     setContent,
     setModified,
-    setIsActivelyTyping,
     setIsTyping,
     handleSave,
     handleRender: handleRenderWithPreview,
@@ -122,7 +125,7 @@ const Editor: React.FC = () => {
   });
 
   // Use editor lifecycle hook - generation tracking
-  const { generation } = useEditorLifecycle({
+  useEditorLifecycle({
     editorStateRefs,
     openFiles,
   });
@@ -157,90 +160,41 @@ const Editor: React.FC = () => {
     },
   });
 
-  // Ctrl+F handler is managed by global keyboard listener
-
-  const handleSearch = (query: string, options: SearchOptions) => {
-    if (!query || !editorStateRefs.editorViewRef.current) return;
-    
-    const view = editorStateRefs.editorViewRef.current;
-    const content = view.state.doc.toString();
-    
-    // Build search regex
-    let searchPattern = query;
-    if (options.wholeWord) {
-      searchPattern = `\\b${query}\\b`;
-    }
-    const flags = options.caseSensitive ? 'g' : 'gi';
-    const regex = new RegExp(searchPattern, flags);
-    
-    // Find first match
-    const match = regex.exec(content);
-    
-    if (match) {
-      const from = match.index;
-      const to = from + match[0].length;
-      
-      // Select the match (without focusing editor)
-      view.dispatch({
-        selection: { anchor: from, head: to },
-        scrollIntoView: true,
-      });
-      
-      // Don't call view.focus() to keep focus in search input
-    }
-  };
-
-  const handleReplace = (replaceText: string) => {
+  // Handle search toggle
+  const handleSearchToggle = React.useCallback(() => {
     if (!editorStateRefs.editorViewRef.current) return;
     
     const view = editorStateRefs.editorViewRef.current;
-    const selection = view.state.selection.main;
     
-    // Replace selected text
-    view.dispatch({
-      changes: { from: selection.from, to: selection.to, insert: replaceText },
-      scrollIntoView: true,
-    });
-    
-    addToast({ type: 'success', message: 'Replaced' });
-  };
+    // Toggle search panel: if close returns false, panel wasn't open, so open it
+    const closed = closeSearchPanel(view);
+    if (!closed) {
+      openSearchPanel(view);
+    }
+  }, [editorStateRefs.editorViewRef]);
 
-  const handleReplaceAll = (searchQuery: string, replaceText: string, options: SearchOptions) => {
-    if (!searchQuery || !editorStateRefs.editorViewRef.current) return;
-    
-    const view = editorStateRefs.editorViewRef.current;
-    const content = view.state.doc.toString();
-    
-    // Build search regex
-    let searchPattern = searchQuery;
-    if (options.wholeWord) {
-      searchPattern = `\\b${searchQuery}\\b`;
-    }
-    const flags = options.caseSensitive ? 'g' : 'gi';
-    const regex = new RegExp(searchPattern, flags);
-    
-    // Find all matches and build changes array
-    const changes: { from: number; to: number; insert: string }[] = [];
-    let match;
-    while ((match = regex.exec(content)) !== null) {
-      changes.push({
-        from: match.index,
-        to: match.index + match[0].length,
-        insert: replaceText,
-      });
-    }
-    
-    if (changes.length > 0) {
-      view.dispatch({
-        changes,
-        scrollIntoView: true,
-      });
-      
-      addToast({ type: 'success', message: `Replaced ${changes.length} occurrence(s)` });
-    } else {
-      addToast({ type: 'warning', message: 'No matches found' });
-    }
-  };
+  // Global Ctrl+F handler - works even when editor doesn't have focus
+  React.useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Check for Ctrl+F (or Cmd+F on Mac)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        // Prevent default browser find
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Toggle search panel
+        handleSearchToggle();
+      }
+    };
+
+    // Add listener to window
+    window.addEventListener('keydown', handleGlobalKeyDown, true);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown, true);
+    };
+  }, [handleSearchToggle]);
 
   // Handle font changes
   const handleFontChange = async (font: string) => {
@@ -251,90 +205,117 @@ const Editor: React.FC = () => {
     cmd.fontLocal(editorStateRefs.editorViewRef.current, font);
   };
 
+  // Handle opening a file from the no-file screen
+  const handleOpenFile = async () => {
+    try {
+      const result = await showOpenDialog({
+        title: 'Open Markdown File',
+        filters: [{
+          name: 'Markdown',
+          extensions: ['md', 'markdown']
+        }]
+      });
+
+      if (result && result.length > 0) {
+        const filePath = result[0];
+        const fileContent = await readMarkdownFile(filePath);
+        addOpenFile(filePath);
+        setCurrentFile(filePath);
+        setContent(fileContent);
+        addRecentFile(filePath);
+      }
+    } catch (err) {
+      handleError(err, { operation: 'open file', component: 'Editor' });
+    }
+  };
+
+  // Handle opening instructions from the no-file screen
+  const handleOpenInstructions = () => {
+    const instructionsName = 'instructions.md';
+    addOpenFile(instructionsName);
+    setCurrentFile(instructionsName);
+    setContent(INSTRUCTIONS_DOC);
+  };
+
   return (
     <div 
-      key={generation}
       className="editor-container" 
       onPaste={handlePaste}
       onDrop={handleDrop}
       onDragOver={(e) => e.preventDefault()}
     >
-      {currentFile ? (
-        <>
-          <EditorToolbar
-            currentFile={currentFile}
-            isActivelyTyping={isActivelyTyping}
-            preferences={preferences}
-            selectedFont={selectedFont}
-            calloutType={calloutType}
-            editorView={editorStateRefs.editorViewRef.current}
-            onRender={handleRenderWithPreview}
-            onFontChange={handleFontChange}
-            onImageInsert={handleImageInsert}
-            onImagePlusOpen={() => setImagePlusOpen(true)}
-            onCalloutTypeChange={(type) => setCalloutType(type)}
-            onImageWidthChange={(width) => {
-              if (editorStateRefs.editorViewRef.current) {
-                cmd.imageWidth(editorStateRefs.editorViewRef.current, width);
-              }
-            }}
-            onSearchToggle={() => setSearchWidgetOpen(!searchWidgetOpen)}
-            searchOpen={searchWidgetOpen}
-          />
-          
-          {/* Search widget */}
-          {searchWidgetOpen && (
-            <SearchWidget
-              isOpen={searchWidgetOpen}
-              onClose={() => setSearchWidgetOpen(false)}
-              onSearch={handleSearch}
-              onReplace={handleReplace}
-              onReplaceAll={handleReplaceAll}
-            />
-          )}
-          
-          <div className="editor-content" ref={editorStateRefs.editorRef} />
-          
-          {/* Image properties modal */}
-          <ImagePropsModal
-            open={imageModalOpen}
-            initial={imageInitial}
-            onCancel={() => {
-              setImageModalOpen(false);
-              if (imageModalResolveRef) imageModalResolveRef(null);
-            }}
-            onSave={(props) => {
-              setImageModalOpen(false);
-              if (imageModalResolveRef) imageModalResolveRef(props);
-            }}
-          />
-          
-          {/* Image+ modal */}
-          <ImagePlusModal
-            open={imagePlusOpen}
-            initialPath={imagePlusPath}
-            defaultWidth={preferences.default_image_width}
-            defaultAlignment={preferences.default_image_alignment as ImageProps['alignment']}
-            onCancel={() => setImagePlusOpen(false)}
-            onChoose={(choice) => {
-              setImagePlusOpen(false);
-              if (!editorStateRefs.editorViewRef.current) return;
-              if (choice.kind === 'figure') {
-                const { path, width, alignment, caption, alt } = choice.data;
-                cmd.figureWithCaption(editorStateRefs.editorViewRef.current, path, width, alignment, caption, alt);
-              } else {
-                const { path, width, alignment, columnText, alt, underText, position } = choice.data;
-                cmd.imageWithTextColumns(editorStateRefs.editorViewRef.current, path, width, alignment, columnText, alt, underText, position);
-              }
-              setImagePlusPath(choice.data.path);
-            }}
-          />
-        </>
-      ) : (
+      {/* Always render editor toolbar and content, but hide when no file */}
+      <div style={{ display: currentFile ? 'flex' : 'none', flexDirection: 'column', height: '100%' }}>
+        <EditorToolbar
+          currentFile={currentFile || ''}
+          preferences={preferences}
+          selectedFont={selectedFont}
+          editorView={editorStateRefs.editorViewRef.current}
+          onRender={handleRenderWithPreview}
+          onFontChange={handleFontChange}
+          onImageInsert={handleImageInsert}
+          onImagePlusOpen={() => setImagePlusOpen(true)}
+          onImageWidthChange={(width: string) => {
+            if (editorStateRefs.editorViewRef.current) {
+              cmd.imageWidth(editorStateRefs.editorViewRef.current, width);
+            }
+          }}
+          onSearchToggle={handleSearchToggle}
+        />
+        
+        <div className="editor-content" ref={editorStateRefs.editorRef} />
+      </div>
+      
+      {/* Show "no file" message when no file is open */}
+      {!currentFile && (
         <div className="no-file-message">
-          <p>No file open. Please select or create a file from the file tree.</p>
+          <h2>📄 No File Open</h2>
+          <p>Get started by opening a markdown file or viewing the instructions.</p>
+          <div className="no-file-actions">
+            <button onClick={handleOpenFile} className="open-file-button">
+              📂 Open File
+            </button>
+            <button onClick={handleOpenInstructions} className="open-instructions-button">
+              ❓ View Instructions
+            </button>
+          </div>
         </div>
       )}
+      
+      {/* Image properties modal */}
+      <ImagePropsModal
+        open={imageModalOpen}
+        initial={imageInitial}
+        onCancel={() => {
+          setImageModalOpen(false);
+          if (imageModalResolveRef) imageModalResolveRef(null);
+        }}
+        onSave={(props) => {
+          setImageModalOpen(false);
+          if (imageModalResolveRef) imageModalResolveRef(props);
+        }}
+      />
+      
+      {/* Image+ modal */}
+      <ImagePlusModal
+        open={imagePlusOpen}
+        initialPath={imagePlusPath}
+        defaultWidth={preferences.default_image_width}
+        defaultAlignment={preferences.default_image_alignment as ImageProps['alignment']}
+        onCancel={() => setImagePlusOpen(false)}
+        onChoose={(choice) => {
+          setImagePlusOpen(false);
+          if (!editorStateRefs.editorViewRef.current) return;
+          if (choice.kind === 'figure') {
+            const { path, width, alignment, caption, alt } = choice.data;
+            cmd.figureWithCaption(editorStateRefs.editorViewRef.current, path, width, alignment, caption, alt);
+          } else {
+            const { path, width, alignment, columnText, alt, underText, position } = choice.data;
+            cmd.imageWithTextColumns(editorStateRefs.editorViewRef.current, path, width, alignment, columnText, alt, underText, position);
+          }
+          setImagePlusPath(choice.data.path);
+        }}
+      />
     </div>
   );
 };

@@ -85,8 +85,9 @@ pub async fn render_typst(
     app_handle: AppHandle,
     content: &str,
     format: &str,
+    current_file: Option<&str>,
 ) -> Result<RenderedDocument, String> {
-    match renderer::render_typst(&app_handle, content, format).await {
+    match renderer::render_typst(&app_handle, content, format, current_file).await {
         Ok(document) => {
             let _ = app_handle.emit("compiled", &document);
             Ok(document)

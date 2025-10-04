@@ -21,6 +21,7 @@ export interface EditorStateRefs {
   // Scroll and sync refs
   scrollElRef: React.MutableRefObject<HTMLElement | null>;
   programmaticScrollRef: React.MutableRefObject<boolean>;
+  programmaticUpdateRef: React.MutableRefObject<boolean>;
   anchorUpdateFromEditorRef: React.MutableRefObject<boolean>;
   
   // State tracking refs (synced with props)
@@ -68,6 +69,7 @@ export function useEditorState(params: UseEditorStateParams): EditorStateRefs {
   // Scroll and sync refs
   const scrollElRef = useRef<HTMLElement | null>(null);
   const programmaticScrollRef = useRef(false);
+  const programmaticUpdateRef = useRef(false);
   const anchorUpdateFromEditorRef = useRef(false);
   
   // State tracking refs
@@ -122,6 +124,7 @@ export function useEditorState(params: UseEditorStateParams): EditorStateRefs {
     scrollIdleTimeoutRef,
     scrollElRef,
     programmaticScrollRef,
+    programmaticUpdateRef,
     anchorUpdateFromEditorRef,
     sourceMapRef,
     activeAnchorIdRef,

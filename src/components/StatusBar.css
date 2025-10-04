@@ -3,12 +3,12 @@
   justify-content: space-between;
   align-items: center;
   padding: 0.35rem 1rem;
-  background: linear-gradient(to bottom, #f9fafb, #f3f4f6);
+  background: linear-gradient(to bottom, var(--bg-light), var(--bg-lighter));
   border-top: 1px solid #e5e7eb;
   font-size: 0.75rem;
   color: #6b7280;
   box-shadow: 0 -1px 3px 0 rgba(0, 0, 0, 0.05);
-  transition: all 200ms ease;
+  transition: all var(--transition-normal);
 }
 
 .status-indicator {
@@ -18,7 +18,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  transition: all 200ms ease;
+  transition: all var(--transition-normal);
   animation: slideIn 300ms ease-out;
 }
 
@@ -30,10 +30,17 @@
   display: inline-block;
 }
 
+.status-counts {
+  margin-left: 0.5rem;
+  color: #9ca3af;
+  font-weight: 400;
+  font-size: 0.7rem;
+}
+
 .status-ok {
   background-color: #ecfdf5;
   color: #059669;
-  border: 1px solid #a7f3d0;
+  border: var(--border-width) solid #a7f3d0;
 }
 
 .status-ok::before {
@@ -44,7 +51,7 @@
 .status-modified {
   background-color: #fffbeb;
   color: #d97706;
-  border: 1px solid #fde68a;
+  border: var(--border-width) solid #fde68a;
   animation: pulse 2s ease-in-out infinite;
 }
 
@@ -56,7 +63,7 @@
 .status-running {
   background-color: #eff6ff;
   color: #2563eb;
-  border: 1px solid #bfdbfe;
+  border: var(--border-width) solid #bfdbfe;
 }
 
 .status-running::before {
@@ -68,7 +75,7 @@
 .status-error {
   background-color: #fef2f2;
   color: #dc2626;
-  border: 1px solid #fecaca;
+  border: var(--border-width) solid #fecaca;
   animation: shake 400ms ease-in-out;
 }
 
@@ -89,7 +96,7 @@
   gap: 0.4rem;
   padding: 2px 0;
   color: #6b7280;
-  transition: color 200ms ease;
+  transition: color var(--transition-normal);
 }
 
 .status-item:hover {

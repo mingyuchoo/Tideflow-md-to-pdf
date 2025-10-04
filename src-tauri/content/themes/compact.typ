@@ -15,9 +15,9 @@
     margin: (x: 1.2cm, y: 1.5cm),
     fill: page-bg,
   )
-  set text(font: main-font, size: font-size, lang: "en", fill: font-color)
+  set text(font: main-font, size: font-size, lang: "en", fill: font-color, fallback: true)
   set par(leading: 0.5em, spacing: 0.65em, justify: true, first-line-indent: 0pt)
-  show raw: set text(font: mono-font, size: font-size * 0.9)
+  show raw: set text(font: mono-font, size: font-size * 0.9, fallback: true)
   
   // Code blocks compact
   show raw.where(block: true): block.with(

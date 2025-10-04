@@ -44,152 +44,13 @@ pub struct PreprocessorOutput {
     pub anchors: Vec<AnchorMeta>,
 }
 
-/// Transform user markdown by converting custom syntax (admonitions) and injecting
-/// invisible Typst anchors used for scroll synchronisation.
+/// Transform user markdown by injecting invisible Typst anchors used for scroll synchronisation.
 pub fn preprocess_markdown(markdown: &str) -> Result<PreprocessorOutput> {
-    let admonition_transformed = transform_admonitions(markdown);
-    let legacy_normalised = normalise_legacy_callouts(&admonition_transformed);
-    let cmarker_fixed = fix_cmarker_quirks(&legacy_normalised);
-    let result = inject_anchors(&cmarker_fixed)?;
+    let result = inject_anchors(markdown)?;
     Ok(result)
 }
 
-pub fn transform_admonitions(markdown: &str) -> String {
-    let mut output = String::with_capacity(markdown.len() + 128);
-    let segments: Vec<&str> = markdown.split_inclusive('\n').collect();
-    let mut idx = 0;
 
-    while idx < segments.len() {
-        let segment = segments[idx];
-        let (line_content, had_newline) = if segment.ends_with('\n') {
-            (&segment[..segment.len() - 1], true)
-        } else {
-            (segment, false)
-        };
-
-        let trimmed = line_content.trim_start();
-        if !trimmed.starts_with('>') {
-            output.push_str(segment);
-            idx += 1;
-            continue;
-        }
-
-        let indent_len = line_content.len() - trimmed.len();
-        let indent = &line_content[..indent_len];
-        let mut after_marker = trimmed[1..].trim_start();
-        if !after_marker.starts_with("[!") {
-            // Regular blockquote (not an admonition) - pass through unchanged
-            output.push_str(segment);
-            idx += 1;
-            continue;
-        }
-        after_marker = &after_marker[2..];
-        let closing_idx = match after_marker.find(']') {
-            Some(idx) => idx,
-            None => {
-                output.push_str(segment);
-                idx += 1;
-                continue;
-            }
-        };
-
-        let raw_kind = after_marker[..closing_idx].trim();
-        let remainder = after_marker[closing_idx + 1..].trim_start();
-        if raw_kind.is_empty() {
-            output.push_str(segment);
-            idx += 1;
-            continue;
-        }
-
-        let kind = canonical_admonition_kind(raw_kind);
-        let mut body = String::new();
-        if !remainder.is_empty() {
-            body.push_str(remainder);
-            if had_newline {
-                body.push('\n');
-            }
-        } else if had_newline {
-            body.push('\n');
-        }
-
-        idx += 1;
-        while idx < segments.len() {
-            let seg = segments[idx];
-            let (line_body, seg_had_newline) = if seg.ends_with('\n') {
-                (&seg[..seg.len() - 1], true)
-            } else {
-                (seg, false)
-            };
-            let trimmed_line = line_body.trim_start();
-            if !trimmed_line.starts_with('>') {
-                break;
-            }
-            let content = trimmed_line[1..].trim_start_matches(' ');
-            if content.is_empty() {
-                // Preserve blank quoted line
-                body.push('\n');
-            } else {
-                body.push_str(content);
-                if seg_had_newline {
-                    body.push('\n');
-                }
-            }
-            idx += 1;
-        }
-
-        let mut rendered = String::new();
-        rendered.push_str(indent);
-        rendered.push_str("<!--raw-typst #admonition(\"");
-        rendered.push_str(&kind);
-        rendered.push_str("\")[ -->\n");
-        rendered.push_str(body.trim_end_matches('\n'));
-        rendered.push('\n');
-
-        // Append the rendered admonition block to the output and continue processing
-        output.push_str(&rendered);
-        // advance to the next segment in the outer loop
-        continue;
-    }
-
-    output
-}
-
-fn canonical_admonition_kind(raw: &str) -> String {
-    match raw.to_lowercase().as_str() {
-        "warning" | "warn" | "danger" | "caution" => "warning".to_string(),
-        "tip" | "success" => "tip".to_string(),
-        "info" | "information" => "info".to_string(),
-        "important" => "important".to_string(),
-        _ => "note".to_string(),
-    }
-}
-fn normalise_legacy_callouts(markdown: &str) -> String {
-    let mut replaced = markdown.replace(
-        "<!--raw-typst #block(fill: luma(245), inset: 8pt, radius: 6pt, stroke: 0.5pt + luma(200))",
-        "<!--raw-typst #admonition(\"note\")",
-    );
-    replaced = replaced.replace(
-        "<!--raw-typst #block(fill: rgb(224,242,254), inset: 8pt, radius: 6pt, stroke: 0.5pt + rgb(186,230,253))",
-        "<!--raw-typst #admonition(\"info\")",
-    );
-    replaced = replaced.replace(
-        "<!--raw-typst #block(fill: rgb(220,252,231), inset: 8pt, radius: 6pt, stroke: 0.5pt + rgb(187,247,208))",
-        "<!--raw-typst #admonition(\"tip\")",
-    );
-    replaced = replaced.replace(
-        "<!--raw-typst #block(fill: rgb(254,249,195), inset: 8pt, radius: 6pt, stroke: 0.5pt + rgb(253,224,71))",
-        "<!--raw-typst #admonition(\"warning\")",
-    );
-    replaced
-}
-
-/// Fix quirks in markdown that cause issues with the cmarker parser.
-/// 
-/// cmarker has known issues with blockquote detection (~50% success rate).
-/// For now, we just pass through - the issue requires fixing in cmarker itself.
-fn fix_cmarker_quirks(markdown: &str) -> String {
-    markdown.to_string()
-}
 
 fn inject_anchors(markdown: &str) -> Result<PreprocessorOutput> {
     let mut insertions: Vec<(usize, String)> = Vec::new();
@@ -228,10 +89,10 @@ fn inject_anchors(markdown: &str) -> Result<PreprocessorOutput> {
                 continue;
             }
             
-            let mut insertion_offset = range.start;
+            let insertion_offset = range.start;
             
-            // If we're inserting into a blockquote line (starts with '>'), 
-            // move insertion to the START of that line to avoid splitting the '>' from content
+            // If we're inserting into a blockquote line (starts with '>'), SKIP it entirely.
+            // Blockquotes (including admonitions) will get anchored via their inner paragraphs.
             let mut line_start = insertion_offset;
             while line_start > 0 && markdown.as_bytes()[line_start - 1] != b'\n' {
                 line_start -= 1;
@@ -241,7 +102,8 @@ fn inject_anchors(markdown: &str) -> Result<PreprocessorOutput> {
             let line_text = &markdown[line_start..];
             let first_line = line_text.split('\n').next().unwrap_or("");
             if first_line.trim_start().starts_with('>') {
-                insertion_offset = line_start;
+                // Skip this anchor entirely - don't insert into blockquote lines
+                continue;
             }
             
             if !seen_offsets.insert(insertion_offset) {

@@ -16,6 +16,7 @@
     size: font-size,
     lang: "tr",
     fill: font-color,
+    fallback: true,
   )
   
   set par(

@@ -3,8 +3,12 @@ import { useAppStore } from '../store';
 import './StatusBar.css';
 
 const StatusBar: React.FC = () => {
-  const { editor, preferences, syncMode, scrollLocked } = useAppStore();
-  const { currentFile, modified, compileStatus } = editor;
+  const { editor, preferences, scrollLocked } = useAppStore();
+  const { currentFile, modified, compileStatus, content } = editor;
+
+  // Calculate word and character counts
+  const wordCount = content ? content.trim().split(/\s+/).filter(w => w.length > 0).length : 0;
+  const charCount = content ? content.length : 0;
 
   const getStatusText = () => {
     if (!currentFile) {
@@ -46,6 +50,11 @@ const StatusBar: React.FC = () => {
     <div className="status-bar">
       <div className={`status-indicator ${getStatusClass()}`}>
         {getStatusText()}
+        {currentFile && (
+          <span className="status-counts">
+            • {wordCount.toLocaleString()} words • {charCount.toLocaleString()} chars
+          </span>
+        )}
       </div>
       
       <div className="status-info">

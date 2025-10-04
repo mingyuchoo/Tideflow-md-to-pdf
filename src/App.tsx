@@ -5,12 +5,14 @@ import {
   PanelResizeHandle 
 } from 'react-resizable-panels';
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { confirm } from '@tauri-apps/plugin-dialog';
 import { useAppStore } from './store';
 import { getPreferences, listenForFileChanges, readMarkdownFile } from './api';
 import { loadSession, saveSession } from './utils/session';
 import { handleError } from './utils/errorHandler';
 import './App.css';
-import { SAMPLE_DOC } from './sampleDoc';
+import { INSTRUCTIONS_DOC } from './instructionsDoc';
 import type { BackendRenderedDocument } from './types';
 
 // Import components
@@ -25,7 +27,7 @@ import { ToastContainer } from './components/ToastContainer';
 
 function App() {
   const [loading, setLoading] = useState(true);
-  const { previewVisible } = useAppStore();
+  const { previewVisible, editor, isTyping } = useAppStore();
 
   // Simple collapse flag; no persistence
   const previewCollapsed = !previewVisible;
@@ -61,11 +63,28 @@ function App() {
         store.setThemeSelection(prefs.theme_id ?? 'default');
         console.log('[App] preferences loaded', prefs);
 
-        if (session && !sampleInjected) {
+        // Check if this is first time running (no previous session with files)
+        const isFirstTime = !session || !session.openFiles || session.openFiles.length === 0;
+
+        if (isFirstTime) {
+          // Load instructions document on first run instead of sample
+          store.setCurrentFile('instructions.md');
+          store.addOpenFile('instructions.md');
+          store.setContent(INSTRUCTIONS_DOC);
+          store.setInitialSampleInjected(true);
+          sampleInjected = true;
+          if (process.env.NODE_ENV !== 'production') console.debug('[App] loaded instructions on first run');
+        } else if (session && !sampleInjected) {
           try {
-            const restored = Array.from(new Set(session.openFiles || []));
+            const restored = Array.from(new Set(session.openFiles || [])).filter(f => {
+              // Filter out invalid paths
+              if (!f || f === 'instructions.md' || f === 'sample.md') return false;
+              // Basic path validation - must have a proper extension
+              if (!f.match(/\.(md|qmd)$/i)) return false;
+              return true;
+            });
+            
             for (const f of restored) {
-              if (f === 'sample.md') continue;
               try {
                 const content = await readMarkdownFile(f);
                 store.addOpenFile(f);
@@ -74,17 +93,19 @@ function App() {
                   store.setContent(content);
                 }
               } catch (e) {
-                console.warn('[Session] Skipped unreadable file', f, e);
+                console.error('[Session] Failed to restore file:', f, 'Error:', e);
+                // Continue with other files instead of stopping
               }
             }
 
             if (
+              session.currentFile === 'instructions.md' ||
               session.currentFile === 'sample.md' ||
               (restored.length === 0 && !store.editor.currentFile)
             ) {
-              store.setCurrentFile('sample.md');
-              store.addOpenFile('sample.md');
-              store.setContent(SAMPLE_DOC);
+              store.setCurrentFile('instructions.md');
+              store.addOpenFile('instructions.md');
+              store.setContent(INSTRUCTIONS_DOC);
             }
 
             if (typeof session.previewVisible === 'boolean') {
@@ -99,9 +120,9 @@ function App() {
         }
 
         if (!store.editor.currentFile && !sampleInjected) {
-          store.setCurrentFile('sample.md');
-          store.addOpenFile('sample.md');
-          store.setContent(SAMPLE_DOC);
+          store.setCurrentFile('instructions.md');
+          store.addOpenFile('instructions.md');
+          store.setContent(INSTRUCTIONS_DOC);
           store.setInitialSampleInjected(true);
           sampleInjected = true;
         }
@@ -144,6 +165,7 @@ function App() {
         register(unlistenCompiled);
 
         const unlistenCompileError = await listen<string>('compile-error', (evt) => {
+          console.error('[App] Compile error:', evt.payload);
           const state = useAppStore.getState();
           state.setCompileStatus({ status: 'error', message: 'Compile failed', details: evt.payload });
           state.setSourceMap(null);
@@ -163,7 +185,9 @@ function App() {
         register(unlistenPrefsDump);
 
         const unlistenRenderDebug = await listen<string>('render-debug', (evt) => {
-          console.log('[RenderDebug]', evt.payload);
+          if (process.env.NODE_ENV !== 'production') {
+            console.log('[RenderDebug]', evt.payload);
+          }
         });
         register(unlistenRenderDebug);
 
@@ -181,6 +205,97 @@ function App() {
           console.warn('[TypstQuery] no positions found, falling back to PDF-text extraction');
         });
         register(unlistenTypstFailed);
+
+        // Listen for window close requests
+        const appWindow = getCurrentWindow();
+        const unlistenCloseRequested = await appWindow.onCloseRequested(async (event) => {
+          console.log('[App] Close requested');
+          
+          // Always prevent default and handle close manually
+          event.preventDefault();
+          
+          const state = useAppStore.getState();
+          const { editor, preferences, setPreferences } = state;
+          
+          console.log('[App] Close handler - modified:', editor.modified, 'confirm_exit_on_unsaved:', preferences.confirm_exit_on_unsaved);
+          
+          // Save window state before potential exit
+          const isMaximized = await appWindow.isMaximized();
+          saveSession({ maximized: isMaximized });
+          
+          // Check if there are unsaved changes and confirmation is enabled
+          if (editor.modified && preferences.confirm_exit_on_unsaved) {
+            // Ask for confirmation using Tauri dialog
+            const result = await confirm(
+              'You have unsaved changes. Do you want to exit without saving?',
+              {
+                title: 'Unsaved Changes',
+                kind: 'warning',
+                okLabel: 'Exit',
+                cancelLabel: 'Cancel'
+              }
+            );
+            
+            if (result) {
+              console.log('[App] User confirmed exit');
+              // Ask if they want to disable future confirmations
+              const disableFuturePrompts = await confirm(
+                'Do you want to disable exit confirmation prompts in the future? You can re-enable this in Design → Advanced.',
+                {
+                  title: 'Disable Future Prompts?',
+                  kind: 'info',
+                  okLabel: 'Never Ask Again',
+                  cancelLabel: 'Keep Asking'
+                }
+              );
+              
+              if (disableFuturePrompts) {
+                console.log('[App] Disabling future prompts');
+                // Update preference to disable future prompts
+                setPreferences({ ...preferences, confirm_exit_on_unsaved: false });
+                // Also save to backend
+                try {
+                  const { setPreferences: apiSetPrefs } = await import('./api');
+                  await apiSetPrefs({ ...preferences, confirm_exit_on_unsaved: false });
+                } catch (e) {
+                  console.error('Failed to save preference:', e);
+                }
+              }
+              
+              // User confirmed exit, save session and close
+              console.log('[App] Saving session and destroying window');
+              saveSession({
+                currentFile: editor.currentFile,
+                openFiles: editor.openFiles,
+                previewVisible: state.previewVisible,
+              });
+              // Destroy the window
+              await appWindow.destroy();
+              console.log('[App] Window destroy called');
+            }
+            // If not confirmed, do nothing (window stays open)
+          } else {
+            console.log('[App] No unsaved changes or confirmation disabled - closing immediately');
+            // No unsaved changes or confirmation disabled, save session and close
+            saveSession({
+              currentFile: editor.currentFile,
+              openFiles: editor.openFiles,
+              previewVisible: state.previewVisible,
+            });
+            // Close the window
+            console.log('[App] Calling destroy on window');
+            await appWindow.destroy();
+            console.log('[App] Window destroy called');
+          }
+        });
+        register(unlistenCloseRequested);
+
+        // Restore or set default window state
+        const windowSession = loadSession();
+        const shouldMaximize = windowSession?.maximized ?? true; // Default to maximized
+        if (shouldMaximize) {
+          await appWindow.maximize();
+        }
 
         // Listen for fullscreen requests dispatched from UI components.
         const onReqFs = (ev: Event) => {
@@ -226,9 +341,6 @@ function App() {
         window.addEventListener('tideflow-request-fullscreen', onReqFs as EventListener);
         // unregister on cleanup
         register(() => window.removeEventListener('tideflow-request-fullscreen', onReqFs as EventListener));
-
-        // Template inspect/warning listeners removed - they only logged debug info
-        // If needed for debugging, add them back temporarily
       } catch (error) {
         handleError(error, { operation: 'initialize app', component: 'App' });
       } finally {
@@ -243,11 +355,15 @@ function App() {
               try {
                 window.dispatchEvent(new CustomEvent('tideflow-request-fullscreen', { detail: { fullscreen: true } }));
               } catch (err) {
-                console.warn('[App] failed to dispatch tideflow-request-fullscreen', err);
+                if (process.env.NODE_ENV !== 'production') {
+                  console.warn('[App] failed to dispatch tideflow-request-fullscreen', err);
+                }
               }
             }
           } catch (err) {
-            console.warn('[App] failed to read session for fullscreen', err);
+            if (process.env.NODE_ENV !== 'production') {
+              console.warn('[App] failed to read session for fullscreen', err);
+            }
           }
         }
       }
@@ -272,6 +388,16 @@ function App() {
   const { openFiles, currentFile } = useAppStore(s => s.editor);
   const previewVisibleState = useAppStore(s => s.previewVisible);
   
+  // Load instructions.md content when it's set as current file
+  useEffect(() => {
+    const loadInstructionsContent = async () => {
+      if (currentFile === 'instructions.md' && useAppStore.getState().editor.content === '# Loading instructions...') {
+        useAppStore.getState().setContent(INSTRUCTIONS_DOC);
+      }
+    };
+    loadInstructionsContent();
+  }, [currentFile]);
+  
   useEffect(() => {
     // Debounce session saves to prevent high-frequency localStorage writes
     const timeoutId = setTimeout(() => {
@@ -286,7 +412,9 @@ function App() {
           fullscreen: currentSession?.fullscreen ?? false,
         });
       } catch (error) {
-        console.warn('[App] Failed to save session:', error);
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('[App] Failed to save session:', error);
+        }
       }
     }, 500); // 500ms debounce
     
@@ -311,6 +439,14 @@ function App() {
     <div className="app">
       <Toolbar />
       <TabBar />
+      <div className="address-bar">
+        <span className="current-file-path">{editor.currentFile || 'No file open'}</span>
+        {isTyping && (
+          <span className="typing-indicator">
+            ⌨️ Typing
+          </span>
+        )}
+      </div>
       <div className="main-content">
         <PanelGroup key={panelGroupKey} direction="horizontal" style={{ height: '100%', overflow: 'hidden' }}>
           <Panel

@@ -25,6 +25,7 @@ export interface Preferences {
   cover_title: string;
   cover_writer: string;
   cover_image: string;
+  cover_image_width: string;
   number_sections: boolean;
   default_image_width: string;
   default_image_alignment: string;
@@ -34,10 +35,16 @@ export interface Preferences {
   font_color: string;
   heading_scale: number;
   accent_color: string;
+  line_height: number;
+  paragraph_spacing: string;
+  page_numbers: boolean;
+  header_title: boolean;
+  header_text: string;
   // Preview optimization settings
   render_debounce_ms: number;
   focused_preview_enabled?: boolean; // kept optional (removed in UI) for backend compatibility
   preserve_scroll_position: boolean;
+  confirm_exit_on_unsaved: boolean;
 }
 
 export interface CompileStatus {

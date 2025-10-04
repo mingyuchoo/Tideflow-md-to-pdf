@@ -2,13 +2,21 @@ import * as pdfjsLib from 'pdfjs-dist';
 
 export interface CancelToken { canceled: boolean }
 export interface PageMetric { page: number; height: number; scale: number }
+export interface SavedScrollPosition { top: number; left: number }
 
 /**
  * Render PDF pages into the provided container and return the pdf doc and
  * collected page metrics. Renders pages in parallel and supports early
  * cancellation via the cancel token.
  */
-export async function renderPdfPages(fileUrl: string, container: HTMLElement, renderScale = 1.0, cancelToken: CancelToken): Promise<{ doc: pdfjsLib.PDFDocumentProxy; metrics: PageMetric[] }> {
+export async function renderPdfPages(
+  fileUrl: string, 
+  container: HTMLElement, 
+  renderScale = 1.0, 
+  cancelToken: CancelToken,
+  savedScrollPosition?: SavedScrollPosition,
+  programmaticScrollRef?: React.MutableRefObject<boolean>
+): Promise<{ doc: pdfjsLib.PDFDocumentProxy; metrics: PageMetric[] }> {
   const doc = await pdfjsLib.getDocument({ url: fileUrl }).promise;
   if (cancelToken.canceled) throw new Error('canceled');
 
@@ -51,6 +59,22 @@ export async function renderPdfPages(fileUrl: string, container: HTMLElement, re
       // Container no longer in DOM; abort appending fragment.
       return { doc, metrics };
     }
+    
+    // CRITICAL: Preserve scroll position before clearing container
+    // Prefer saved position from before render started, fall back to current
+    const scrollTop = savedScrollPosition?.top ?? container.scrollTop;
+    const scrollLeft = savedScrollPosition?.left ?? container.scrollLeft;
+    
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug('[pdfRenderer] Preserving scroll position', { 
+        scrollTop, 
+        scrollLeft, 
+        fromSaved: !!savedScrollPosition,
+        containerScrollTop: container.scrollTop,
+        willRestore: scrollTop > 0
+      });
+    }
+    
     // Prefer iterative removeChild which is safer across browsers
     // than assigning innerHTML when nodes may be mid-mutation.
     try {
@@ -62,6 +86,39 @@ export async function renderPdfPages(fileUrl: string, container: HTMLElement, re
       try { container.innerHTML = ''; } catch { /* swallow */ }
     }
     container.appendChild(frag);
+    
+    // CRITICAL: Restore scroll position after re-rendering
+    // This prevents the "jump to top" issue during re-renders
+    // Use requestAnimationFrame to ensure content is laid out first
+    requestAnimationFrame(() => {
+      if (container.isConnected) {
+        if (process.env.NODE_ENV !== 'production') {
+          const before = container.scrollTop;
+          console.debug('[pdfRenderer] Restoring scroll position', { 
+            target: scrollTop,
+            before,
+            scrollHeight: container.scrollHeight,
+            clientHeight: container.clientHeight
+          });
+        }
+        
+        // Set programmatic scroll guard to prevent scroll events from triggering sync
+        if (programmaticScrollRef) {
+          programmaticScrollRef.current = true;
+        }
+        
+        container.scrollTop = scrollTop;
+        container.scrollLeft = scrollLeft;
+        
+        if (process.env.NODE_ENV !== 'production') {
+          console.debug('[pdfRenderer] Restored scroll position', { 
+            target: scrollTop,
+            actual: container.scrollTop,
+            success: Math.abs(container.scrollTop - scrollTop) < 5
+          });
+        }
+      }
+    });
   } catch (e) {
     // If cancellation was requested, propagate; otherwise just
     // return gracefully without attempting DOM operations.

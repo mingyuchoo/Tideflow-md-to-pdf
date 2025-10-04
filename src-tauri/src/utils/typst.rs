@@ -112,30 +112,52 @@ pub fn rewrite_image_paths_in_markdown(
         if let Some(assets_dir) = assets_root {
             // Attempt to copy file into assets_dir
             if let Some(fname_os) = abs.file_name() {
-                let mut fname = sanitize_filename(&fname_os.to_string_lossy());
+                let sanitized = sanitize_filename(&fname_os.to_string_lossy());
+                
+                // Limit filename length to avoid Windows MAX_PATH (260 char) issues
+                // Long filenames can cause OS error 123: "invalid filename syntax"
+                // Truncate to 100 chars for stem, use hash for uniqueness
+                let path_obj = std::path::Path::new(&sanitized);
+                let stem = path_obj.file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("file");
+                let ext = path_obj.extension()
+                    .and_then(|e| e.to_str())
+                    .unwrap_or("");
+                
+                // Truncate stem if too long (max 100 chars)
+                let truncated_stem = if stem.len() > 100 {
+                    &stem[0..100]
+                } else {
+                    stem
+                };
+                
+                let mut fname = if ext.is_empty() {
+                    truncated_stem.to_string()
+                } else {
+                    format!("{}.{}", truncated_stem, ext)
+                };
+                
                 let mut dest = assets_dir.join(&fname);
                 
-                // Ensure unique filename to avoid collisions
-                let mut counter: u32 = 1;
-                while dest.exists() {
-                    let stem = dest
-                        .file_stem()
-                        .map(|s| s.to_string_lossy().to_string())
-                        .unwrap_or_else(|| "file".to_string());
-                    let ext = dest.extension().and_then(|e| e.to_str()).unwrap_or("");
+                // If file exists, use a short hash instead of incrementing counter
+                if dest.exists() {
+                    use std::collections::hash_map::DefaultHasher;
+                    use std::hash::{Hash, Hasher};
                     
-                    if ext.is_empty() {
-                        fname = format!("{}-{}", stem, counter);
+                    let mut hasher = DefaultHasher::new();
+                    abs.hash(&mut hasher);
+                    let hash = hasher.finish();
+                    let hash_str = format!("{:x}", hash);
+                    let hash_short = &hash_str[0..8.min(hash_str.len())];
+                    
+                    fname = if ext.is_empty() {
+                        format!("{}-{}", truncated_stem, hash_short)
                     } else {
-                        fname = format!("{}-{}.{}", stem, counter, ext);
-                    }
+                        format!("{}-{}.{}", truncated_stem, hash_short, ext)
+                    };
                     
                     dest = assets_dir.join(&fname);
-                    counter += 1;
-                    
-                    if counter > 1000 { 
-                        break; 
-                    }
                 }
                 
                 if std::fs::copy(&abs, &dest).is_ok() {
@@ -229,3 +251,4 @@ pub fn rewrite_image_paths_in_markdown(
 
     result.into_owned()
 }
+

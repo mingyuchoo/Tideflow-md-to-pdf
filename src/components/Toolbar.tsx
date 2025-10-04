@@ -1,13 +1,10 @@
 import React, { useRef, useState } from 'react';
 import { useAppStore } from '../store';
-import type { Preferences } from '../types';
 import DesignModal from './DesignModal';
-import PrefsModal from './PrefsModal';
 import { invoke } from '@tauri-apps/api/core';
 import { save, open } from '@tauri-apps/plugin-dialog';
 import { handleError, showSuccess } from '../utils/errorHandler';
-import { themePresets } from '../themes';
-import { setPreferences as persistPreferences, renderMarkdown, renderTypst, readMarkdownFile, createFile, writeMarkdownFile } from '../api';
+import { readMarkdownFile, createFile, writeMarkdownFile } from '../api';
 import { scrubRawTypstAnchors } from '../utils/scrubAnchors';
 import './Toolbar.css';
 
@@ -16,10 +13,8 @@ const Toolbar: React.FC = () => {
     previewVisible, 
     setPreviewVisible,
     editor,
-    designModalOpen, setDesignModalOpen,
-    setPreferences,
+    designModalOpen,
     addToast,
-    setCompileStatus,
     setCurrentFile,
     setContent,
     setModified,
@@ -30,8 +25,8 @@ const Toolbar: React.FC = () => {
     clearRecentFiles,
   } = useAppStore();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [prefsModalOpen, setPrefsModalOpen] = useState(false);
   const [recentDropdownOpen, setRecentDropdownOpen] = useState(false);
+  const [saveDropdownOpen, setSaveDropdownOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = React.useState(false);
 
   // Close dropdown when clicking outside
@@ -41,13 +36,16 @@ const Toolbar: React.FC = () => {
       if (recentDropdownOpen && !target.closest('.dropdown')) {
         setRecentDropdownOpen(false);
       }
+      if (saveDropdownOpen && !target.closest('.dropdown')) {
+        setSaveDropdownOpen(false);
+      }
     };
     
-    if (recentDropdownOpen) {
+    if (recentDropdownOpen || saveDropdownOpen) {
       document.addEventListener('click', handleClickOutside);
       return () => document.removeEventListener('click', handleClickOutside);
     }
-  }, [recentDropdownOpen]);
+  }, [recentDropdownOpen, saveDropdownOpen]);
 
   React.useEffect(() => {
     const handleFullscreenChange = () => {
@@ -91,12 +89,17 @@ const Toolbar: React.FC = () => {
 
   const handleOpenFile = async () => {
     try {
+      console.log('[Toolbar] Opening file dialog...');
       const result = await open({ multiple: false, filters: [{ name: 'Markdown Files', extensions: ['md'] }] });
       const filePath = Array.isArray(result) ? result?.[0] : result;
       
+      console.log('[Toolbar] File selected:', filePath);
+      
       if (filePath) {
         try {
+          console.log('[Toolbar] Reading file content...');
           const content = await readMarkdownFile(filePath);
+          console.log('[Toolbar] File content read, length:', content.length);
           addOpenFile(filePath);
           setCurrentFile(filePath);
           setContent(content);
@@ -104,11 +107,13 @@ const Toolbar: React.FC = () => {
           addToast({ type: 'success', message: 'File opened successfully' });
           return;
         } catch (readError) {
+          console.error('[Toolbar] Failed to read file:', readError);
           addToast({ type: 'error', message: 'Failed to read file' });
           handleError(readError, { operation: 'read file', component: 'Toolbar' });
         }
       }
-    } catch {
+    } catch (err) {
+      console.error('[Toolbar] Error opening file, falling back to input:', err);
       fileInputRef.current?.click();
     }
   };
@@ -125,6 +130,53 @@ const Toolbar: React.FC = () => {
     } catch (err) {
       addToast({ type: 'error', message: 'Failed to save file' });
       handleError(err, { operation: 'save file', component: 'Toolbar' });
+    }
+  };
+
+  const handleSaveAs = async () => {
+    const { currentFile, content } = editor;
+    try {
+      const suggestedName = currentFile ? currentFile.split(/[\\/]/).pop() : 'document.md';
+      const filePath = await save({
+        defaultPath: suggestedName,
+        filters: [{ name: 'Markdown Files', extensions: ['md'] }]
+      });
+      
+      if (!filePath) return;
+      
+      const cleaned = scrubRawTypstAnchors(content);
+      await writeMarkdownFile(filePath, cleaned);
+      setCurrentFile(filePath);
+      setModified(false);
+      addRecentFile(filePath);
+      setSaveDropdownOpen(false);
+      addToast({ type: 'success', message: 'File saved successfully' });
+    } catch (err) {
+      addToast({ type: 'error', message: 'Failed to save file' });
+      handleError(err, { operation: 'save as', component: 'Toolbar' });
+    }
+  };
+
+  const handleExportClean = async () => {
+    const { currentFile, content } = editor;
+    try {
+      const baseName = currentFile ? currentFile.split(/[\\/]/).pop()?.replace('.md', '') : 'document';
+      const suggestedName = `${baseName}-clean.md`;
+      
+      const filePath = await save({
+        defaultPath: suggestedName,
+        filters: [{ name: 'Markdown Files', extensions: ['md'] }]
+      });
+      
+      if (!filePath) return;
+      
+      const cleaned = scrubRawTypstAnchors(content);
+      await writeMarkdownFile(filePath, cleaned);
+      setSaveDropdownOpen(false);
+      addToast({ type: 'success', message: 'Clean Markdown exported successfully' });
+    } catch (err) {
+      addToast({ type: 'error', message: 'Failed to export clean Markdown' });
+      handleError(err, { operation: 'export clean', component: 'Toolbar' });
     }
   };
 
@@ -152,19 +204,6 @@ const Toolbar: React.FC = () => {
 
   const handleTogglePreview = () => {
     setPreviewVisible(!previewVisible);
-  };
-
-  // Unified re-render that supports the in-memory sample document (which has no on-disk path)
-  const rerenderCurrent = async () => {
-    const { editor: { currentFile, content } } = useAppStore.getState();
-    if (!currentFile) return;
-    // Detect virtual sample file (no path separators) or explicit 'sample.md'
-    const isVirtual = currentFile === 'sample.md' || (!currentFile.includes('/') && !currentFile.includes('\\'));
-    if (isVirtual) {
-      await renderTypst(content, 'pdf');
-    } else {
-      await renderMarkdown(currentFile);
-    }
   };
 
   const handleExportPDF = async () => {
@@ -218,14 +257,11 @@ const Toolbar: React.FC = () => {
       <div className="toolbar-actions">
         {/* File Operations */}
         <div className="toolbar-section">
-          <button onClick={handleNewFile} title="New File (Ctrl+N)">
-            📄 New
-          </button>
-          <div className="toolbar-button-group">
-            <button onClick={handleOpenFile} title="Open File (Ctrl+O)">
-              📂 Open
-            </button>
-            {recentFiles.length > 0 && (
+          {recentFiles.length > 0 ? (
+            <div className="file-control-group">
+              <button onClick={handleOpenFile} title="Open File (Ctrl+O)" className="file-open-btn">
+                📂 Open
+              </button>
               <div className="dropdown">
                 <button 
                   className="dropdown-toggle" 
@@ -277,11 +313,18 @@ const Toolbar: React.FC = () => {
                   </div>
                 )}
               </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <button onClick={handleOpenFile} title="Open File (Ctrl+O)">
+              📂 Open
+            </button>
+          )}
+          <button onClick={handleNewFile} title="New File (Ctrl+N)">
+            📄 New
+          </button>
           <button
             onClick={closeAllFiles}
-            title="Close all tabs and return to sample document"
+            title="Close all tabs and return to instructions"
           >
             ✖ Close All
           </button>
@@ -293,7 +336,7 @@ const Toolbar: React.FC = () => {
         <div className="toolbar-section">
           <button
             onClick={handleTogglePreview}
-            className={previewVisible ? 'active' : ''}
+            className={previewVisible ? 'active' : 'inactive'}
             title={previewVisible ? 'Hide Preview (Ctrl+\\)' : 'Show Preview (Ctrl+\\'}
           >
             {previewVisible ? '👁️ Preview' : '👁️‍🗨️ Preview'}
@@ -310,22 +353,47 @@ const Toolbar: React.FC = () => {
 
         <div className="toolbar-separator"></div>
 
-        {/* Document Settings */}
         <div className="toolbar-section">
-          <button
-            onClick={() => setPrefsModalOpen(true)}
-            title="Settings (Performance, Session)"
-            className="btn-secondary"
-          >
-            ⚙️ Settings
-          </button>
-          <button 
-            onClick={handleSaveFile} 
-            disabled={!editor.modified}
-            title="Save File (Ctrl+S)"
-          >
-            💾 Save
-          </button>
+          <div className="file-control-group">
+            <button 
+              onClick={handleSaveFile} 
+              disabled={!editor.modified}
+              title="Save File (Ctrl+S)"
+              className="file-open-btn btn-primary"
+            >
+              💾 Save
+            </button>
+            <div className="dropdown">
+              <button 
+                className="dropdown-toggle btn-primary" 
+                title="Save options"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSaveDropdownOpen(!saveDropdownOpen);
+                }}
+              >
+                ▼
+              </button>
+              {saveDropdownOpen && (
+                <div className="dropdown-menu">
+                  <button
+                    className="dropdown-item"
+                    onClick={handleSaveAs}
+                    title="Save to a different location or filename"
+                  >
+                    💾 Save As…
+                  </button>
+                  <button
+                    className="dropdown-item"
+                    onClick={handleExportClean}
+                    title="Export without Typst wrappers (pure Markdown)"
+                  >
+                    ✨ Export Clean MD
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
           <button 
             onClick={handleExportPDF}
             disabled={!editor.compileStatus.pdf_path}
@@ -337,7 +405,6 @@ const Toolbar: React.FC = () => {
         </div>
       </div>
       {designModalOpen && <DesignModal />}
-      {prefsModalOpen && <PrefsModal onClose={() => setPrefsModalOpen(false)} />}
     </div>
   );
 };

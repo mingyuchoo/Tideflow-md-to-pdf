@@ -16,6 +16,7 @@ export interface ScrollStateRefs {
   initialForcedScrollDoneRef: React.MutableRefObject<boolean>;
   startupOneShotAppliedRef: React.MutableRefObject<boolean>;
   finalRefreshDoneRef: React.MutableRefObject<boolean>;
+  savedScrollPositionRef: React.MutableRefObject<{ top: number; left: number } | null>;
   // Sync refs (kept in sync with props/state)
   syncModeRef: React.MutableRefObject<SyncMode>;
   activeAnchorRef: React.MutableRefObject<string | null>;
@@ -46,6 +47,9 @@ export function useScrollState(params: UseScrollStateParams): ScrollStateRefs {
   const initialForcedScrollDoneRef = useRef(false);
   const startupOneShotAppliedRef = useRef(false);
   const finalRefreshDoneRef = useRef(false);
+  
+  // Saved scroll position for preservation during re-renders
+  const savedScrollPositionRef = useRef<{ top: number; left: number } | null>(null);
 
   // Sync refs for stable access in callbacks
   const syncModeRef = useRef(syncMode);
@@ -77,6 +81,7 @@ export function useScrollState(params: UseScrollStateParams): ScrollStateRefs {
     initialForcedScrollDoneRef,
     startupOneShotAppliedRef,
     finalRefreshDoneRef,
+    savedScrollPositionRef,
     syncModeRef,
     activeAnchorRef,
     isTypingRef,

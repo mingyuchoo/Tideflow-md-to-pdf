@@ -18,7 +18,6 @@ I wanted a dead-simple, elegant writing tool that outputs print‑ready PDFs **w
 * Math (inline / block) via LaTeX-style syntax
 * **12 beautiful themes**: Default, Minimal, Compact, Elegant, Technical, Magazine, Academic, Creative, Modern, Serif, Notebook, Dark
 * Full blockquote support with theme-appropriate backgrounds
-* Admonitions (callouts) with color-coded styling
 * Offline: once installed, **no network required**
 * Cross‑platform (Windows / macOS / Linux)
 * Fast startup: no giant runtime or Electron bloat
@@ -54,6 +53,8 @@ I wanted a dead-simple, elegant writing tool that outputs print‑ready PDFs **w
 | Toggle Preview | Ctrl+P |
 | Design Modal | Ctrl+D |
 | Preferences | Ctrl+, |
+| Undo | Ctrl+Z |
+| Redo | Ctrl+Y or Ctrl+Shift+Z |
 
 ## Tech Stack
 **Core**
@@ -108,7 +109,6 @@ npm run tauri:build
 * Math (inline `$...$` and block `$$...$$` via LaTeX-style syntax)
 * Lists (ordered, unordered, task lists with `- [ ]` / `- [x]`)
 * Blockquotes (single and multi-line with `>`)
-* Admonitions / Callouts (`> [!note]`, `> [!warning]`, `> [!tip]`, etc.)
 * Tables (with alignment support)
 * Images (paste, drag-drop, import with metadata)
 * Horizontal rules (`---` or `***`)
@@ -159,18 +159,29 @@ Md-to-PDF/
 * [x] Anchor-based scroll sync with bidirectional lock controls
 * [x] Cover page toggle + metadata editor (title, author, date, logo)
 * [x] Blockquote rendering with theme-appropriate backgrounds
-* [x] Admonitions / callouts with color-coded styling
 * [x] Image paste, drag-drop, and metadata capture
 * [x] Multi-tab document management
 * [x] Recent files list with persistence
 * [x] Search & replace functionality
 * [x] Keyboard shortcuts for all major operations
+* [x] PDF thumbnail sidebar for quick page navigation
+* [x] Instructions document for first-time users
 
-**In Progress:**
-* [ ] Dark mode for editor UI (themes already support dark PDFs)
-* [ ] PDF thumbnail sidebar for quick page navigation
+**In Progress (Major Refactoring - October 2025):**
+* [ ] Phase 1: Centralized logging infrastructure (production-safe, environment-aware)
+* [ ] Phase 2: Type safety improvements (eliminate `any` types, proper type definitions)
+* [ ] Phase 3: Standardized error handling (toast-based, no alerts)
+* [ ] Phase 4: Component splitting (reduce complexity, improve maintainability)
+* [ ] Phase 5: State management refactoring (split Zustand stores by domain)
+* [ ] Phase 6: Code quality improvements (extract constants, remove duplication)
+* [ ] Phase 7: Rust improvements (modular renderer, consistent serialization)
+* [ ] Phase 8: Comprehensive testing (unit, integration, E2E tests)
+* [ ] Phase 9: Performance optimization (bundle splitting, React.memo)
+
+See [REFACTORING_PLAN.md](./REFACTORING_PLAN.md) for detailed implementation strategy.
 
 **Future:**
+* [ ] Dark mode for editor UI (themes already support dark PDFs)
 * [ ] Built-in template gallery (report, memo, article, resume)
 * [ ] Image optimization pipeline (resize/compress before embedding)
 * [ ] Spellcheck integration
