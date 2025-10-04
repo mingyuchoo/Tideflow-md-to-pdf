@@ -11,6 +11,7 @@ import { useAppStore } from './store';
 import { getPreferences, listenForFileChanges, readMarkdownFile } from './api';
 import { loadSession, saveSession } from './utils/session';
 import { handleError } from './utils/errorHandler';
+import { logger } from './utils/logger';
 import './App.css';
 import { INSTRUCTIONS_DOC } from './instructionsDoc';
 import type { BackendRenderedDocument } from './types';
@@ -24,6 +25,9 @@ import Toolbar from './components/Toolbar';
 import { TIMING } from './constants/timing';
 import StatusBar from './components/StatusBar';
 import { ToastContainer } from './components/ToastContainer';
+
+// Create scoped logger for App component
+const appLogger = logger.createScoped('App');
 
 function App() {
   const [loading, setLoading] = useState(true);
