@@ -2,6 +2,8 @@
  * Centralized error handling utilities for consistent user feedback
  */
 
+import { logger } from './logger';
+
 export type ErrorSeverity = 'info' | 'warning' | 'error' | 'critical';
 
 export interface ErrorContext {
@@ -19,12 +21,12 @@ export function handleError(
   severity: ErrorSeverity = 'error'
 ): void {
   const errorMsg = error instanceof Error ? error.message : String(error);
-  const logPrefix = `[${context.component || 'App'}]`;
+  const component = context.component || 'App';
   
-  // Always log to console for debugging
-  console.error(`${logPrefix} ${context.operation} failed:`, errorMsg);
+  // Log to console for debugging (using centralized logger)
+  logger.error(component, `${context.operation} failed: ${errorMsg}`);
   if (context.details) {
-    console.error('Additional details:', context.details);
+    logger.debug(component, 'Additional details', context.details);
   }
   
   // Show user feedback based on severity
@@ -37,10 +39,10 @@ export function handleError(
       break;
     case 'warning':
       // Only log warnings, don't interrupt user
-      console.warn(`${logPrefix} Warning in ${context.operation}:`, errorMsg);
+      logger.warn(component, `Warning in ${context.operation}: ${errorMsg}`);
       break;
     case 'info':
-      console.info(`${logPrefix} ${context.operation}:`, errorMsg);
+      logger.info(component, `${context.operation}: ${errorMsg}`);
       break;
   }
 }
@@ -49,7 +51,7 @@ export function handleError(
  * Show success message for user operations
  */
 export function showSuccess(message: string): void {
-  console.log('✅', message);
+  logger.info('UI', message);
   // Could be enhanced with toast notifications in the future
 }
 
