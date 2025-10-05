@@ -98,8 +98,8 @@ export function useEditorSync(params: UseEditorSyncParams) {
     if (!closest) return;
 
     if (process.env.NODE_ENV !== 'production') {
-      console.debug('[Editor] computed closest anchor', { id: closest.id, line: closest.editor.line, centerLine });
-      console.debug('[Editor] syncModeRef, activeAnchorIdRef', { syncMode: syncModeRef.current, activeAnchor: activeAnchorIdRef.current });
+      useEditorSyncLogger.debug('computed closest anchor', { id: closest.id, line: closest.editor.line, centerLine });
+      useEditorSyncLogger.debug('syncModeRef, activeAnchorIdRef', { syncMode: syncModeRef.current, activeAnchor: activeAnchorIdRef.current });
     }
 
     // Only release the preview lock when the editor scroll was
@@ -118,7 +118,7 @@ export function useEditorSync(params: UseEditorSyncParams) {
       if (userInitiated && curFile) {
         const pos = scrollEl.scrollTop;
         setEditorScrollPosition(curFile, pos);
-        if (process.env.NODE_ENV !== 'production') console.debug('[Editor] persisted scroll pos', { file: curFile, pos });
+        if (process.env.NODE_ENV !== 'production') useEditorSyncLogger.debug('persisted scroll pos', { file: curFile, pos });
       }
     } catch { /* ignore persistence failures */ }
 
@@ -126,7 +126,7 @@ export function useEditorSync(params: UseEditorSyncParams) {
       anchorUpdateFromEditorRef.current = true;
       setActiveAnchorId(closest.id);
       if (process.env.NODE_ENV !== 'production') {
-        console.debug('[Editor] setActiveAnchorId ->', closest.id);
+        useEditorSyncLogger.debug('setActiveAnchorId ->', closest.id);
       }
     }
   }, [
@@ -182,3 +182,4 @@ export function useEditorSync(params: UseEditorSyncParams) {
     setupScrollListener,
   };
 }
+

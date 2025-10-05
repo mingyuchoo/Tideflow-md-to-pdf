@@ -80,7 +80,7 @@ export function useContentManagement(params: UseContentManagementParams) {
         await cleanupTempPdfs(10); // Keep last 10 temp PDFs
       } catch (err) {
         // Don't fail the render if cleanup fails
-        console.warn('Failed to cleanup temp PDFs:', err);
+        useContentManagementLogger.warn('Failed to cleanup temp PDFs:', err);
       }
     } catch (err) {
       // Don't update state if operation was cancelled
@@ -117,3 +117,4 @@ export function useContentManagement(params: UseContentManagementParams) {
     handleAutoRender,
   };
 }
+

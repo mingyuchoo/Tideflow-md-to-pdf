@@ -1,9 +1,27 @@
 import React from 'react';
+import { logger } from '../utils/logger';
+
+const TabBarLogger = logger.createScoped('TabBar');
 import { useAppStore } from '../store';
+import { logger } from '../utils/logger';
+
+const TabBarLogger = logger.createScoped('TabBar');
 import { readMarkdownFile } from '../api';
+import { logger } from '../utils/logger';
+
+const TabBarLogger = logger.createScoped('TabBar');
 import { handleError } from '../utils/errorHandler';
+import { logger } from '../utils/logger';
+
+const TabBarLogger = logger.createScoped('TabBar');
 import './TabBar.css';
+import { logger } from '../utils/logger';
+
+const TabBarLogger = logger.createScoped('TabBar');
 import { INSTRUCTIONS_DOC } from '../instructionsDoc';
+import { logger } from '../utils/logger';
+
+const TabBarLogger = logger.createScoped('TabBar');
 
 const TabBar: React.FC = () => {
   const { 
@@ -36,12 +54,12 @@ const TabBar: React.FC = () => {
 
   // Explicitly (re)open the instructions document
   const handleOpenInstructions = async () => {
-    console.log('[TabBar] Opening instructions...');
+    TabBarLogger.info('Opening instructions...');
     const instructionsName = 'instructions.md';
     addOpenFile(instructionsName);
     setCurrentFile(instructionsName);
     setContent(INSTRUCTIONS_DOC);
-    console.log('[TabBar] Instructions opened, content length:', INSTRUCTIONS_DOC.length);
+    TabBarLogger.info('Instructions opened, content length:', INSTRUCTIONS_DOC.length);
   };
 
   const handleCloseTab = (e: React.MouseEvent, filePath: string) => {
@@ -91,3 +109,4 @@ const TabBar: React.FC = () => {
 };
 
 export default TabBar;
+

@@ -6,9 +6,21 @@
  */
 
 import { useEffect, useRef } from 'react';
+import { logger } from '../utils/logger';
+
+const useEditorToPdfSyncLogger = logger.createScoped('useEditorToPdfSync');
 import type { SourceMap } from '../types';
+import { logger } from '../utils/logger';
+
+const useEditorToPdfSyncLogger = logger.createScoped('useEditorToPdfSync');
 import { checkEditorToPdfGuards } from '../utils/scrollGuards';
+import { logger } from '../utils/logger';
+
+const useEditorToPdfSyncLogger = logger.createScoped('useEditorToPdfSync');
 import { useAppStore } from '../store';
+import { logger } from '../utils/logger';
+
+const useEditorToPdfSyncLogger = logger.createScoped('useEditorToPdfSync');
 
 interface UseEditorToPdfSyncParams {
   // State
@@ -77,7 +89,7 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
 
     if (!guardResult.passed) {
       if (process.env.NODE_ENV !== 'production') {
-        console.debug('[EditorToPdfSync] skipped -', guardResult.reason);
+        useEditorToPdfSyncLogger.debug('skipped -', guardResult.reason);
       }
       // Still update tracking ref for duplicate check
       if (activeAnchorId) lastActiveAnchorIdRef.current = activeAnchorId;
@@ -101,7 +113,7 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
 
     const timerId = setTimeout(() => {
       if (process.env.NODE_ENV !== 'production') {
-        console.debug('[EditorToPdfSync] syncing to anchor', { activeAnchorId });
+        useEditorToPdfSyncLogger.debug('syncing to anchor', { activeAnchorId });
       }
       scrollToAnchor(activeAnchorId, false, false);
       lastScrolledToAnchorRef.current = activeAnchorId; // Remember where we scrolled
@@ -121,7 +133,7 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
       lastTypingStoppedAtRef.current = Date.now();
       
       if (process.env.NODE_ENV !== 'production') {
-        console.debug('[EditorToPdfSync] user stopped typing - ready for next navigation');
+        useEditorToPdfSyncLogger.debug('user stopped typing - ready for next navigation');
       }
     }
   }, [isTyping]);
@@ -134,7 +146,7 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
     lastSourceMapRef.current = sourceMap;
 
     if (process.env.NODE_ENV !== 'production') {
-      console.debug('[EditorToPdfSync] sourceMap changed, recomputing offsets', {
+      useEditorToPdfSyncLogger.debug('sourceMap changed, recomputing offsets', {
         anchorsCount: sourceMap.anchors.length,
       });
     }
@@ -150,7 +162,7 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
       // Check if offsets are ready
       if (anchorOffsetsRef.current.size === 0) {
         if (process.env.NODE_ENV !== 'production') {
-          console.debug('[EditorToPdfSync] waiting for offsets after sourceMap change');
+          useEditorToPdfSyncLogger.debug('waiting for offsets after sourceMap change');
         }
         return;
       }
@@ -159,7 +171,7 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
       // If no activeAnchorId, don't scroll at all (user hasn't interacted yet)
       if (!activeAnchorId) {
         if (process.env.NODE_ENV !== 'production') {
-          console.debug('[EditorToPdfSync] no activeAnchorId yet, skipping post-render scroll');
+          useEditorToPdfSyncLogger.debug('no activeAnchorId yet, skipping post-render scroll');
         }
         return;
       }
@@ -171,7 +183,7 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
           syncModeRef.current === 'auto' && 
           lastScrolledToAnchorRef.current !== null) {
         if (process.env.NODE_ENV !== 'production') {
-          console.debug('[EditorToPdfSync] skipping post-render scroll - user has PDF positioned elsewhere');
+          useEditorToPdfSyncLogger.debug('skipping post-render scroll - user has PDF positioned elsewhere');
         }
         return;
       }
@@ -184,7 +196,7 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
       
       if (timeSinceTypingStopped < 2000 && !anchorChanged) { // Only block if anchor is the same
         if (process.env.NODE_ENV !== 'production') {
-          console.debug('[EditorToPdfSync] skipping post-render scroll - recently stopped typing at same anchor', {
+          useEditorToPdfSyncLogger.debug('skipping post-render scroll - recently stopped typing at same anchor', {
             timeSinceTypingStopped,
             targetAnchor,
             lastScrolledTo: lastScrolledToAnchorRef.current
@@ -194,7 +206,7 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
       }
 
       if (process.env.NODE_ENV !== 'production') {
-        console.debug('[EditorToPdfSync] scrolling after sourceMap change', { 
+        useEditorToPdfSyncLogger.debug('scrolling after sourceMap change', { 
           targetAnchor,
           activeAnchorId,
           isTyping,
@@ -239,7 +251,7 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
     if (userInteractedRef.current) return;
 
     if (process.env.NODE_ENV !== 'production') {
-      console.debug('[EditorToPdfSync] performing initial startup sync', {
+      useEditorToPdfSyncLogger.debug('performing initial startup sync', {
         hasSourceMap: !!sourceMap,
         metricsCount: pdfMetricsRef.current.length,
         offsetsCount: anchorOffsetsRef.current.size,
@@ -259,7 +271,7 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
       const targetAnchor = activeAnchorId ?? sourceMap.anchors[0]?.id;
       if (targetAnchor) {
         if (process.env.NODE_ENV !== 'production') {
-          console.debug('[EditorToPdfSync] executing initial sync scroll', { targetAnchor });
+          useEditorToPdfSyncLogger.debug('executing initial sync scroll', { targetAnchor });
         }
         scrollToAnchor(targetAnchor, true, true);
         initialSyncDoneRef.current = true;
@@ -305,7 +317,7 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
       if (resizeTimeout) window.clearTimeout(resizeTimeout);
       resizeTimeout = window.setTimeout(() => {
         if (process.env.NODE_ENV !== 'production') {
-          console.debug('[EditorToPdfSync] container resized, recomputing offsets');
+          useEditorToPdfSyncLogger.debug('container resized, recomputing offsets');
         }
         recomputeAnchorOffsets(sourceMapRef.current);
         
@@ -314,13 +326,13 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
         const isLocked = syncModeRef.current === 'auto' && userManuallyPositionedPdfRef.current;
         if (!isLocked && syncModeRef.current !== 'locked-to-pdf' && activeAnchorId) {
           if (process.env.NODE_ENV !== 'production') {
-            console.debug('[EditorToPdfSync] re-syncing after resize');
+            useEditorToPdfSyncLogger.debug('re-syncing after resize');
           }
           setTimeout(() => {
             scrollToAnchor(activeAnchorId, false, false);
           }, 30);
         } else if (isLocked && process.env.NODE_ENV !== 'production') {
-          console.debug('[EditorToPdfSync] 🔒 resize detected but PDF is locked - not scrolling');
+          useEditorToPdfSyncLogger.debug('🔒 resize detected but PDF is locked - not scrolling');
         }
       }, 200); // Debounce resize recomputation
     });
@@ -332,3 +344,4 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
     };
   }, [containerRef, sourceMapRef, syncModeRef, activeAnchorId, scrollToAnchor, recomputeAnchorOffsets, userManuallyPositionedPdfRef]);
 }
+

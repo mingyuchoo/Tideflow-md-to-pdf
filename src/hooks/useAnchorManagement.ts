@@ -4,9 +4,21 @@
  */
 
 import { useEffect, useRef } from 'react';
+import { logger } from '../utils/logger';
+
+const useAnchorManagementLogger = logger.createScoped('useAnchorManagement');
 import { EditorView } from 'codemirror';
+import { logger } from '../utils/logger';
+
+const useAnchorManagementLogger = logger.createScoped('useAnchorManagement');
 import type { SourceMap } from '../types';
+import { logger } from '../utils/logger';
+
+const useAnchorManagementLogger = logger.createScoped('useAnchorManagement');
 import type { EditorStateRefs } from './useEditorState';
+import { logger } from '../utils/logger';
+
+const useAnchorManagementLogger = logger.createScoped('useAnchorManagement');
 
 interface UseAnchorManagementParams {
   editorStateRefs: EditorStateRefs;
@@ -55,13 +67,13 @@ export function useAnchorManagement(params: UseAnchorManagementParams) {
     const anchor = sourceMap.anchors.find((candidate) => candidate.id === activeAnchorId);
     if (!anchor) {
       if (process.env.NODE_ENV !== 'production') {
-        console.warn('[useAnchorManagement] anchor not found in sourceMap', { activeAnchorId });
+        useAnchorManagementLogger.warn('anchor not found in sourceMap', { activeAnchorId });
       }
       return;
     }
 
     if (process.env.NODE_ENV !== 'production') {
-      console.debug('[useAnchorManagement] scrolling editor to anchor', { 
+      useAnchorManagementLogger.debug('scrolling editor to anchor', { 
         activeAnchorId, 
         offset: anchor.editor.offset,
         line: anchor.editor.line,
@@ -125,7 +137,7 @@ export function useAnchorManagement(params: UseAnchorManagementParams) {
         }
         
         if (process.env.NODE_ENV !== 'production') {
-          console.debug('[useAnchorManagement] anchor ID changed, preserving position', {
+          useAnchorManagementLogger.debug('anchor ID changed, preserving position', {
             oldId: activeAnchorId,
             oldLine: oldAnchor.editor.line,
             newId: closest.id,
@@ -144,7 +156,7 @@ export function useAnchorManagement(params: UseAnchorManagementParams) {
     // Don't reset - let editor sync handle it naturally
     if (activeAnchorId) {
       if (process.env.NODE_ENV !== 'production') {
-        console.debug('[useAnchorManagement] keeping activeAnchorId - let editor sync update', {
+        useAnchorManagementLogger.debug('keeping activeAnchorId - let editor sync update', {
           activeAnchorId,
           hasPrevSourceMap: !!prevSourceMap
         });
@@ -157,3 +169,4 @@ export function useAnchorManagement(params: UseAnchorManagementParams) {
     setActiveAnchorId(anchors[0].id);
   }, [sourceMap, activeAnchorId, setActiveAnchorId, anchorUpdateFromEditorRef]);
 }
+

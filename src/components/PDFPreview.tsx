@@ -1,16 +1,52 @@
   // ...existing code...
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { logger } from '../utils/logger';
+
+const PDFPreviewLogger = logger.createScoped('PDFPreview');
 import { useAppStore } from '../store';
+import { logger } from '../utils/logger';
+
+const PDFPreviewLogger = logger.createScoped('PDFPreview');
 import './PDFPreview.css';
+import { logger } from '../utils/logger';
+
+const PDFPreviewLogger = logger.createScoped('PDFPreview');
 import * as pdfjsLib from 'pdfjs-dist';
+import { logger } from '../utils/logger';
+
+const PDFPreviewLogger = logger.createScoped('PDFPreview');
 import PDFPreviewHeader from './PDFPreviewHeader';
+import { logger } from '../utils/logger';
+
+const PDFPreviewLogger = logger.createScoped('PDFPreview');
 import { usePdfRenderer } from '../hooks/usePdfRenderer';
+import { logger } from '../utils/logger';
+
+const PDFPreviewLogger = logger.createScoped('PDFPreview');
 import PdfJsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?worker';
+import { logger } from '../utils/logger';
+
+const PDFPreviewLogger = logger.createScoped('PDFPreview');
 import { useScrollState } from '../hooks/useScrollState';
+import { logger } from '../utils/logger';
+
+const PDFPreviewLogger = logger.createScoped('PDFPreview');
 import { useOffsetManager } from '../hooks/useOffsetManager';
+import { logger } from '../utils/logger';
+
+const PDFPreviewLogger = logger.createScoped('PDFPreview');
 import { useEditorToPdfSync } from '../hooks/useEditorToPdfSync';
+import { logger } from '../utils/logger';
+
+const PDFPreviewLogger = logger.createScoped('PDFPreview');
 import { usePdfToEditorSync } from '../hooks/usePdfToEditorSync';
+import { logger } from '../utils/logger';
+
+const PDFPreviewLogger = logger.createScoped('PDFPreview');
 import { UI } from '../constants/timing';
+import { logger } from '../utils/logger';
+
+const PDFPreviewLogger = logger.createScoped('PDFPreview');
 
 interface PdfJsWorkerOptions {
   workerPort?: unknown;
@@ -25,13 +61,13 @@ try {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       lib.GlobalWorkerOptions.workerPort = new (PdfJsWorker as any)();
-      if (process.env.NODE_ENV !== 'production') console.log('[PDFPreview] pdf.js workerPort initialized');
+      PDFPreviewLogger.\('pdf.js workerPort initialized');
     } catch (inner) {
-      if (process.env.NODE_ENV !== 'production') console.warn('[PDFPreview] Worker construction failed, continuing with fake worker', inner);
+      PDFPreviewLogger.\('Worker construction failed, continuing with fake worker', inner);
     }
   }
 } catch (outer) {
-  if (process.env.NODE_ENV !== 'production') console.warn('[PDFPreview] Worker initialization outer failure; continuing without worker', outer);
+  PDFPreviewLogger.\('Worker initialization outer failure; continuing without worker', outer);
 }
 
 const PDFPreview: React.FC = () => {
@@ -123,14 +159,12 @@ const PDFPreview: React.FC = () => {
     // Ensure the container is still attached to the document
     if (!el || !el.parentNode || !el.isConnected) return;
     
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`[PDFPreview] scrollToAnchor: anchor=${anchorId}, force=${force}, center=${center}`);
-    }
+    PDFPreviewLogger.debug(`scrollToAnchor: anchor=${anchorId}, force=${force}, center=${center}`);
     
     const offset = anchorOffsetsRef.current.get(anchorId);
     if (offset === undefined) {
       if (process.env.NODE_ENV !== 'production') {
-        console.debug('[PDFPreview] no offset for anchor', { anchorId });
+        PDFPreviewLogger.debug('no offset for anchor', { anchorId });
       }
       return;
     }
@@ -143,7 +177,7 @@ const PDFPreview: React.FC = () => {
     // Skip if already at target position (within tolerance)
     if (Math.abs(currentTop - target) <= UI.SCROLL_POSITION_TOLERANCE_PX) {
       if (process.env.NODE_ENV !== 'production') {
-        console.debug('[PDFPreview] already at target', { anchorId, target, currentTop });
+        PDFPreviewLogger.debug('already at target', { anchorId, target, currentTop });
       }
       return;
     }
@@ -154,7 +188,7 @@ const PDFPreview: React.FC = () => {
       // First forced scroll - mark it complete
       initialForcedScrollDoneRef.current = true;
       if (process.env.NODE_ENV !== 'production') {
-        console.debug('[PDFPreview] initial forced scroll completed', { anchorId });
+        PDFPreviewLogger.debug('initial forced scroll completed', { anchorId });
       }
     }
     
@@ -167,7 +201,7 @@ const PDFPreview: React.FC = () => {
     el.scrollTo({ top: target, behavior: 'auto' });
     
     if (process.env.NODE_ENV !== 'production') {
-      console.debug('[PDFPreview] scrolled', { anchorId, from: beforeTop, to: target, delta: target - beforeTop });
+      PDFPreviewLogger.debug('scrolled', { anchorId, from: beforeTop, to: target, delta: target - beforeTop });
     }
     
         // Clear programmatic flag after scroll completes
@@ -185,7 +219,7 @@ const PDFPreview: React.FC = () => {
       userManuallyPositionedPdfRef.current = false;
       useAppStore.getState().setScrollLocked(false);
       if (process.env.NODE_ENV !== 'production') {
-        console.debug('[PDFPreview] cleared manual position flag - mode:', syncMode);
+        PDFPreviewLogger.debug('cleared manual position flag - mode:', syncMode);
       }
     }
   }, [syncMode, userManuallyPositionedPdfRef]);
@@ -199,7 +233,7 @@ const PDFPreview: React.FC = () => {
     
     if (startedTyping && syncMode === 'two-way') {
       if (process.env.NODE_ENV !== 'production') {
-        console.debug('[PDFPreview] 🔄 typing detected in two-way mode - switching to auto');
+        PDFPreviewLogger.debug('🔄 typing detected in two-way mode - switching to auto');
       }
       setSyncMode('auto');
     }
@@ -219,7 +253,7 @@ const PDFPreview: React.FC = () => {
     // 3. Anchor actually changed (user scrolled/navigated editor)
     if (!isTyping && !wasTyping && anchorChanged && activeAnchorId) {
       if (process.env.NODE_ENV !== 'production') {
-        console.debug('[PDFPreview] 🔓 clearing PDF lock - user SCROLLED/NAVIGATED editor', {
+        PDFPreviewLogger.debug('🔓 clearing PDF lock - user SCROLLED/NAVIGATED editor', {
           from: prevAnchorIdRef.current,
           to: activeAnchorId
         });
@@ -275,7 +309,7 @@ const PDFPreview: React.FC = () => {
   const registerPendingAnchor = useCallback((anchorId: string) => {
     pendingForcedAnchorRef.current = anchorId;
     if (process.env.NODE_ENV !== 'production') {
-      console.debug('[PDFPreview] registered pending anchor', { anchorId });
+      PDFPreviewLogger.debug('registered pending anchor', { anchorId });
     }
   }, []);
 
@@ -285,7 +319,7 @@ const PDFPreview: React.FC = () => {
 
     if (checkOffset && anchorOffsetsRef.current.size === 0) {
       if (process.env.NODE_ENV !== 'production') {
-        console.debug('[PDFPreview] consumePendingAnchor: no offsets yet, skipping');
+        PDFPreviewLogger.debug('consumePendingAnchor: no offsets yet, skipping');
       }
       return;
     }
@@ -293,7 +327,7 @@ const PDFPreview: React.FC = () => {
     pendingForcedAnchorRef.current = null;
     
     if (process.env.NODE_ENV !== 'production') {
-      console.debug('[PDFPreview] consuming pending anchor', { anchorId, offsets: anchorOffsetsRef.current.size });
+      PDFPreviewLogger.debug('consuming pending anchor', { anchorId, offsets: anchorOffsetsRef.current.size });
     }
 
     requestAnimationFrame(() => {
@@ -344,7 +378,7 @@ const PDFPreview: React.FC = () => {
   // unmount.
   useEffect(() => {
     if (process.env.NODE_ENV !== 'production') {
-      console.debug('[PDFPreview] offset-transition watcher mounted');
+      PDFPreviewLogger.debug('offset-transition watcher mounted');
     }
     const checkPending = () => {
       if (!containerRef.current) return;
@@ -415,13 +449,13 @@ const PDFPreview: React.FC = () => {
     const generateThumbnails = () => {
       const canvases = container.querySelectorAll('canvas.pdfjs-page-canvas');
       if (process.env.NODE_ENV !== 'production') {
-        console.log('[PDFPreview] Generating thumbnails, found canvases:', canvases.length);
+        PDFPreviewLogger.debug('Generating thumbnails, found canvases:', canvases.length);
       }
       
       if (canvases.length === 0) {
         // Retry if canvases not ready yet
         if (process.env.NODE_ENV !== 'production') {
-          console.log('[PDFPreview] No canvases found, retrying in 500ms...');
+          PDFPreviewLogger.debug('No canvases found, retrying in 500ms...');
         }
         setTimeout(generateThumbnails, 500);
         return;
@@ -442,7 +476,7 @@ const PDFPreview: React.FC = () => {
         const aspectRatio = sourceHeight / sourceWidth;
         
         if (process.env.NODE_ENV !== 'production' && index === 0) {
-          console.log('[PDFPreview] Canvas dimensions:', {
+          PDFPreviewLogger.debug('Canvas dimensions:', {
             width: sourceWidth,
             height: sourceHeight,
             aspectRatio: aspectRatio.toFixed(3),
@@ -478,7 +512,7 @@ const PDFPreview: React.FC = () => {
       });
       
       if (process.env.NODE_ENV !== 'production') {
-        console.log('[PDFPreview] Generated thumbnails:', newThumbnails.size);
+        PDFPreviewLogger.debug('Generated thumbnails:', newThumbnails.size);
       }
       
       if (newThumbnails.size > 0) {
@@ -634,3 +668,4 @@ const PDFPreview: React.FC = () => {
 };
 
 export default PDFPreview;
+

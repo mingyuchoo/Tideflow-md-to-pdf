@@ -132,7 +132,7 @@ export function useCodeMirrorSetup(params: UseCodeMirrorSetupParams) {
     // Create editor even without content - it will be updated by useFileOperations
     // This is because the component is now persistent and never unmounts
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[CodeMirror] Initializing editor, content length:', content.length);
+      useCodeMirrorSetupLogger.info('Initializing editor, content length:', content.length);
     }
     
     initializedRef.current = true;
@@ -499,7 +499,7 @@ export function useCodeMirrorSetup(params: UseCodeMirrorSetupParams) {
     // This handles race conditions where content updates after mount
     if (content && content !== view.state.doc.toString()) {
       if (process.env.NODE_ENV !== 'production') {
-        console.log('[CodeMirror] Content mismatch after creation, updating. Content length:', content.length);
+        useCodeMirrorSetupLogger.info('Content mismatch after creation, updating. Content length:', content.length);
       }
       // Use annotation to mark as programmatic update
       view.dispatch({
@@ -579,3 +579,4 @@ export function createProgrammaticDispatch(changes: unknown, additionalSpec: Rec
     ...additionalSpec
   };
 }
+

@@ -1,12 +1,39 @@
 import React, { useRef, useState } from 'react';
+import { logger } from '../utils/logger';
+
+const ToolbarLogger = logger.createScoped('Toolbar');
 import { useAppStore } from '../store';
+import { logger } from '../utils/logger';
+
+const ToolbarLogger = logger.createScoped('Toolbar');
 import DesignModal from './DesignModal';
+import { logger } from '../utils/logger';
+
+const ToolbarLogger = logger.createScoped('Toolbar');
 import { invoke } from '@tauri-apps/api/core';
+import { logger } from '../utils/logger';
+
+const ToolbarLogger = logger.createScoped('Toolbar');
 import { save, open } from '@tauri-apps/plugin-dialog';
+import { logger } from '../utils/logger';
+
+const ToolbarLogger = logger.createScoped('Toolbar');
 import { handleError, showSuccess } from '../utils/errorHandler';
+import { logger } from '../utils/logger';
+
+const ToolbarLogger = logger.createScoped('Toolbar');
 import { readMarkdownFile, createFile, writeMarkdownFile } from '../api';
+import { logger } from '../utils/logger';
+
+const ToolbarLogger = logger.createScoped('Toolbar');
 import { scrubRawTypstAnchors } from '../utils/scrubAnchors';
+import { logger } from '../utils/logger';
+
+const ToolbarLogger = logger.createScoped('Toolbar');
 import './Toolbar.css';
+import { logger } from '../utils/logger';
+
+const ToolbarLogger = logger.createScoped('Toolbar');
 
 const Toolbar: React.FC = () => {
   const { 
@@ -89,17 +116,17 @@ const Toolbar: React.FC = () => {
 
   const handleOpenFile = async () => {
     try {
-      console.log('[Toolbar] Opening file dialog...');
+      ToolbarLogger.\('Opening file dialog...');
       const result = await open({ multiple: false, filters: [{ name: 'Markdown Files', extensions: ['md'] }] });
       const filePath = Array.isArray(result) ? result?.[0] : result;
       
-      console.log('[Toolbar] File selected:', filePath);
+      ToolbarLogger.\('File selected:', filePath);
       
       if (filePath) {
         try {
-          console.log('[Toolbar] Reading file content...');
+          ToolbarLogger.\('Reading file content...');
           const content = await readMarkdownFile(filePath);
-          console.log('[Toolbar] File content read, length:', content.length);
+          ToolbarLogger.\('File content read, length:', content.length);
           addOpenFile(filePath);
           setCurrentFile(filePath);
           setContent(content);
@@ -107,13 +134,13 @@ const Toolbar: React.FC = () => {
           addToast({ type: 'success', message: 'File opened successfully' });
           return;
         } catch (readError) {
-          console.error('[Toolbar] Failed to read file:', readError);
+          ToolbarLogger.\('Failed to read file:', readError);
           addToast({ type: 'error', message: 'Failed to read file' });
           handleError(readError, { operation: 'read file', component: 'Toolbar' });
         }
       }
     } catch (err) {
-      console.error('[Toolbar] Error opening file, falling back to input:', err);
+      ToolbarLogger.\('Error opening file, falling back to input:', err);
       fileInputRef.current?.click();
     }
   };
@@ -194,8 +221,14 @@ const Toolbar: React.FC = () => {
       setCurrentFile(newPath);
       setContent(cleaned);
       addToast({ type: 'success', message: 'File imported successfully' });
+import { logger } from '../utils/logger';
+
+const ToolbarLogger = logger.createScoped('Toolbar');
     } catch (e2) {
       addToast({ type: 'error', message: 'Failed to import file' });
+import { logger } from '../utils/logger';
+
+const ToolbarLogger = logger.createScoped('Toolbar');
       handleError(e2, { operation: 'open file', component: 'Toolbar' });
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -410,3 +443,4 @@ const Toolbar: React.FC = () => {
 };
 
 export default Toolbar;
+

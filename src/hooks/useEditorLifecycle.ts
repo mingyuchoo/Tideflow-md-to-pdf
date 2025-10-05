@@ -24,14 +24,14 @@ export function useEditorLifecycle(params: UseEditorLifecycleParams) {
       generationRef.current += 1;
       hadNoFilesRef.current = false;
       if (process.env.NODE_ENV !== 'production') {
-        console.log('[Editor] Remounting editor after close-all. Generation =', generationRef.current);
+        useEditorLifecycleLogger.info('Remounting editor after close-all. Generation =', generationRef.current);
       }
     }
   }, [openFiles, generationRef, hadNoFilesRef]);
 
   useEffect(() => {
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[Editor] Mounted generation', generationRef.current);
+      useEditorLifecycleLogger.info('Mounted generation', generationRef.current);
     }
   }, [generationRef]);
 
@@ -39,3 +39,4 @@ export function useEditorLifecycle(params: UseEditorLifecycleParams) {
     generation: generationRef.current,
   };
 }
+

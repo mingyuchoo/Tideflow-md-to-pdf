@@ -4,6 +4,10 @@ import { extractOffsetsFromPdfText } from '../utils/offsets';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { ANCHOR } from '../constants/timing';
 import type { SourceMap } from '../types';
+import { logger } from '../utils/logger';
+
+// Create scoped logger
+const pdfRendererLogger = logger.createScoped('usePdfRenderer');
 
 interface UsePdfRendererArgs {
   compileStatus: { status: string; pdf_path?: string | null };
@@ -72,7 +76,7 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
 
   useEffect(() => {
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[usePdfRenderer] Effect triggered', { 
+      pdfRendererLogger.\('Effect triggered', { 
         status: compileStatus.status, 
         pdf_path: compileStatus.pdf_path?.slice(-30) 
       });
@@ -100,7 +104,7 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
       };
       
       if (process.env.NODE_ENV !== 'production') {
-        console.debug('[usePdfRenderer] Saving scroll position before render', {
+        pdfRendererLogger.\('Saving scroll position before render', {
           ...savedPosition,
           fromRef: !!savedScrollPositionRef.current,
           scrollHeight: containerRef.current.scrollHeight,
@@ -135,7 +139,7 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
           // This happens naturally when sourceMap.anchors.length === 0
           try {
             if (map.anchors.length === 0) {
-              if (process.env.NODE_ENV !== 'production') console.debug('[usePdfRenderer] no typst anchors, running PDF-text extraction fallback');
+              if (process.env.NODE_ENV !== 'production') pdfRendererLogger.\('no typst anchors, running PDF-text extraction fallback');
               try {
                 const extracted = await extractOffsetsFromPdfText(doc, metrics, map.anchors, renderScale);
                       if (extracted.size > 0) {
@@ -148,16 +152,16 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
                           if (anchorId) {
                             if (registerPendingAnchor) {
                               registerPendingAnchor(anchorId);
-                              if (process.env.NODE_ENV !== 'production') console.debug('[usePdfRenderer] pendingForcedAnchor registered (extraction, typst failed) via shared handler', { anchorId });
+                              if (process.env.NODE_ENV !== 'production') pdfRendererLogger.\('pendingForcedAnchor registered (extraction, typst failed) via shared handler', { anchorId });
                             } else {
                               pendingForcedAnchorRef.current = anchorId;
-                              if (process.env.NODE_ENV !== 'production') console.debug('[usePdfRenderer] pendingForcedAnchor registered (extraction, typst failed)', { anchorId });
+                              if (process.env.NODE_ENV !== 'production') pdfRendererLogger.\('pendingForcedAnchor registered (extraction, typst failed)', { anchorId });
                             }
                           }
                         }
                       }
               } catch (e) {
-                if (process.env.NODE_ENV !== 'production') console.debug('[usePdfRenderer] immediate extraction failed', e);
+                if (process.env.NODE_ENV !== 'production') pdfRendererLogger.\('immediate extraction failed', e);
               }
             }
           } catch (e) {
@@ -189,7 +193,7 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
                 }
               }
             } catch (_e) {
-              console.debug('[usePdfRenderer] extraction failed', _e);
+              pdfRendererLogger.\('extraction failed', _e);
             }
 
             const anchors = sourceMapRef.current!.anchors;
@@ -198,7 +202,7 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
               const avail = Math.max(0, el.scrollHeight - el.clientHeight);
               const fallback = new Map<string, number>();
               if (process.env.NODE_ENV !== 'production') {
-                console.debug('[usePdfRenderer] creating fallback offsets', { 
+                pdfRendererLogger.\('creating fallback offsets', { 
                   anchors: anchors.length, 
                   avail, 
                   scrollHeight: el.scrollHeight, 
@@ -219,7 +223,7 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
                 if (shouldApplyImmediately) {
                   anchorOffsetsRef.current = fallback;
                   if (process.env.NODE_ENV !== 'production') {
-                    console.debug('[usePdfRenderer] applied fallback offsets immediately', { 
+                    pdfRendererLogger.\('applied fallback offsets immediately', { 
                       size: fallback.size,
                       isTyping: isTypingRef.current,
                       userInteracted: userInteractedRef.current,
@@ -243,7 +247,7 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
                     
                     if (anchorId) {
                       if (process.env.NODE_ENV !== 'production') {
-                        console.debug('[usePdfRenderer] registering pending anchor', { 
+                        pdfRendererLogger.\('registering pending anchor', { 
                           anchorId, 
                           activeAnchorId: args.activeAnchorId,
                           anchorCount: anchors.length,
@@ -255,7 +259,7 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
                       else pendingForcedAnchorRef.current = anchorId;
                     }
                   } else if (process.env.NODE_ENV !== 'production') {
-                    console.debug('[usePdfRenderer] skipping pending anchor - user has position', {
+                    pdfRendererLogger.\('skipping pending anchor - user has position', {
                       activeAnchorId: args.activeAnchorId
                     });
                   }
@@ -263,7 +267,7 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
                   // Store fallback to be applied when typing stops (handled by useEditorToPdfSync)
                   pendingFallbackRef.current = fallback;
                   if (process.env.NODE_ENV !== 'production') {
-                    console.debug('[usePdfRenderer] stored fallback for later (user actively typing)', { 
+                    pdfRendererLogger.\('stored fallback for later (user actively typing)', { 
                       size: fallback.size,
                       isTyping: isTypingRef.current
                     });
@@ -277,7 +281,7 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
                     const anchorId = anchors[targetIndex]?.id ?? anchors[0]?.id ?? null;
                     if (anchorId) {
                       if (process.env.NODE_ENV !== 'production') {
-                        console.debug('[usePdfRenderer] registering pending anchor (typing)', {
+                        pdfRendererLogger.\('registering pending anchor (typing)', {
                           anchorId,
                           activeAnchorId: args.activeAnchorId,
                           reason: 'true startup - no activeAnchorId'
@@ -287,7 +291,7 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
                       else pendingForcedAnchorRef.current = anchorId;
                     }
                   } else if (process.env.NODE_ENV !== 'production') {
-                    console.debug('[usePdfRenderer] skipping pending anchor - user has position (typing)', {
+                    pdfRendererLogger.\('skipping pending anchor - user has position (typing)', {
                       activeAnchorId: args.activeAnchorId
                     });
                   }
@@ -301,7 +305,7 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
           // If an earlier extraction/fallback registered a pending forced
           // anchor, perform that forced scroll now that rendering has
           // completed via the consumePendingAnchor handler (which uses a single RAF)
-          if (process.env.NODE_ENV !== 'production') console.debug('[usePdfRenderer] post-render check', { pending: pendingForcedAnchorRef.current, initialForced: initialForcedScrollDoneRef.current, isTyping: isTypingRef.current });
+          if (process.env.NODE_ENV !== 'production') pdfRendererLogger.\('post-render check', { pending: pendingForcedAnchorRef.current, initialForced: initialForcedScrollDoneRef.current, isTyping: isTypingRef.current });
           if (pendingForcedAnchorRef.current && !initialForcedScrollDoneRef.current) {
               if (consumePendingAnchor) {
                 consumePendingAnchor();
