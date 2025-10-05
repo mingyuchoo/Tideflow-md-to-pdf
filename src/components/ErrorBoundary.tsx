@@ -1,5 +1,8 @@
 import React from 'react';
 import './ErrorBoundary.css';
+import { logger } from '../utils/logger';
+
+const ErrorBoundaryLogger = logger.createScoped('ErrorBoundary');
 
 interface ErrorBoundaryState {
   hasError: boolean;
@@ -18,7 +21,7 @@ export class ErrorBoundary extends React.Component<React.PropsWithChildren, Erro
   }
 
   componentDidCatch(error: unknown, info: React.ErrorInfo) {
-    ErrorBoundaryLogger.error('Caught error:', error, info);
+    ErrorBoundaryLogger.error(`Caught error: ${error instanceof Error ? error.message : String(error)} | Component stack: ${info.componentStack || 'N/A'}`);
     this.setState({ stack: info.componentStack || undefined });
   }
 

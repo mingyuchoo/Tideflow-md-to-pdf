@@ -14,6 +14,9 @@ import { cmd } from '../components/commands';
 import { scrubRawTypstAnchors } from '../utils/scrubAnchors';
 import { getScrollElement, type ScrollElementWithHandler } from '../types/codemirror';
 import type { EditorStateRefs } from './useEditorState';
+import { logger } from '../utils/logger';
+
+const useCodeMirrorSetupLogger = logger.createScoped('useCodeMirrorSetup');
 
 // ============================================================================
 // Custom Annotations for Transaction Tracking
