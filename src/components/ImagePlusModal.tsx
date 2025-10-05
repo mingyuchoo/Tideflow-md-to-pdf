@@ -1,21 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { logger } from './utils/logger';
-
-const ImagePlusModalLogger = logger.createScoped('ImagePlusModal');
 import './DesignModal.css';
-import { logger } from './utils/logger';
-
-const ImagePlusModalLogger = logger.createScoped('ImagePlusModal');
 import { showOpenDialog, importImageFromPath } from '../api';
-import { logger } from './utils/logger';
-
-const ImagePlusModalLogger = logger.createScoped('ImagePlusModal');
 import type { ImageAlignment } from '../types';
-import { logger } from './utils/logger';
-
-const ImagePlusModalLogger = logger.createScoped('ImagePlusModal');
 import { deriveAltFromPath } from '../utils/image';
-import { logger } from './utils/logger';
+import { logger } from '../utils/logger';
 
 const ImagePlusModalLogger = logger.createScoped('ImagePlusModal');
 
@@ -109,15 +97,12 @@ export function ImagePlusModal({
       if (!selectedFile) return;
 
       const assetPath = await importImageFromPath(selectedFile);
-import { logger } from './utils/logger';
-
-const ImagePlusModalLogger = logger.createScoped('ImagePlusModal');
       setPath(assetPath);
       if (!altTouched) {
         setAlt(deriveAltFromPath(assetPath));
       }
     } catch (err) {
-      ImagePlusModalLogger.error('Failed to pick image:', err);
+      console.error('Failed to pick image:', err);
     }
   };
 
@@ -304,4 +289,3 @@ const ImagePlusModalLogger = logger.createScoped('ImagePlusModal');
 }
 
 export default ImagePlusModal;
-

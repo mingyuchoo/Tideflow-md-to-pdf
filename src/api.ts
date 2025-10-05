@@ -1,15 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
-import { logger } from './utils/logger';
-
-const apiLogger = logger.createScoped('api');
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { logger } from './utils/logger';
-
-const apiLogger = logger.createScoped('api');
 import { open } from '@tauri-apps/plugin-dialog';
-import { logger } from './utils/logger';
-
-const apiLogger = logger.createScoped('api');
 import type {
   BackendRenderedDocument,
   FileEntry,
@@ -17,6 +8,9 @@ import type {
   RenderedDocument,
   SourceMap,
 } from './types';
+import { logger } from './utils/logger';
+
+const apiLogger = logger.createScoped('api');
 
 // File operations
 export async function readMarkdownFile(path: string): Promise<string> {
@@ -24,9 +18,6 @@ export async function readMarkdownFile(path: string): Promise<string> {
 }
 
 import { scrubRawTypstAnchors } from './utils/scrubAnchors';
-import { logger } from './utils/logger';
-
-const apiLogger = logger.createScoped('api');
 
 export async function writeMarkdownFile(path: string, content: string): Promise<void> {
   // Ensure any injected preview-only raw-typst anchors are removed before
@@ -38,9 +29,6 @@ export async function writeMarkdownFile(path: string, content: string): Promise<
 export async function exportCleanMarkdown(content: string, suggestedName?: string): Promise<string | null> {
   // Export scrubbed markdown (no Typst wrappers) to a new file
   const { save } = await import('@tauri-apps/plugin-dialog');
-import { logger } from './utils/logger';
-
-const apiLogger = logger.createScoped('api');
   
   const filePath = await save({
     defaultPath: suggestedName,
@@ -82,18 +70,12 @@ export async function importImage(
   // IMPORTANT: Rust command parameters are snake_case (image_data, file_name).
   // Previous camelCase keys caused silent failure (no image inserted on drag/drop or paste).
   return invoke('import_image', { image_data: imageData, file_name: fileName });
-import { logger } from './utils/logger';
-
-const apiLogger = logger.createScoped('api');
 }
 
 // Import an image from a filesystem path by copying it into the app's assets directory.
 export async function importImageFromPath(sourcePath: string): Promise<string> {
   // Send both camelCase and snake_case to be safe across bindings
   return invoke('import_image_from_path', { sourcePath, source_path: sourcePath });
-import { logger } from './utils/logger';
-
-const apiLogger = logger.createScoped('api');
 }
 
 // Rendering operations
@@ -397,7 +379,7 @@ export async function showOpenDialog(
       return result || null;
     }
   } catch (err) {
-    apiLogger.error('showOpenDialog failed:', err);
+    console.error('[API] showOpenDialog failed:', err);
     return null;
   }
 }
@@ -446,4 +428,3 @@ export async function cleanupTempPdfs(keepLastN?: number): Promise<{
 export async function openPdfInViewer(pdfPath: string): Promise<void> {
   return invoke('open_pdf_in_viewer', { pdfPath });
 }
-
