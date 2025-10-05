@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { useAppStore } from '../store';
+import { useEditorStore } from '../stores/editorStore';
+import { useUIStore } from '../stores/uiStore';
+import { usePreferencesStore } from '../stores/preferencesStore';
 import './Editor.css';
 import ImagePropsModal, { type ImageProps } from './ImagePropsModal';
 import ImagePlusModal from './ImagePlusModal';
@@ -22,13 +24,14 @@ import { handleError } from '../utils/errorHandler';
 
 const Editor: React.FC = () => {
   // Store state
-  const addToast = useAppStore((state) => state.addToast);
+  const addToast = useUIStore((state) => state.addToast);
+  const setPreviewVisible = useUIStore((s) => s.setPreviewVisible);
+  const addRecentFile = useUIStore((s) => s.addRecentFile);
   const {
     editor: { currentFile, content, modified, openFiles },
     setContent,
     setModified,
     setCompileStatus,
-    preferences,
     sourceMap,
     setSourceMap,
     activeAnchorId,
@@ -36,14 +39,13 @@ const Editor: React.FC = () => {
     syncMode,
     setSyncMode,
     isTyping,
-    setIsTyping
-  } = useAppStore();
-  const setEditorScrollPosition = useAppStore((s) => s.setEditorScrollPosition);
-  const getEditorScrollPosition = useAppStore((s) => s.getEditorScrollPosition);
-  const setPreviewVisible = useAppStore((s) => s.setPreviewVisible);
-  const setCurrentFile = useAppStore((s) => s.setCurrentFile);
-  const addOpenFile = useAppStore((s) => s.addOpenFile);
-  const addRecentFile = useAppStore((s) => s.addRecentFile);
+    setIsTyping,
+    setEditorScrollPosition,
+    getEditorScrollPosition,
+    setCurrentFile,
+    addOpenFile,
+  } = useEditorStore();
+  const preferences = usePreferencesStore((state) => state.preferences);
 
   // Local state
   const [, setIsSaving] = useState(false);

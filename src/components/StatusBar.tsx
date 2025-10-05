@@ -1,9 +1,11 @@
 import React from 'react';
-import { useAppStore } from '../store';
+import { useEditorStore } from '../stores/editorStore';
+import { usePreferencesStore } from '../stores/preferencesStore';
 import './StatusBar.css';
 
 const StatusBar: React.FC = () => {
-  const { editor, preferences, scrollLocked } = useAppStore();
+  const { editor, scrollLocked } = useEditorStore();
+  const preferences = usePreferencesStore((state) => state.preferences);
   const { currentFile, modified, compileStatus, content } = editor;
 
   // Calculate word and character counts

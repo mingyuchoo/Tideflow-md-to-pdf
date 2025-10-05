@@ -8,10 +8,7 @@
 import { useEffect, useRef } from 'react';
 import type { SourceMap } from '../types';
 import { checkEditorToPdfGuards } from '../utils/scrollGuards';
-import { useAppStore } from '../store';
-import { logger } from '../utils/logger';
-
-const useEditorToPdfSyncLogger = logger.createScoped('useEditorToPdfSync');
+import { useEditorStore } from '../stores/editorStore';
 
 interface UseEditorToPdfSyncParams {
   // State
@@ -56,7 +53,7 @@ export function useEditorToPdfSync(params: UseEditorToPdfSyncParams): void {
   } = params;
 
   // Get syncEnabled from store
-  const syncEnabled = useAppStore((state) => state.syncEnabled);
+  const syncEnabled = useEditorStore((state) => state.syncEnabled);
 
   // Track if we've done initial sync
   const initialSyncDoneRef = useRef(false);

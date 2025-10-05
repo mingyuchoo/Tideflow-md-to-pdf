@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
-import { useAppStore } from '../store';
+import { useEditorStore } from '../stores/editorStore';
+import { useUIStore } from '../stores/uiStore';
 import DesignModal from './DesignModal';
 import { invoke } from '@tauri-apps/api/core';
 import { save, open } from '@tauri-apps/plugin-dialog';
@@ -7,26 +8,25 @@ import { handleError, showSuccess } from '../utils/errorHandler';
 import { readMarkdownFile, createFile, writeMarkdownFile } from '../api';
 import { scrubRawTypstAnchors } from '../utils/scrubAnchors';
 import './Toolbar.css';
-import { logger } from '../utils/logger';
-
-const ToolbarLogger = logger.createScoped('Toolbar');
 
 const Toolbar: React.FC = () => {
   const { 
-    previewVisible, 
-    setPreviewVisible,
     editor,
-    designModalOpen,
-    addToast,
     setCurrentFile,
     setContent,
     setModified,
     addOpenFile,
     closeAllFiles,
+  } = useEditorStore();
+  const {
+    previewVisible,
+    setPreviewVisible,
+    designModalOpen,
+    addToast,
     recentFiles,
     addRecentFile,
     clearRecentFiles,
-  } = useAppStore();
+  } = useUIStore();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [recentDropdownOpen, setRecentDropdownOpen] = useState(false);
   const [saveDropdownOpen, setSaveDropdownOpen] = useState(false);

@@ -8,9 +8,6 @@ import type {
   RenderedDocument,
   SourceMap,
 } from './types';
-import { logger } from './utils/logger';
-
-const apiLogger = logger.createScoped('api');
 
 // File operations
 export async function readMarkdownFile(path: string): Promise<string> {

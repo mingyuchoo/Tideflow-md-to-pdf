@@ -1,10 +1,10 @@
-import { useAppStore } from '../store';
+import { useUIStore } from '../stores/uiStore';
 import Toast from './Toast';
 import './Toast.css';
 
 export function ToastContainer() {
-  const toasts = useAppStore((state) => state.toasts);
-  const removeToast = useAppStore((state) => state.removeToast);
+  const toasts = useUIStore((state) => state.toasts);
+  const removeToast = useUIStore((state) => state.removeToast);
 
   if (toasts.length === 0) {
     return null;

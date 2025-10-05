@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useAppStore, defaultPreferences } from '../store';
+import { useEditorStore } from '../stores/editorStore';
+import { useUIStore } from '../stores/uiStore';
+import { usePreferencesStore, defaultPreferences } from '../stores/preferencesStore';
 import { setPreferences as persistPreferences, renderTypst, debugPaths } from '../api';
 import type { Preferences } from '../types';
 import { themePresets } from '../themes'; // Import themes
@@ -13,8 +15,9 @@ type TabSection = 'document' | 'typography' | 'spacing' | 'structure' | 'images'
 const designLogger = logger.createScoped('DesignModal');
 
 const DesignModal: React.FC = () => {
-  const { preferences, setPreferences, designModalOpen, setDesignModalOpen, themeSelection, setThemeSelection, customPresets, saveCustomPreset, deleteCustomPreset, renameCustomPreset, addToast } = useAppStore();
-  const setCompileStatus = useAppStore(s => s.setCompileStatus);
+  const { preferences, setPreferences, themeSelection, setThemeSelection, customPresets, saveCustomPreset, deleteCustomPreset, renameCustomPreset } = usePreferencesStore();
+  const { designModalOpen, setDesignModalOpen, addToast } = useUIStore();
+  const setCompileStatus = useEditorStore(s => s.setCompileStatus);
   const [local, setLocal] = useState<Preferences>(preferences);
   const [dirty, setDirty] = useState(false);
   const [autoApply, setAutoApply] = useState(true);
@@ -69,7 +72,7 @@ const DesignModal: React.FC = () => {
 
   // Unified re-render that supports the in-memory sample document (which has no on-disk path)
   const rerenderCurrent = async () => {
-    const { editor: { currentFile, content } } = useAppStore.getState();
+    const { editor: { currentFile, content } } = useEditorStore.getState();
     if (!currentFile) return;
     // Always use renderTypst for live preview with current file context
     await renderTypst(content, 'pdf', currentFile);

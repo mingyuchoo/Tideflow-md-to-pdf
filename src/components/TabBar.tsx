@@ -1,12 +1,10 @@
 import React from 'react';
-import { useAppStore } from '../store';
+import { useEditorStore } from '../stores/editorStore';
+import { useUIStore } from '../stores/uiStore';
 import { readMarkdownFile } from '../api';
 import { handleError } from '../utils/errorHandler';
 import './TabBar.css';
 import { INSTRUCTIONS_DOC } from '../instructionsDoc';
-import { logger } from '../utils/logger';
-
-const TabBarLogger = logger.createScoped('TabBar');
 
 const TabBar: React.FC = () => {
   const { 
@@ -15,8 +13,8 @@ const TabBar: React.FC = () => {
     setContent,
     addOpenFile,
     removeOpenFile,
-    addRecentFile,
-  } = useAppStore();
+  } = useEditorStore();
+  const addRecentFile = useUIStore((state) => state.addRecentFile);
 
   const handleTabClick = async (filePath: string) => {
     if (currentFile === filePath) return;

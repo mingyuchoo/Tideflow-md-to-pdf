@@ -3,9 +3,6 @@ import './DesignModal.css';
 import { showOpenDialog, importImageFromPath } from '../api';
 import type { ImageAlignment } from '../types';
 import { deriveAltFromPath } from '../utils/image';
-import { logger } from '../utils/logger';
-
-const ImagePlusModalLogger = logger.createScoped('ImagePlusModal');
 
 type LayoutPosition = 'image-left' | 'image-right';
 

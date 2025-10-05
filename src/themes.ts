@@ -1,5 +1,5 @@
 import type { Preferences } from './types';
-import { defaultPreferences } from './store';
+import { defaultPreferences } from './stores/preferencesStore';
 
 export interface ThemeDefinition {
   id: string;

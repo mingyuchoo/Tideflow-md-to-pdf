@@ -6,7 +6,7 @@
 import { useEffect } from 'react';
 import { TIMING } from '../constants/timing';
 import type { SourceMap, SyncMode } from '../types';
-import { useAppStore } from '../store';
+import { useEditorStore } from '../stores/editorStore';
 import { logger } from '../utils/logger';
 
 // Create scoped logger
@@ -218,7 +218,7 @@ export function usePdfToEditorSync(params: UsePdfToEditorSyncParams): void {
         userManuallyPositionedPdfRef.current = true;
         
         // Update store state for UI feedback
-        useAppStore.getState().setScrollLocked(true);
+        useEditorStore.getState().setScrollLocked(true);
         
         if (process.env.NODE_ENV !== 'production') {
           syncLogger.debug('🔒 SCROLL LOCK ACTIVATED - PDF will not move until you scroll editor');

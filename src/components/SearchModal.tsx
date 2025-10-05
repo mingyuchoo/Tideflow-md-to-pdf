@@ -1,5 +1,5 @@
 import React from 'react';
-import { useAppStore } from '../store';
+import { useUIStore } from '../stores/uiStore';
 import './DesignModal.css';
 
 interface Props {
@@ -14,7 +14,7 @@ export interface SearchOptions {
 }
 
 const SearchModal: React.FC<Props> = ({ isOpen, onClose, onSearch }) => {
-  const addToast = useAppStore((state) => state.addToast);
+  const addToast = useUIStore((state) => state.addToast);
   const [searchQuery, setSearchQuery] = React.useState('');
   const [caseSensitive, setCaseSensitive] = React.useState(false);
   const [wholeWord, setWholeWord] = React.useState(false);

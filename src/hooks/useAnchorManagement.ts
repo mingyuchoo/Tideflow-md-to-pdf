@@ -7,9 +7,6 @@ import { useEffect, useRef } from 'react';
 import { EditorView } from 'codemirror';
 import type { SourceMap } from '../types';
 import type { EditorStateRefs } from './useEditorState';
-import { logger } from '../utils/logger';
-
-const useAnchorManagementLogger = logger.createScoped('useAnchorManagement');
 
 interface UseAnchorManagementParams {
   editorStateRefs: EditorStateRefs;

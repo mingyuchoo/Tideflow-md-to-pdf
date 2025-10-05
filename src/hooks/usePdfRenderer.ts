@@ -4,9 +4,6 @@ import { extractOffsetsFromPdfText } from '../utils/offsets';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { ANCHOR } from '../constants/timing';
 import type { SourceMap } from '../types';
-import { logger } from '../utils/logger';
-
-const pdfRendererLogger = logger.createScoped('pdfRenderer');
 
 interface UsePdfRendererArgs {
   compileStatus: { status: string; pdf_path?: string | null };

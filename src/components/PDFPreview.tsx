@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { useAppStore } from '../store';
+import { useEditorStore } from '../stores/editorStore';
+import { useUIStore } from '../stores/uiStore';
+import { usePreferencesStore } from '../stores/preferencesStore';
 import { logger } from '../utils/logger';
 import './PDFPreview.css';
 import * as pdfjsLib from 'pdfjs-dist';
@@ -38,8 +40,10 @@ try {
 
 const PDFPreview: React.FC = () => {
   // Store state
-  const { editor, sourceMap, activeAnchorId, setActiveAnchorId, syncMode, setSyncMode, isTyping, preferences, pdfZoom, setPdfZoom, thumbnailsVisible } = useAppStore();
+  const { editor, sourceMap, activeAnchorId, setActiveAnchorId, syncMode, setSyncMode, isTyping } = useEditorStore();
   const { compileStatus } = editor;
+  const { pdfZoom, setPdfZoom, thumbnailsVisible } = useUIStore();
+  const preferences = usePreferencesStore((state) => state.preferences);
 
   // Local state
   const [rendering, setRendering] = useState(false);
@@ -182,7 +186,7 @@ const PDFPreview: React.FC = () => {
   useEffect(() => {
     if (syncMode === 'locked-to-editor' || syncMode === 'two-way') {
       userManuallyPositionedPdfRef.current = false;
-      useAppStore.getState().setScrollLocked(false);
+      useEditorStore.getState().setScrollLocked(false);
       if (process.env.NODE_ENV !== 'production') {
         console.debug('[PDFPreview] cleared manual position flag - mode:', syncMode);
       }
@@ -224,7 +228,7 @@ const PDFPreview: React.FC = () => {
         });
       }
       userManuallyPositionedPdfRef.current = false;
-      useAppStore.getState().setScrollLocked(false);
+      useEditorStore.getState().setScrollLocked(false);
     }
     
     prevAnchorIdRef.current = activeAnchorId;
