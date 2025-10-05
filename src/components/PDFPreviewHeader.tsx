@@ -1,21 +1,10 @@
 import React from 'react';
-import { logger } from '../utils/logger';
-
-const PDFPreviewHeaderLogger = logger.createScoped('PDFPreviewHeader');
 import { useAppStore } from '../store';
-import { logger } from '../utils/logger';
-
-const PDFPreviewHeaderLogger = logger.createScoped('PDFPreviewHeader');
 import type { SyncMode, Preferences } from '../types';
-import { logger } from '../utils/logger';
-
-const PDFPreviewHeaderLogger = logger.createScoped('PDFPreviewHeader');
 import { themePresets } from '../themes';
-import { logger } from '../utils/logger';
-
-const PDFPreviewHeaderLogger = logger.createScoped('PDFPreviewHeader');
 import { setPreferences as persistPreferences, renderMarkdown, renderTypst, openPdfInViewer } from '../api';
 import { logger } from '../utils/logger';
+import { handleError } from '../utils/errorHandler';
 
 const PDFPreviewHeaderLogger = logger.createScoped('PDFPreviewHeader');
 
@@ -71,6 +60,7 @@ const PDFPreviewHeader: React.FC<Props> = ({ pdfZoom, setPdfZoom }) => {
         await rerenderCurrent();
       } catch (e) {
         PDFPreviewHeaderLogger.warn('custom apply failed', e);
+        handleError(e, { operation: 'apply custom preferences', component: 'PDFPreviewHeader' }, 'warning');
       }
       setDesignModalOpen(true);
       return;
@@ -85,6 +75,7 @@ const PDFPreviewHeader: React.FC<Props> = ({ pdfZoom, setPdfZoom }) => {
         await rerenderCurrent();
       } catch (e) {
         PDFPreviewHeaderLogger.warn('theme apply failed', e);
+        handleError(e, { operation: 'apply theme', component: 'PDFPreviewHeader' }, 'warning');
       }
     }
   };
@@ -165,7 +156,8 @@ const PDFPreviewHeader: React.FC<Props> = ({ pdfZoom, setPdfZoom }) => {
                 await persistPreferences(updated);
                 await rerenderCurrent();
               } catch (e) {
-                PDFPreviewHeaderLogger.warn('font size change failed', e);
+                PDFPreviewHeaderLogger.warn('font size decrease failed', e);
+                handleError(e, { operation: 'decrease font size', component: 'PDFPreviewHeader' }, 'warning');
               }
             }}
             title="Decrease font size"
@@ -184,7 +176,8 @@ const PDFPreviewHeader: React.FC<Props> = ({ pdfZoom, setPdfZoom }) => {
                 await persistPreferences(updated);
                 await rerenderCurrent();
               } catch (e) {
-                PDFPreviewHeaderLogger.warn('font size change failed', e);
+                PDFPreviewHeaderLogger.warn('font size increase failed', e);
+                handleError(e, { operation: 'increase font size', component: 'PDFPreviewHeader' }, 'warning');
               }
             }}
             title="Increase font size"
@@ -268,4 +261,3 @@ const PDFPreviewHeader: React.FC<Props> = ({ pdfZoom, setPdfZoom }) => {
 };
 
 export default PDFPreviewHeader;
-
