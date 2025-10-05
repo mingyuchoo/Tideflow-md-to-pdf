@@ -23,5 +23,3 @@ export function scrubRawTypstAnchors(markdown: string): string {
 
   return collapsed;
 }
-
-export default scrubRawTypstAnchors;

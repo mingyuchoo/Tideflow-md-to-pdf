@@ -125,6 +125,7 @@ export const useEditorStore = create<EditorStoreState>((set, get) => ({
     let newCurrentFile = state.editor.currentFile;
     let newContent = state.editor.content;
     let newModified = state.editor.modified;
+    let newCompileStatus = state.editor.compileStatus;
     
     if (path === state.editor.currentFile) {
       newCurrentFile = newOpenFiles.length > 0 ? newOpenFiles[newOpenFiles.length - 1] : null;
@@ -132,6 +133,7 @@ export const useEditorStore = create<EditorStoreState>((set, get) => ({
       if (newCurrentFile === null) {
         newContent = '';
         newModified = false;
+        newCompileStatus = { status: 'idle' };
       }
     }
     
@@ -141,7 +143,8 @@ export const useEditorStore = create<EditorStoreState>((set, get) => ({
         openFiles: newOpenFiles,
         currentFile: newCurrentFile,
         content: newContent,
-        modified: newModified
+        modified: newModified,
+        compileStatus: newCompileStatus
       }
     };
   }),

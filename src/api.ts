@@ -205,6 +205,8 @@ interface BackendPreferences {
   margin: { x: string; y: string };
   toc: boolean;
   toc_title?: string;
+  toc_two_column?: boolean;
+  two_column_layout?: boolean;
   cover_page?: boolean;
   cover_title?: string;
   cover_writer?: string;
@@ -272,6 +274,8 @@ export async function setPreferences(preferences: Preferences): Promise<void> {
     margin: preferences.margin,
     toc: preferences.toc,
     toc_title: preferences.toc_title,
+    toc_two_column: preferences.toc_two_column,
+    two_column_layout: preferences.two_column_layout,
     cover_page: preferences.cover_page,
     cover_title: preferences.cover_title,
     cover_writer: preferences.cover_writer,
@@ -403,6 +407,15 @@ export function generateImageMarkdown(
   const trimmedWidth = width.trim();
   const trimmedAlignment = alignment.trim() || 'center';
   const widthAttr = trimmedWidth.length > 0 ? ` width="${trimmedWidth}"` : '';
+  
+  // Escape special characters in both path and alt text for HTML safety
+  const safePath = path
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/#/g, '%23');  // Escape # to prevent Typst interpretation
+  
   const safeAlt = altText
     .trim()
     .replace(/&/g, '&amp;')
@@ -410,7 +423,8 @@ export function generateImageMarkdown(
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
-  return `<img src="${path}" alt="${safeAlt}"${widthAttr} data-align="${trimmedAlignment}" />`;
+  
+  return `<img src="${safePath}" alt="${safeAlt}"${widthAttr} data-align="${trimmedAlignment}" />`;
 }
 
 // Cleanup operations

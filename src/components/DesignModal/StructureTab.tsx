@@ -4,9 +4,17 @@ import { logger as designLogger } from '../../utils/logger';
 
 interface StructureTabProps extends TabProps {
   handleBrowseCoverImage: () => void;
+  currentFile?: string | null;
 }
 
-const StructureTab: React.FC<StructureTabProps> = ({ local, mutate, handleBrowseCoverImage }) => {
+const StructureTab: React.FC<StructureTabProps> = ({ local, mutate, handleBrowseCoverImage, currentFile }) => {
+  // Get document name from current file for default cover title
+  const getDefaultCoverTitle = () => {
+    if (!currentFile) return '';
+    const fileName = currentFile.split(/[\\/]/).pop() || currentFile;
+    return fileName.replace(/\.md$/i, '').replace(/\.markdown$/i, '');
+  };
+
   return (
     <div className="tab-panel">
       <h3>Document Structure</h3>
@@ -20,17 +28,42 @@ const StructureTab: React.FC<StructureTabProps> = ({ local, mutate, handleBrowse
           <span>Table of Contents</span>
         </label>
         {local.toc && (
-          <label>TOC Title
-            <input
-              placeholder="Leave blank for no title"
-              value={local.toc_title}
-              onChange={e => mutate({ toc_title: e.target.value })}
-            />
-            <div className="helper-text">Optional heading above the table of contents</div>
-          </label>
+          <>
+            <label>TOC Title
+              <input
+                placeholder="Leave blank for no title"
+                value={local.toc_title}
+                onChange={e => mutate({ toc_title: e.target.value })}
+              />
+              <div className="helper-text">Optional heading above the table of contents</div>
+            </label>
+            <label className="checkbox-label">
+              <input 
+                type="checkbox" 
+                checked={local.toc_two_column || false} 
+                onChange={e => mutate({ toc_two_column: e.target.checked })} 
+              /> 
+              <span>Two-Column TOC</span>
+            </label>
+          </>
         )}
         <label className="checkbox-label">
-          <input type="checkbox" checked={local.cover_page} onChange={e => mutate({ cover_page: e.target.checked })} /> 
+          <input 
+            type="checkbox" 
+            checked={local.cover_page} 
+            onChange={e => {
+              const isEnabled = e.target.checked;
+              // When enabling cover page, auto-populate title if empty
+              if (isEnabled && !local.cover_title) {
+                const defaultTitle = getDefaultCoverTitle();
+                if (defaultTitle) {
+                  mutate({ cover_page: isEnabled, cover_title: defaultTitle });
+                  return;
+                }
+              }
+              mutate({ cover_page: isEnabled });
+            }} 
+          /> 
           <span>Cover Page</span>
         </label>
         {local.cover_page && (

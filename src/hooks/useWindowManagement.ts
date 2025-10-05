@@ -47,7 +47,6 @@ export function useWindowManagement(setLoading: (loading: boolean) => void) {
           
           const editor = useEditorStore.getState().editor;
           const preferences = usePreferencesStore.getState().preferences;
-          const setPreferences = usePreferencesStore.getState().setPreferences;
           const previewVisible = useUIStore.getState().previewVisible;
           
           windowMgmtLogger.debug('Close handler', { modified: editor.modified, confirm_exit_on_unsaved: preferences.confirm_exit_on_unsaved });
@@ -71,30 +70,6 @@ export function useWindowManagement(setLoading: (loading: boolean) => void) {
             
             if (result) {
               windowMgmtLogger.info('User confirmed exit');
-              // Ask if they want to disable future confirmations
-              const disableFuturePrompts = await confirm(
-                'Do you want to disable exit confirmation prompts in the future? You can re-enable this in Design → Advanced.',
-                {
-                  title: 'Disable Future Prompts?',
-                  kind: 'info',
-                  okLabel: 'Never Ask Again',
-                  cancelLabel: 'Keep Asking'
-                }
-              );
-              
-              if (disableFuturePrompts) {
-                windowMgmtLogger.info('Disabling future prompts');
-                // Update preference to disable future prompts
-                setPreferences({ ...preferences, confirm_exit_on_unsaved: false });
-                // Also save to backend
-                try {
-                  const { setPreferences: apiSetPrefs } = await import('../api');
-                  await apiSetPrefs({ ...preferences, confirm_exit_on_unsaved: false });
-                } catch (e) {
-                  windowMgmtLogger.error('Failed to save preference', e);
-                }
-              }
-              
               // User confirmed exit, save session and close
               windowMgmtLogger.debug('Saving session and destroying window');
               saveSession({

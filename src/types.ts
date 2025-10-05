@@ -21,6 +21,8 @@ export interface Preferences {
   margin: Margins;    // Changed from margins to margin for Typst compatibility
   toc: boolean;
   toc_title: string; // empty string => no heading
+  toc_two_column?: boolean; // Enable two-column TOC layout
+  two_column_layout?: boolean; // Enable two-column layout for main content
   cover_page: boolean;
   cover_title: string;
   cover_writer: string;

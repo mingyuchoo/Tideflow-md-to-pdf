@@ -6,6 +6,7 @@ import { ANCHOR } from '../constants/timing';
 import type { SourceMap } from '../types';
 
 interface UsePdfRendererArgs {
+  currentFile: string | null;
   compileStatus: { status: string; pdf_path?: string | null };
   pdfZoom: number;
   containerRef: React.RefObject<HTMLElement | null>;
@@ -42,6 +43,7 @@ interface UsePdfRendererArgs {
 
 export function usePdfRenderer(args: UsePdfRendererArgs) {
   const {
+    currentFile,
     compileStatus,
     pdfZoom,
     containerRef,
@@ -71,16 +73,11 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
   const consumePendingAnchor = args.consumePendingAnchor;
 
   useEffect(() => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[usePdfRenderer] Effect triggered', { 
-        status: compileStatus.status, 
-        pdf_path: compileStatus.pdf_path?.slice(-30) 
-      });
-    }
     const localCancel = cancelRenderRef.current;
     const load = async () => {
-      if (compileStatus.status !== 'ok' || !compileStatus.pdf_path) {
+      if (!currentFile || compileStatus.status !== 'ok' || !compileStatus.pdf_path) {
         setPdfError(null);
+        setRendering(false);
         if (containerRef.current && containerRef.current.isConnected) {
           try {
             while (containerRef.current.firstChild) containerRef.current.removeChild(containerRef.current.firstChild);
@@ -98,15 +95,6 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
         top: containerRef.current.scrollTop,
         left: containerRef.current.scrollLeft
       };
-      
-      if (process.env.NODE_ENV !== 'production') {
-        console.debug('[usePdfRenderer] Saving scroll position before render', {
-          ...savedPosition,
-          fromRef: !!savedScrollPositionRef.current,
-          scrollHeight: containerRef.current.scrollHeight,
-          clientHeight: containerRef.current.clientHeight
-        });
-      }
       
       setRendering(true);
       setPdfError(null);
@@ -325,6 +313,7 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     // Only include non-ref values that should trigger re-render
+    currentFile,
     compileStatus.status,
     compileStatus.pdf_path,
     pdfZoom,

@@ -3,3 +3,6 @@ gen_debug/
 src-tauri/gen_debug/
 target/
 gen/
+
+# Don't watch content directory (user markdown files)
+content/

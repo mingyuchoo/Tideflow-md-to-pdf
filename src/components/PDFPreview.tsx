@@ -296,6 +296,7 @@ const PDFPreview: React.FC = () => {
 
   // PDF renderer hook
   usePdfRenderer({
+    currentFile: editor.currentFile,
     compileStatus,
     pdfZoom,
     containerRef,

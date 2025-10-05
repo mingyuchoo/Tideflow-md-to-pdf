@@ -143,15 +143,24 @@ export const useImageHandlers = ({
             const base64data = event.target.result.toString();
             const assetPath = await importImage(base64data, file.name);
             
-            // Insert image markdown with default preferences
+            // Prompt for image properties before inserting
+            const initial: ImageProps = {
+              width: preferences.default_image_width,
+              alignment: preferences.default_image_alignment as ImageProps['alignment'],
+              alt: deriveAltFromPath(file.name)
+            };
+            const chosen = await promptImageProps(initial);
+            if (!chosen) return; // User cancelled
+            
             const imageMarkdown = generateImageMarkdown(
               assetPath,
-              preferences.default_image_width,
-              preferences.default_image_alignment,
-              deriveAltFromPath(file.name)
+              chosen.width,
+              chosen.alignment,
+              chosen.alt
             );
             
             insertSnippet(imageMarkdown);
+            showSuccess(`Inserted image: ${assetPath}`);
           };
           
           reader.readAsDataURL(file);
@@ -160,7 +169,7 @@ export const useImageHandlers = ({
         }
       }
     }
-  }, [preferences, importImage, generateImageMarkdown, insertSnippet]);
+  }, [preferences, importImage, generateImageMarkdown, insertSnippet, promptImageProps, showSuccess]);
 
   const handleImagePlusChoose = useCallback((choice: ImagePlusChoice) => {
     setImagePlusOpen(false);

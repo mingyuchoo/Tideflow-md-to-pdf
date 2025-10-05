@@ -181,9 +181,3 @@ class Logger {
 
 // Export singleton instance
 export const logger = new Logger();
-
-// Export convenience function for creating scoped loggers
-export const createLogger = (component: string) => logger.createScoped(component);
-
-// Default export for backward compatibility
-export default logger;

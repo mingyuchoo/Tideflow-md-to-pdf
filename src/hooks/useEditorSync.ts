@@ -47,8 +47,18 @@ export function useEditorSync(params: UseEditorSyncParams) {
   const computeAnchorFromViewport = useCallback((userInitiated = false) => {
     const scrollEl = scrollElRef.current;
     if (!scrollEl) return;
-    if (programmaticScrollRef.current) return;
-    if (isUserTypingRef.current || isTypingStoreRef.current) return;
+    if (programmaticScrollRef.current) {
+      if (process.env.NODE_ENV !== 'production') {
+        useEditorSyncLogger.debug('skipping anchor compute - programmatic scroll in progress');
+      }
+      return;
+    }
+    if (isUserTypingRef.current || isTypingStoreRef.current) {
+      if (process.env.NODE_ENV !== 'production') {
+        useEditorSyncLogger.debug('skipping anchor compute - user is typing');
+      }
+      return;
+    }
     const map = sourceMapRef.current;
     if (!map || map.anchors.length === 0) return;
 
@@ -163,6 +173,11 @@ export function useEditorSync(params: UseEditorSyncParams) {
     if (!scrollEl) return () => {};
 
     const handleScroll = () => {
+      // Skip if programmatic scroll or typing
+      if (programmaticScrollRef.current || isUserTypingRef.current || isTypingStoreRef.current) {
+        return;
+      }
+      
       if (scrollIdleTimeoutRef.current) {
         clearTimeout(scrollIdleTimeoutRef.current);
       }
@@ -178,7 +193,7 @@ export function useEditorSync(params: UseEditorSyncParams) {
     return () => {
       scrollEl.removeEventListener('scroll', handleScroll);
     };
-  }, [scrollElRef, scrollIdleTimeoutRef, computeAnchorFromViewport]);
+  }, [scrollElRef, scrollIdleTimeoutRef, computeAnchorFromViewport, programmaticScrollRef, isUserTypingRef, isTypingStoreRef]);
 
   return {
     computeAnchorFromViewport,

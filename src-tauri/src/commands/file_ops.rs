@@ -1,5 +1,5 @@
 /// File operation commands: CRUD operations for markdown files and directories
-use crate::error::{AppError, AppResult};
+use crate::error::AppError;
 use crate::utils;
 use serde::{Deserialize, Serialize};
 use std::fs;

@@ -9,6 +9,7 @@
 use std::fmt::Display;
 
 /// Log level enum
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LogLevel {
     Debug,
@@ -63,10 +64,12 @@ macro_rules! log_error {
 }
 
 /// Logger struct for scoped logging
+#[allow(dead_code)]
 pub struct Logger {
     component: String,
 }
 
+#[allow(dead_code)]
 impl Logger {
     /// Create a new logger for a specific component
     pub fn new(component: impl Into<String>) -> Self {

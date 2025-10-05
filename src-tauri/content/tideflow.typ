@@ -108,6 +108,7 @@
 #let margin_y = parse-length(prefs.margin.y)
 
 // Basic page setup without numbering/header (will be set conditionally later)
+// Don't set columns here - let the theme handle it initially
 #set page(
   paper: prefs.papersize, 
   margin: (x: margin_x, y: margin_y)
@@ -134,13 +135,24 @@
 // Read markdown content
 #let md_content = read("content.md")
 
+// Determine if we need two-column layout for main content
+#let two_column_layout = if "two_column_layout" in prefs { prefs.two_column_layout } else { false }
+#let toc_two_column = if "toc_two_column" in prefs { prefs.toc_two_column } else { false }
+#let show_page_numbers = if "page_numbers" in prefs { prefs.page_numbers } else { false }
+#let show_header = if "header_title" in prefs { prefs.header_title } else { false }
+#let header_text = if "header_text" in prefs { prefs.header_text } else { "" }
+
+// Render cover in single-column mode
 #if cover_enabled [
+  #set page(columns: 1, numbering: none)
   #render_cover_page
   #pagebreak()
 ]
 
-// Only add our controlled TOC if enabled in preferences
+// Render TOC with optional two-column layout
 #if prefs.toc [
+  #set page(columns: if toc_two_column { 2 } else { 1 }, numbering: none)
+  
   #let has_custom_title = "toc_title" in prefs and prefs.toc_title.trim() != ""
   #if has_custom_title [
     #text(size: 16pt, weight: 600)[#prefs.toc_title]
@@ -153,16 +165,13 @@
   #pagebreak()
 ]
 
-// Now apply page numbering and header AFTER cover and TOC
-#let show_page_numbers = if "page_numbers" in prefs { prefs.page_numbers } else { false }
-#let show_header = if "header_title" in prefs { prefs.header_title } else { false }
-#let header_text = if "header_text" in prefs { prefs.header_text } else { "" }
-
+// Set up page format for main content with proper column layout
 #set page(
   numbering: if show_page_numbers { "1" } else { none },
   header: if show_header and header_text != "" {
     align(right, text(size: 9pt, fill: gray)[_#header_text _])
-  } else { none }
+  } else { none },
+  columns: if two_column_layout { 2 } else { 1 }
 )
 
 // Reset page counter to start at 1 for main content

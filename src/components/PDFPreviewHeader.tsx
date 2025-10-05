@@ -5,7 +5,7 @@ import { useUIStore } from '../stores/uiStore';
 import { usePreferencesStore } from '../stores/preferencesStore';
 import type { SyncMode, Preferences } from '../types';
 import { themePresets } from '../themes';
-import { setPreferences as persistPreferences, renderMarkdown, renderTypst, openPdfInViewer } from '../api';
+import { setPreferences as persistPreferences, renderTypst, openPdfInViewer } from '../api';
 import { logger } from '../utils/logger';
 import { handleError } from '../utils/errorHandler';
 
@@ -39,12 +39,8 @@ const PDFPreviewHeader: React.FC<Props> = ({ pdfZoom, setPdfZoom }) => {
   const rerenderCurrent = async () => {
     const { editor: { currentFile, content } } = useEditorStore.getState();
     if (!currentFile) return;
-    const isVirtual = currentFile === 'sample.md' || (!currentFile.includes('/') && !currentFile.includes('\\'));
-    if (isVirtual) {
-      await renderTypst(content, 'pdf');
-    } else {
-      await renderMarkdown(currentFile);
-    }
+    // Always use renderTypst with current editor content for live preview
+    await renderTypst(content, 'pdf', currentFile);
   };
 
   const handleThemeSelect = async (value: string) => {
@@ -144,7 +140,7 @@ const PDFPreviewHeader: React.FC<Props> = ({ pdfZoom, setPdfZoom }) => {
           {Object.entries(themePresets).map(([id, theme]) => (
             <option key={id} value={id} title={theme.description}>{theme.name}</option>
           ))}
-          <option value="custom">Custom…</option>
+          {themeSelection === 'custom' && <option value="custom">Custom</option>}
         </select>
         <div className="toolbar-button-group">
           <button

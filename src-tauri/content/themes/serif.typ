@@ -48,7 +48,6 @@
       #v(8pt)
       #line(length: 40%, stroke: 1pt + accent)
     ]
-    pagebreak(weak: true)
   }
   
   // Second level

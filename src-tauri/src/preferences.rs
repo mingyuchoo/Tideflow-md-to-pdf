@@ -38,6 +38,14 @@ pub struct Preferences {
     #[serde(default)]
     pub toc_title: String,
     
+    /// Enable two-column layout for table of contents
+    #[serde(default)]
+    pub toc_two_column: bool,
+    
+    /// Enable two-column layout for main document content
+    #[serde(default)]
+    pub two_column_layout: bool,
+    
     /// Enable cover page
     #[serde(default)]
     pub cover_page: bool,
@@ -193,6 +201,8 @@ impl Default for Preferences {
             },
             toc: false, // default disabled
             toc_title: String::new(),
+            toc_two_column: false,
+            two_column_layout: false,
             cover_page: false,
             cover_title: String::new(),
             cover_writer: String::new(),

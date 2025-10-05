@@ -41,8 +41,8 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
 
   return (
     <div className="no-pdf-message">
-      <p>No PDF to preview.</p>
-      <p>Save (Ctrl+S) or click Render to generate a PDF.</p>
+      <p>📄 No document open</p>
+      <p>Open a markdown file to see the PDF preview</p>
     </div>
   );
 };

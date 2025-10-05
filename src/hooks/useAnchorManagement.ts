@@ -35,6 +35,26 @@ export function useAnchorManagement(params: UseAnchorManagementParams) {
   // This allows us to look up the old anchor's line number and find the closest match in the new sourceMap
   // Works with any ID format (not dependent on parsing tf-LINE-N patterns)
   const prevSourceMapRef = useRef<SourceMap | null>(null);
+  
+  // Track last time typing stopped to prevent immediate scrolls after typing
+  const lastTypingStoppedRef = useRef<number>(0);
+  const lastIsTyping = useRef(isTypingStoreRef.current);
+  
+  // Track last scroll time to prevent rapid consecutive scrolls
+  const lastScrollTimeRef = useRef<number>(0);
+
+  // Detect when typing stops
+  useEffect(() => {
+    const currentIsTyping = isTypingStoreRef.current;
+    if (lastIsTyping.current && !currentIsTyping) {
+      // Just stopped typing
+      lastTypingStoppedRef.current = Date.now();
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[useAnchorManagement] typing stopped, starting stabilization period');
+      }
+    }
+    lastIsTyping.current = currentIsTyping;
+  }, [isTypingStoreRef, activeAnchorId]); // Re-check when activeAnchorId changes
 
   // Scroll editor to active anchor when PDF preview updates it
   useEffect(() => {
@@ -46,6 +66,30 @@ export function useAnchorManagement(params: UseAnchorManagementParams) {
       return;
     }
     if (isTypingStoreRef.current) return;
+    
+    // CRITICAL: Prevent scrolls for a period after typing stops to avoid jumps
+    const now = Date.now();
+    const timeSinceTypingStopped = now - lastTypingStoppedRef.current;
+    if (timeSinceTypingStopped < 1500) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[useAnchorManagement] skipping scroll - within typing stabilization period', {
+          timeSinceTypingStopped,
+          activeAnchorId
+        });
+      }
+      return;
+    }
+    
+    // Prevent rapid consecutive scrolls (minimum 300ms between scrolls)
+    const timeSinceLastScroll = now - lastScrollTimeRef.current;
+    if (timeSinceLastScroll < 300) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[useAnchorManagement] skipping scroll - too soon after last scroll', {
+          timeSinceLastScroll
+        });
+      }
+      return;
+    }
     
     // Scroll editor in 'locked-to-pdf', 'two-way' modes, OR when explicitly set from PDF click
     // We allow auto mode here because click-to-sync is an explicit user action
@@ -71,10 +115,17 @@ export function useAnchorManagement(params: UseAnchorManagementParams) {
 
     const view = editorViewRef.current;
     programmaticScrollRef.current = true;
+    lastScrollTimeRef.current = Date.now();
+    
+    // Use scrollIntoView with double RAF to prevent jarring jumps
     const effect = EditorView.scrollIntoView(anchor.editor.offset, { y: 'center' });
     view.dispatch({ effects: effect });
+    
+    // Clear programmatic flag after animation completes (double RAF for smoother transition)
     requestAnimationFrame(() => {
-      programmaticScrollRef.current = false;
+      requestAnimationFrame(() => {
+        programmaticScrollRef.current = false;
+      });
     });
   }, [
     activeAnchorId,
@@ -157,3 +208,4 @@ export function useAnchorManagement(params: UseAnchorManagementParams) {
     setActiveAnchorId(anchors[0].id);
   }, [sourceMap, activeAnchorId, setActiveAnchorId, anchorUpdateFromEditorRef]);
 }
+

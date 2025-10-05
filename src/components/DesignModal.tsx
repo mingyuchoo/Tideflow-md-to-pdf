@@ -7,8 +7,10 @@ import type { Preferences } from '../types';
 import { themePresets } from '../themes'; // Import themes
 import { logger } from '../utils/logger';
 import { handleError } from '../utils/errorHandler';
+import { useDragToScroll } from '../hooks/useDragToScroll';
 import './DesignModal.css';
 import { 
+  ThemesTab,
   DocumentTab, 
   TypographyTab, 
   SpacingTab, 
@@ -25,6 +27,7 @@ const designLogger = logger.createScoped('DesignModal');
 const DesignModal: React.FC = () => {
   const { preferences, setPreferences, themeSelection, setThemeSelection, customPresets, saveCustomPreset, deleteCustomPreset, renameCustomPreset } = usePreferencesStore();
   const { designModalOpen, setDesignModalOpen, addToast } = useUIStore();
+  const currentFile = useEditorStore(s => s.editor.currentFile);
   const setCompileStatus = useEditorStore(s => s.setCompileStatus);
   const [local, setLocal] = useState<Preferences>(preferences);
   const [dirty, setDirty] = useState(false);
@@ -35,6 +38,7 @@ const DesignModal: React.FC = () => {
   const originalRef = useRef<Preferences | null>(null);
   const applyTimer = useRef<number | null>(null);
   const applySeq = useRef(0);
+  const designContentRef = useDragToScroll<HTMLDivElement>();
 
   const handleBrowseCoverImage = async () => {
     try {
@@ -170,6 +174,7 @@ const DesignModal: React.FC = () => {
         ...preset.preferences,
         margin: { ...preset.preferences.margin },
         fonts: { ...preset.preferences.fonts },
+        two_column_layout: id === 'academic', // Enable two-column for academic theme
       };
       setLocal(merged);
       setPreferences(merged); // Directly update preferences
@@ -241,6 +246,7 @@ const DesignModal: React.FC = () => {
   if (!designModalOpen) return null;
 
   const tabs: { id: TabSection; label: string; icon: string }[] = [
+    { id: 'themes', label: 'Themes', icon: '🎨' },
     { id: 'document', label: 'Document', icon: '📄' },
     { id: 'typography', label: 'Typography', icon: '🔤' },
     { id: 'spacing', label: 'Spacing & Layout', icon: '📐' },
@@ -292,7 +298,19 @@ const DesignModal: React.FC = () => {
             ))}
           </nav>
 
-          <div className="design-content">
+          <div className="design-content" ref={designContentRef}>
+            {/* Themes Tab */}
+            {activeTab === 'themes' && (
+              <ThemesTab
+                themeSelection={themeSelection}
+                setThemeSelection={setThemeSelection}
+                customPresets={customPresets}
+                setLocal={setLocal}
+                scheduleApply={scheduleApply}
+                addToast={addToast}
+              />
+            )}
+
             {/* Document Tab */}
             {activeTab === 'document' && (
               <DocumentTab local={local} mutate={mutate} />
@@ -310,7 +328,7 @@ const DesignModal: React.FC = () => {
 
             {/* Structure Tab */}
             {activeTab === 'structure' && (
-              <StructureTab local={local} mutate={mutate} handleBrowseCoverImage={handleBrowseCoverImage} />
+              <StructureTab local={local} mutate={mutate} handleBrowseCoverImage={handleBrowseCoverImage} currentFile={currentFile} />
             )}
 
             {/* Images Tab */}

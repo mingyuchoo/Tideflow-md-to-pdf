@@ -6,6 +6,14 @@ const DocumentTab: React.FC<TabProps> = ({ local, mutate }) => {
     <div className="tab-panel">
       <h3>Document Settings</h3>
       <div className="form-grid one-col">
+        <label className="checkbox-label">
+          <input 
+            type="checkbox" 
+            checked={local.two_column_layout || false} 
+            onChange={e => mutate({ two_column_layout: e.target.checked })} 
+          /> 
+          <span>Two-Column Layout</span>
+        </label>
         <label>Paper Size
           <select value={local.papersize} onChange={e => mutate({ papersize: e.target.value })}>
             <option value="a4">A4 (210 × 297 mm)</option>

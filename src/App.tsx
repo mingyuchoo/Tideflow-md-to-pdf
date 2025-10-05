@@ -130,7 +130,7 @@ function App() {
             {/* Only mount PDFPreview when not collapsed to avoid wasted renders */}
             {!previewCollapsed && (
               <PDFErrorBoundary>
-                <PDFPreview />
+                <PDFPreview key={editor.currentFile || 'no-file'} />
               </PDFErrorBoundary>
             )}
           </Panel>

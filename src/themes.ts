@@ -171,6 +171,7 @@ export const themePresets: Record<string, ThemeDefinition> = {
       margin: { x: '1.8cm', y: '2.2cm' },
       papersize: 'a4',
       toc: false,
+      two_column_layout: true, // Enable two-column layout for academic theme
       cover_page: false,
       number_sections: false,
       default_image_width: '85%',

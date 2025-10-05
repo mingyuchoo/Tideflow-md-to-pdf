@@ -21,6 +21,7 @@ import { useEditorLifecycle } from '../hooks/useEditorLifecycle';
 import { showOpenDialog, readMarkdownFile } from '../api';
 import { INSTRUCTIONS_DOC } from '../instructionsDoc';
 import { handleError } from '../utils/errorHandler';
+import { listen } from '@tauri-apps/api/event';
 
 const Editor: React.FC = () => {
   // Store state
@@ -132,7 +133,7 @@ const Editor: React.FC = () => {
     openFiles,
   });
 
-  // Image handlers
+  // Image handlers (must come before unified drop handler)
   const {
     imageModalOpen,
     setImageModalOpen,
@@ -144,7 +145,8 @@ const Editor: React.FC = () => {
     setImagePlusPath,
     handleImageInsert,
     handlePaste,
-    handleDrop,
+    handleDrop, // Used for paste events
+    promptImageProps,
   } = useImageHandlers({
     preferences,
     importImage,
@@ -161,6 +163,89 @@ const Editor: React.FC = () => {
       }
     },
   });
+
+  // Container ref for attaching drop handler
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  // Listen for Tauri file drop events
+  React.useEffect(() => {
+    let unlisten: (() => void) | undefined;
+
+    const setupListener = async () => {
+      console.log('[Editor] Setting up Tauri file drop listener');
+      
+      unlisten = await listen<{ paths: string[]; position: { x: number; y: number } }>('tauri://drag-drop', async (event) => {
+        console.log('[Editor] Tauri file drop event:', event.payload);
+        
+        const paths = event.payload?.paths || event.payload as unknown as string[];
+        
+        if (paths && paths.length > 0) {
+          const filePath = paths[0];
+          console.log('[Editor] Processing dropped file:', filePath);
+          
+          // Check if it's a markdown file
+          if (filePath.endsWith('.md') || filePath.endsWith('.markdown')) {
+            try {
+              const content = await readMarkdownFile(filePath);
+              const fileName = filePath.split(/[\\/]/).pop() || filePath;
+              addOpenFile(fileName);
+              setCurrentFile(fileName);
+              setContent(content);
+              addRecentFile(filePath);
+              addToast({ message: `Opened file: ${fileName}`, type: 'success' });
+            } catch (err) {
+              handleError(err, { operation: 'open dropped markdown file', component: 'Editor' });
+            }
+          }
+          // Check if it's an image
+          else if (filePath.match(/\.(png|jpg|jpeg|gif|bmp|webp|svg)$/i)) {
+            try {
+              const assetPath = await importImageFromPath(filePath);
+              const fileName = filePath.split(/[\\/]/).pop() || 'image';
+              
+              // Prompt for image properties before inserting
+              const initial: ImageProps = {
+                width: preferences.default_image_width,
+                alignment: preferences.default_image_alignment as ImageProps['alignment'],
+                alt: fileName.replace(/\.[^.]+$/, '')
+              };
+              
+              const chosen = await promptImageProps(initial);
+              if (chosen) {
+                const imageMarkdown = generateImageMarkdown(
+                  assetPath,
+                  chosen.width,
+                  chosen.alignment,
+                  chosen.alt
+                );
+                
+                if (editorStateRefs.editorViewRef.current) {
+                  const state = editorStateRefs.editorViewRef.current.state;
+                  const transaction = state.update({
+                    changes: { from: state.selection.main.head, insert: imageMarkdown }
+                  });
+                  editorStateRefs.editorViewRef.current.dispatch(transaction);
+                }
+                
+                addToast({ message: `Image inserted: ${fileName}`, type: 'success' });
+              }
+            } catch (err) {
+              handleError(err, { operation: 'import dropped image', component: 'Editor' });
+            }
+          }
+        }
+      });
+    };
+
+    setupListener();
+
+    return () => {
+      if (unlisten) {
+        console.log('[Editor] Removing Tauri file drop listener');
+        unlisten();
+      }
+    };
+  }, [addOpenFile, setCurrentFile, setContent, addRecentFile, addToast, promptImageProps, preferences, editorStateRefs]);
 
   // Handle search toggle
   const handleSearchToggle = React.useCallback(() => {
@@ -238,10 +323,9 @@ const Editor: React.FC = () => {
 
   return (
     <div 
+      ref={containerRef}
       className="editor-container" 
       onPaste={handlePaste}
-      onDrop={handleDrop}
-      onDragOver={(e) => e.preventDefault()}
     >
       {/* Always render editor toolbar and content, but hide when no file */}
       <div className={`editor-content-wrapper ${currentFile ? '' : 'hidden'}`}>

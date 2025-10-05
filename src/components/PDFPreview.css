@@ -669,14 +669,26 @@
 }
 
 .no-pdf-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
   color: #64748b;
   font-size: 1rem;
+  text-align: center;
+  padding: 2rem;
 }
 
 .no-pdf-message p:first-child {
-  font-size: 1.1rem;
+  font-size: 1.25rem;
   font-weight: 600;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.no-pdf-message p:last-child {
+  font-size: 0.95rem;
+  opacity: 0.8;
 }
 
 .error-message {
@@ -825,8 +837,13 @@
 }
 
 .thumbnails-list.is-dragging {
-  cursor: grabbing;
+  cursor: grabbing !important;
   scroll-behavior: auto;
+}
+
+.thumbnails-list.is-dragging * {
+  pointer-events: none !important;
+  cursor: grabbing !important;
 }
 
 .thumbnails-list::-webkit-scrollbar {

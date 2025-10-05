@@ -14,6 +14,8 @@ export const defaultPreferences: Preferences = {
   },
   toc: false,
   toc_title: '',
+  toc_two_column: false,
+  two_column_layout: false,
   cover_page: false,
   cover_title: '',
   cover_writer: '',

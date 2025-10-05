@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 /// Main application error type with specific variants for different failure scenarios.
+#[allow(dead_code)]
 #[derive(Error, Debug)]
 pub enum AppError {
     /// File system operation errors
@@ -124,6 +125,7 @@ impl AppError {
 }
 
 /// Helper trait for adding context to Results
+#[allow(dead_code)]
 pub trait ResultExt<T> {
     /// Add file path context to an IO error
     fn with_file_context(self, path: PathBuf, operation: &str) -> AppResult<T>;

@@ -31,8 +31,6 @@
     margin: (x: 1.8cm, y: 2.2cm),
     fill: page-bg,
     columns: 2,
-    numbering: "1",
-    number-align: center,
   )
   
   // Headings - First level (section)

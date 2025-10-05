@@ -1,3 +1,4 @@
+export { default as ThemesTab } from './ThemesTab';
 export { default as DocumentTab } from './DocumentTab';
 export { default as TypographyTab } from './TypographyTab';
 export { default as SpacingTab } from './SpacingTab';
