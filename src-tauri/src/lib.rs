@@ -1,4 +1,5 @@
 mod commands;
+mod error;
 mod preferences;
 mod preprocessor;
 mod render_pipeline;

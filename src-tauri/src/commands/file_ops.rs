@@ -1,4 +1,5 @@
 /// File operation commands: CRUD operations for markdown files and directories
+use crate::error::{AppError, AppResult};
 use crate::utils;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -17,33 +18,52 @@ pub struct FileEntry {
 pub async fn read_markdown_file(path: &str) -> Result<String, String> {
     // Validate path format
     if path.is_empty() {
-        return Err("Empty path provided".to_string());
+        return Err(AppError::InvalidPath("Empty path provided".to_string()).to_frontend_message());
     }
     
     // Check if path exists first to give a better error message
     let path_obj = Path::new(path);
     if !path_obj.exists() {
-        return Err(format!("File does not exist: {}", path));
+        return Err(AppError::FileNotFound(path_obj.to_path_buf()).to_frontend_message());
     }
     
     // Read the file
     fs::read_to_string(path).map_err(|e| {
-        format!("Failed to read file '{}': {} (error code: {:?})", path, e, e.raw_os_error())
+        AppError::FileRead {
+            path: path_obj.to_path_buf(),
+            source: e,
+        }
+        .to_frontend_message()
     })
 }
 
 #[tauri::command]
 pub async fn write_markdown_file(path: &str, content: &str) -> Result<(), String> {
+    let path_obj = Path::new(path);
+    
     // Ensure parent directory exists
-    if let Some(parent) = Path::new(path).parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    if let Some(parent) = path_obj.parent() {
+        fs::create_dir_all(parent).map_err(|e| {
+            AppError::FileWrite {
+                path: parent.to_path_buf(),
+                source: e,
+            }
+            .to_frontend_message()
+        })?;
     }
+    
     // Strip any preview-only raw-typst comments (e.g., <!--raw-typst ... -->)
     // to avoid persisting invisible TFANCHOR tokens into user files.
     let re = regex::Regex::new(r"(?is)<!--\s*raw-typst[\s\S]*?-->").map_err(|e| e.to_string())?;
     let cleaned = re.replace_all(content, "").to_string();
 
-    fs::write(path, cleaned).map_err(|e| e.to_string())
+    fs::write(path, cleaned).map_err(|e| {
+        AppError::FileWrite {
+            path: path_obj.to_path_buf(),
+            source: e,
+        }
+        .to_frontend_message()
+    })
 }
 
 #[tauri::command]

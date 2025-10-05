@@ -1,3 +1,4 @@
+use crate::error::{AppError, AppResult};
 use crate::preprocessor::{
     attach_pdf_positions, pdf_positions_from_query, preprocess_markdown, AnchorMeta, PdfPosition,
     SourceMapPayload,

@@ -24,5 +24,28 @@ export default defineConfig({
     target: ["es2021", "chrome100", "safari14"],
     minify: !process.env.TAURI_DEBUG ? "esbuild" : false,
     sourcemap: !!process.env.TAURI_DEBUG,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // React and related libraries
+          'react-vendor': ['react', 'react-dom'],
+          // PDF.js worker is already separate, main lib goes here
+          'pdfjs': ['pdfjs-dist'],
+          // CodeMirror and related
+          'codemirror': [
+            'codemirror',
+            '@codemirror/lang-markdown',
+            '@codemirror/search',
+            '@codemirror/view',
+            '@codemirror/state',
+            '@codemirror/commands',
+          ],
+          // UI libraries
+          'ui-vendor': ['react-resizable-panels', 'zustand'],
+          // Tauri plugins
+          'tauri-vendor': ['@tauri-apps/api', '@tauri-apps/plugin-dialog'],
+        },
+      },
+    },
   },
 })
