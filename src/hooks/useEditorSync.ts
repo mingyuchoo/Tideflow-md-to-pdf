@@ -7,6 +7,9 @@ import { useCallback, useEffect } from 'react';
 import type { SourceAnchor, SourceMap, SyncMode } from '../types';
 import { TIMING, ANCHOR } from '../constants/timing';
 import type { EditorStateRefs } from './useEditorState';
+import { logger } from '../utils/logger';
+
+const useEditorSyncLogger = logger.createScoped('useEditorSync');
 
 interface UseEditorSyncParams {
   editorStateRefs: EditorStateRefs;
