@@ -3,6 +3,7 @@
  */
 
 import { logger } from './logger';
+import type { Toast } from '../types';
 
 export type ErrorSeverity = 'info' | 'warning' | 'error' | 'critical';
 
@@ -12,8 +13,20 @@ export interface ErrorContext {
   details?: string;
 }
 
+// Store reference for toast system (will be set by App on mount)
+let addToastFn: ((toast: Omit<Toast, 'id'>) => void) | null = null;
+
+/**
+ * Initialize error handler with toast system
+ * Should be called once by App component on mount
+ */
+export function initErrorHandler(addToast: (toast: Omit<Toast, 'id'>) => void): void {
+  addToastFn = addToast;
+}
+
 /**
  * Handle errors consistently across the application
+ * Now uses toast notifications instead of alerts
  */
 export function handleError(
   error: unknown, 
@@ -24,26 +37,49 @@ export function handleError(
   const component = context.component || 'App';
   
   // Log to console for debugging (using centralized logger)
-  logger.error(component, `${context.operation} failed: ${errorMsg}`);
+  const logPrefix = context.operation;
+  
+  switch (severity) {
+    case 'critical':
+      logger.error(component, `CRITICAL: ${logPrefix} failed: ${errorMsg}`);
+      break;
+    case 'error':
+      logger.error(component, `${logPrefix} failed: ${errorMsg}`);
+      break;
+    case 'warning':
+      logger.warn(component, `${logPrefix}: ${errorMsg}`);
+      break;
+    case 'info':
+      logger.info(component, `${logPrefix}: ${errorMsg}`);
+      break;
+  }
+  
   if (context.details) {
     logger.debug(component, 'Additional details', context.details);
   }
   
-  // Show user feedback based on severity
-  switch (severity) {
-    case 'critical':
-      alert(`Critical error: ${context.operation} failed. ${errorMsg}`);
-      break;
-    case 'error':
-      alert(`Error: ${context.operation} failed. ${errorMsg}`);
-      break;
-    case 'warning':
-      // Only log warnings, don't interrupt user
-      logger.warn(component, `Warning in ${context.operation}: ${errorMsg}`);
-      break;
-    case 'info':
-      logger.info(component, `${context.operation}: ${errorMsg}`);
-      break;
+  // Show user feedback via toast system (fallback to alert if not initialized)
+  const shouldShowToast = severity === 'warning' || severity === 'error' || severity === 'critical';
+  
+  if (shouldShowToast) {
+    const toastMessage = severity === 'critical' 
+      ? `Critical: ${context.operation} failed. ${errorMsg}`
+      : severity === 'error'
+      ? `${context.operation} failed. ${errorMsg}`
+      : `${context.operation}: ${errorMsg}`;
+    
+    if (addToastFn) {
+      addToastFn({
+        type: severity === 'critical' ? 'error' : severity,
+        message: toastMessage,
+        duration: severity === 'critical' ? undefined : 5000,
+      });
+    } else {
+      // Fallback to alert only for critical errors if toast system not initialized
+      if (severity === 'critical') {
+        alert(toastMessage);
+      }
+    }
   }
 }
 

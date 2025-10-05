@@ -10,7 +10,7 @@ import { confirm } from '@tauri-apps/plugin-dialog';
 import { useAppStore } from './store';
 import { getPreferences, listenForFileChanges, readMarkdownFile } from './api';
 import { loadSession, saveSession } from './utils/session';
-import { handleError } from './utils/errorHandler';
+import { handleError, initErrorHandler } from './utils/errorHandler';
 import { logger } from './utils/logger';
 import type { Preferences } from './types';
 import './App.css';
@@ -61,6 +61,10 @@ function App() {
         appLogger.info('init start');
         const session = loadSession();
         const store = useAppStore.getState();
+        
+        // Initialize error handler with toast system
+        initErrorHandler(store.addToast);
+        
         let sampleInjected = store.initialSampleInjected;
 
         const prefs = await getPreferences();

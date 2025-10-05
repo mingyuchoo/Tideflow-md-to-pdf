@@ -4,6 +4,7 @@ import { setPreferences as persistPreferences, renderTypst, debugPaths } from '.
 import type { Preferences } from '../types';
 import { themePresets } from '../themes'; // Import themes
 import { logger } from '../utils/logger';
+import { handleError } from '../utils/errorHandler';
 import './DesignModal.css';
 
 type TabSection = 'document' | 'typography' | 'spacing' | 'structure' | 'images' | 'presets' | 'advanced';
@@ -92,8 +93,8 @@ const DesignModal: React.FC = () => {
         debugPaths().then(info => designLogger.debug('auto', info)).catch(()=>{});
         await rerenderCurrent();
       } catch (e) {
-        // swallow for now; could surface a toast
         designLogger.warn('auto apply failed', e);
+        handleError(e, { operation: 'apply preferences', component: 'DesignModal' }, 'warning');
       }
     }, next.render_debounce_ms || 400);
   };
@@ -121,6 +122,7 @@ const DesignModal: React.FC = () => {
           await rerenderCurrent();
         } catch (e) {
           designLogger.warn('immediate structure apply failed', e);
+          handleError(e, { operation: 'apply cover page changes', component: 'DesignModal' }, 'warning');
         }
       })();
     } else {
@@ -176,6 +178,7 @@ const DesignModal: React.FC = () => {
       setDesignModalOpen(false);
     } catch (e) {
       designLogger.warn('save failed', e);
+      handleError(e, { operation: 'save preferences', component: 'DesignModal' });
     }
   };
 
