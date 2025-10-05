@@ -58,6 +58,7 @@ const PDFPreview: React.FC = () => {
   const pendingForcedTimerRef = useRef<number | null>(null);
   const pendingForcedOneShotRef = useRef<number | null>(null);
   const pendingForcedAnchorRef = useRef<string | null>(null);
+  const savedScrollPositionRef = useRef<{ top: number; left: number } | null>(null);
 
 
   
@@ -263,6 +264,7 @@ const PDFPreview: React.FC = () => {
     syncModeRef,
     renderingRef: scrollState.renderingRef,
     isTypingRef,
+    savedScrollPositionRef,
     rendering, // Pass state value so effect can re-run when PDF ready
     setActiveAnchorId,
     setSyncMode,
@@ -315,6 +317,8 @@ const PDFPreview: React.FC = () => {
     userInteractedRef,
     syncModeRef,
     isTypingRef,
+    programmaticScrollRef,
+    savedScrollPositionRef,
     pendingFallbackRef,
     pendingFallbackTimerRef,
     pendingForcedTimerRef,
