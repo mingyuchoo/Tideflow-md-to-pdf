@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import './Toast.css';
+import { UI } from '../constants/timing';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -11,7 +12,7 @@ export interface ToastProps {
   onClose: (id: string) => void;
 }
 
-const Toast: React.FC<ToastProps> = ({ id, type, message, duration = 4000, onClose }) => {
+const Toast: React.FC<ToastProps> = ({ id, type, message, duration = UI.TOAST_DEFAULT_DURATION_MS, onClose }) => {
   useEffect(() => {
     const timer = setTimeout(() => {
       onClose(id);

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useUIStore } from '../stores/uiStore';
 import './DesignModal.css';
+import { UI } from '../constants/timing';
 
 interface Props {
   isOpen: boolean;
@@ -23,7 +24,7 @@ const SearchModal: React.FC<Props> = ({ isOpen, onClose, onSearch }) => {
   React.useEffect(() => {
     if (isOpen && inputRef.current) {
       // Focus search input when modal opens
-      setTimeout(() => inputRef.current?.focus(), 100);
+      setTimeout(() => inputRef.current?.focus(), UI.MODAL_FOCUS_DELAY_MS);
     }
   }, [isOpen]);
 

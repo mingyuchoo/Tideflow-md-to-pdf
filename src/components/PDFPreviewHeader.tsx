@@ -1,4 +1,5 @@
 import React from 'react';
+import { UI } from '../constants/timing';
 import { useEditorStore } from '../stores/editorStore';
 import { useUIStore } from '../stores/uiStore';
 import { usePreferencesStore } from '../stores/preferencesStore';
@@ -101,7 +102,7 @@ const PDFPreviewHeader: React.FC<Props> = ({ pdfZoom, setPdfZoom }) => {
             −
           </button>
           <span className="zoom-display" title="Current zoom level">
-            {Math.round(pdfZoom * 100)}%
+            {Math.round(pdfZoom * UI.ZOOM_PERCENTAGE_MULTIPLIER)}%
           </span>
           <button
             type="button"

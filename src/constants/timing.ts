@@ -65,6 +65,18 @@ export const UI = {
   
   /** Visual gap between PDF pages in pixels */
   PAGE_GAP_PX: 8,
+  
+  /** Focus delay for input elements when modals open */
+  MODAL_FOCUS_DELAY_MS: 100,
+  
+  /** Delay before generating PDF thumbnails after render complete */
+  THUMBNAIL_GENERATION_DELAY_MS: 1000,
+  
+  /** Default duration for toast notifications */
+  TOAST_DEFAULT_DURATION_MS: 4000,
+  
+  /** Zoom percentage multiplier for display */
+  ZOOM_PERCENTAGE_MULTIPLIER: 100,
 } as const;
 
 /**
@@ -79,4 +91,18 @@ export const ANCHOR = {
   
   /** Score penalty for anchors outside viewport but nearby */
   NEARBY_SCORE_PENALTY: 10,
+} as const;
+
+/**
+ * Default values for user preferences and UI elements
+ */
+export const DEFAULTS = {
+  /** Default image width for inserted images */
+  IMAGE_WIDTH: '80%',
+  
+  /** Default zoom level (1.0 = 100%) */
+  PDF_ZOOM: 1.0,
+  
+  /** Available image width presets */
+  IMAGE_WIDTH_PRESETS: ['25%', '40%', '60%', '80%', '100%'] as const,
 } as const;

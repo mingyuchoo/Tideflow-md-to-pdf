@@ -2,6 +2,7 @@ import React from 'react';
 import { EditorView } from 'codemirror';
 import { cmd } from './commands';
 import type { Preferences } from '../types';
+import { DEFAULTS } from '../constants/timing';
 
 // Curated font list for the dropdown
 const FONT_OPTIONS = [
@@ -135,7 +136,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
         <div className="toolbar-divider" />
         
         {/* Force line break - Image utilities and font controls on second line */}
-        <div style={{ flexBasis: '100%', height: 0 }} />
+        <div className="toolbar-line-break" />
         
         <button onClick={onImageInsert} title="Insert Image">
           🖼️
@@ -146,7 +147,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
         <select
           className="inline-select"
           onChange={(e) => onImageWidthChange(e.target.value)}
-          defaultValue={preferences.default_image_width || '80%'}
+          defaultValue={preferences.default_image_width || DEFAULTS.IMAGE_WIDTH}
           title="Image width: updates nearest image before cursor"
         >
           <option value="25%">25%</option>

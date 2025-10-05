@@ -50,6 +50,17 @@
   color: #64748b;
 }
 
+/* Content visibility utilities */
+.editor-content-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.editor-content-wrapper.hidden {
+  display: none;
+}
+
 .typing-indicator {
   background: linear-gradient(135deg, #3b82f6, #60a5fa);
   color: white;

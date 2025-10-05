@@ -2,41 +2,26 @@ import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { useEditorStore } from '../stores/editorStore';
 import { useUIStore } from '../stores/uiStore';
 import { usePreferencesStore } from '../stores/preferencesStore';
-import { logger } from '../utils/logger';
 import './PDFPreview.css';
-import * as pdfjsLib from 'pdfjs-dist';
 import PDFPreviewHeader from './PDFPreviewHeader';
 import { usePdfRenderer } from '../hooks/usePdfRenderer';
-import PdfJsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?worker';
 import { useScrollState } from '../hooks/useScrollState';
 import { useOffsetManager } from '../hooks/useOffsetManager';
 import { useEditorToPdfSync } from '../hooks/useEditorToPdfSync';
 import { usePdfToEditorSync } from '../hooks/usePdfToEditorSync';
 import { UI } from '../constants/timing';
+import { 
+  ThumbnailsSidebar, 
+  PDFViewer,
+  generateThumbnailsFromCanvases,
+  detectCurrentPage,
+  scrollThumbnailToActive,
+  scrollToPage as scrollToPageUtil,
+  initializePdfWorker
+} from './PDFPreview/index';
 
-const PDFPreviewLogger = logger.createScoped('PDFPreview');
-
-interface PdfJsWorkerOptions {
-  workerPort?: unknown;
-  workerSrc?: string;
-}
-interface PdfJsLibWithWorker {
-  GlobalWorkerOptions?: PdfJsWorkerOptions;
-}
-try {
-  const lib = pdfjsLib as unknown as PdfJsLibWithWorker;
-  if (lib.GlobalWorkerOptions && !lib.GlobalWorkerOptions.workerPort) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      lib.GlobalWorkerOptions.workerPort = new (PdfJsWorker as any)();
-      PDFPreviewLogger.debug('pdf.js workerPort initialized');
-    } catch (inner) {
-      PDFPreviewLogger.warn('Worker construction failed, continuing with fake worker', inner);
-    }
-  }
-} catch (outer) {
-  PDFPreviewLogger.warn('Worker initialization outer failure; continuing without worker', outer);
-}
+// Initialize PDF.js worker once
+initializePdfWorker();
 
 const PDFPreview: React.FC = () => {
   // Store state
@@ -385,110 +370,24 @@ const PDFPreview: React.FC = () => {
       const canvases = container.querySelectorAll('canvas.pdfjs-page-canvas');
       if (canvases.length === 0) return;
 
-      const containerRect = container.getBoundingClientRect();
-      const containerMidpoint = containerRect.top + containerRect.height / 2;
-
-      let closestPage = 1;
-      let closestDistance = Infinity;
-
-      canvases.forEach((canvas, index) => {
-        const pageNum = index + 1; // Pages are 1-indexed
-        const rect = canvas.getBoundingClientRect();
-        const pageMidpoint = rect.top + rect.height / 2;
-        const distance = Math.abs(pageMidpoint - containerMidpoint);
-
-        if (distance < closestDistance) {
-          closestDistance = distance;
-          closestPage = pageNum;
-        }
-      });
-
-      setCurrentPage(closestPage);
-      
-      // Auto-scroll thumbnail list to show current page
-      const thumbnailsList = document.getElementById('thumbnails-list');
-      const activeThumbnail = thumbnailsList?.querySelector('.thumbnail-item.active');
-      if (activeThumbnail && thumbnailsList) {
-        const thumbnailRect = activeThumbnail.getBoundingClientRect();
-        const listRect = thumbnailsList.getBoundingClientRect();
-        
-        // Check if thumbnail is outside visible area
-        if (thumbnailRect.top < listRect.top || thumbnailRect.bottom > listRect.bottom) {
-          activeThumbnail.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }
+      const newPage = detectCurrentPage(container);
+      setCurrentPage(newPage);
+      scrollThumbnailToActive();
     };
 
     // Generate thumbnails when PDF is loaded
-    const generateThumbnails = () => {
-      const canvases = container.querySelectorAll('canvas.pdfjs-page-canvas');
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('[PDFPreview] Generating thumbnails, found canvases:', canvases.length);
-      }
-      
-      if (canvases.length === 0) {
-        // Retry if canvases not ready yet
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[PDFPreview] No canvases found, retrying in 500ms...');
-        }
-        setTimeout(generateThumbnails, 500);
-        return;
-      }
-
-      const newThumbnails = new Map<number, string>();
-      
-      setTotalPages(canvases.length);
-
-      canvases.forEach((canvas, index) => {
-        const pageNum = index + 1;
-        const sourceCanvas = canvas as HTMLCanvasElement;
-        
-        // Use the canvas's intrinsic dimensions (these are the true rendered dimensions)
-        // These are independent of CSS styling and window size
-        const sourceWidth = sourceCanvas.width;
-        const sourceHeight = sourceCanvas.height;
-        const aspectRatio = sourceHeight / sourceWidth;
-        
-        if (process.env.NODE_ENV !== 'production' && index === 0) {
-          console.log('[PDFPreview] Canvas dimensions:', {
-            width: sourceWidth,
-            height: sourceHeight,
-            aspectRatio: aspectRatio.toFixed(3),
-            expectedA4: '1.414'
-          });
-        }
-        
-        // Create thumbnail with fixed width, height based on source aspect ratio
-        const thumbnailCanvas = document.createElement('canvas');
-        const targetWidth = 140;
-        const targetHeight = Math.round(targetWidth * aspectRatio);
-        
-        thumbnailCanvas.width = targetWidth;
-        thumbnailCanvas.height = targetHeight;
-        
-        const ctx = thumbnailCanvas.getContext('2d', { alpha: false });
-        if (ctx && sourceWidth > 0 && sourceHeight > 0) {
-          ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = 'high';
-          ctx.drawImage(sourceCanvas, 0, 0, targetWidth, targetHeight);
-          newThumbnails.set(pageNum, thumbnailCanvas.toDataURL('image/png'));
-        }
-      });
-      
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('[PDFPreview] Generated thumbnails:', newThumbnails.size);
-      }
-      
-      if (newThumbnails.size > 0) {
-        setThumbnails(newThumbnails);
-      }
+    const handleThumbnailsGenerated = (newThumbnails: Map<number, string>, total: number) => {
+      setThumbnails(newThumbnails);
+      setTotalPages(total);
     };
 
     container.addEventListener('scroll', handleScroll);
     handleScroll(); // Initial page detection
 
     // Wait for rendering to complete before generating thumbnails
-    const timer = setTimeout(generateThumbnails, 1000);
+    const timer = setTimeout(() => {
+      generateThumbnailsFromCanvases(container, handleThumbnailsGenerated);
+    }, UI.THUMBNAIL_GENERATION_DELAY_MS);
 
     return () => {
       container.removeEventListener('scroll', handleScroll);
@@ -496,15 +395,10 @@ const PDFPreview: React.FC = () => {
     };
   }, [compileStatus.pdf_path, rendering, containerRef]);
 
-  const scrollToPage = (pageNum: number) => {
+  const handlePageClick = (pageNum: number) => {
     const container = containerRef.current;
     if (!container) return;
-
-    const canvases = container.querySelectorAll('canvas.pdfjs-page-canvas');
-    const canvas = canvases[pageNum - 1]; // Convert to 0-indexed
-    if (canvas) {
-      canvas.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
+    scrollToPageUtil(container, pageNum);
   };
 
   return (
@@ -516,57 +410,20 @@ const PDFPreview: React.FC = () => {
       
       <div className="pdf-preview-content">
         {thumbnailsVisible && (
-          <div className="pdf-thumbnails-sidebar">
-            <div className="thumbnails-header">Pages ({totalPages || '...'})</div>
-            <div className="thumbnails-list" id="thumbnails-list">
-              {thumbnails.size > 0 ? (
-                Array.from(thumbnails.entries()).map(([pageNum, dataUrl]) => (
-                  <div
-                    key={pageNum}
-                    className={`thumbnail-item ${currentPage === pageNum ? 'active' : ''}`}
-                    onClick={() => scrollToPage(pageNum)}
-                    title={`Go to page ${pageNum}`}
-                  >
-                    <img src={dataUrl} alt={`Page ${pageNum}`} />
-                    <div className="thumbnail-page-number">{pageNum}</div>
-                  </div>
-                ))
-              ) : (
-                <div className="thumbnails-loading">
-                  <p>Generating thumbnails...</p>
-                </div>
-              )}
-            </div>
-          </div>
+          <ThumbnailsSidebar
+            thumbnails={thumbnails}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageClick={handlePageClick}
+          />
         )}
         
-        {compileStatus.status === 'error' ? (
-          <div className="error-message">
-            <h4>Rendering Failed</h4>
-            <p>{compileStatus.message}</p>
-            {compileStatus.details && (
-              <pre className="error-details">{compileStatus.details}</pre>
-            )}
-          </div>
-        ) : pdfError ? (
-          <div className="error-message">
-            <h4>PDF Load Failed</h4>
-            <pre className="error-details">{pdfError}</pre>
-          </div>
-        ) : compileStatus.status === 'ok' && compileStatus.pdf_path ? (
-          <>
-            <div ref={containerRef} className="pdfjs-scroll-container" />
-            {rendering && (
-              <div className="pdfjs-loading-overlay">Rendering pages...</div>
-            )}
-
-          </>
-        ) : (
-          <div className="no-pdf-message">
-            <p>No PDF to preview.</p>
-            <p>Save (Ctrl+S) or click Render to generate a PDF.</p>
-          </div>
-        )}
+        <PDFViewer
+          containerRef={containerRef}
+          rendering={rendering}
+          compileStatus={compileStatus}
+          pdfError={pdfError}
+        />
       </div>
     </div>
   );

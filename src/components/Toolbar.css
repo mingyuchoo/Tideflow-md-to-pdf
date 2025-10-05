@@ -423,6 +423,12 @@
   .toolbar-actions button:focus-visible { outline: 2px solid Highlight; }
 }
 
+/* Toolbar line break utility */
+.toolbar-line-break {
+  flex-basis: 100%;
+  height: 0;
+}
+
 /* Light theme override if body has light class */
 body.light .toolbar {
   background: linear-gradient(135deg,#f0f4f8,#d9e2ec);

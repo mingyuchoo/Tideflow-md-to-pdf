@@ -244,7 +244,7 @@ const Editor: React.FC = () => {
       onDragOver={(e) => e.preventDefault()}
     >
       {/* Always render editor toolbar and content, but hide when no file */}
-      <div style={{ display: currentFile ? 'flex' : 'none', flexDirection: 'column', height: '100%' }}>
+      <div className={`editor-content-wrapper ${currentFile ? '' : 'hidden'}`}>
         <EditorToolbar
           currentFile={currentFile || ''}
           preferences={preferences}
