@@ -4,6 +4,10 @@ import { handleError } from '../utils/errorHandler';
 import { deriveAltFromPath } from '../utils/image';
 import type { ImageProps } from '../components/ImagePropsModal';
 import type { ImagePlusChoice } from '../components/ImagePlusModal';
+import { logger } from '../utils/logger';
+
+// Create scoped logger
+const imageLogger = logger.createScoped('ImageHandlers');
 
 interface UseImageHandlersProps {
   preferences: {
@@ -71,7 +75,7 @@ export const useImageHandlers = ({
         insertSnippet(imageMarkdown);
         // Seed Image+ modal path for convenience
         setImagePlusPath(assetPath);
-        console.info('[Editor] Inserted image asset path:', assetPath);
+        imageLogger.info('Inserted image asset path:', assetPath);
         showSuccess(`Inserted image: ${assetPath}`);
       } catch (err) {
         handleError(err, { operation: 'import image file', component: 'Editor' });

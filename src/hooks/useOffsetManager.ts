@@ -7,6 +7,10 @@ import { useCallback, useRef } from 'react';
 import { computeAnchorOffsets } from '../utils/offsets';
 import type { SourceMap } from '../types';
 import type { ScrollStateRefs } from './useScrollState';
+import { logger } from '../utils/logger';
+
+// Create scoped logger
+const offsetLogger = logger.createScoped('useOffsetManager');
 
 export interface OffsetManagerRefs {
   anchorOffsetsRef: React.MutableRefObject<Map<string, number>>;
@@ -72,11 +76,9 @@ export function useOffsetManager(
         // keep existing offsets (no-op) — caller may retry and then replace.
       }
 
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(
-          `[useOffsetManager] recomputeAnchorOffsets done: offsets=${offsets.size}, samples=${JSON.stringify(samples)}, totalOffsets=${anchorOffsetsRef.current.size}`
-        );
-      }
+      offsetLogger.debug(
+        `recomputeAnchorOffsets done: offsets=${offsets.size}, samples=${JSON.stringify(samples)}, totalOffsets=${anchorOffsetsRef.current.size}`
+      );
     },
     [scrollStateRefs, registerPendingAnchor]
   );

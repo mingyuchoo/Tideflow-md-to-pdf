@@ -11,6 +11,10 @@ import { getScrollElement } from '../types/codemirror';
 import { programmaticUpdateAnnotation } from './useCodeMirrorSetup';
 import type { SourceMap } from '../types';
 import type { EditorStateRefs } from './useEditorState';
+import { logger } from '../utils/logger';
+
+// Create scoped logger
+const fileOpsLogger = logger.createScoped('FileOps');
 
 interface CompileStatus {
   status: 'running' | 'ok' | 'error';
@@ -121,17 +125,17 @@ export function useFileOperations(params: UseFileOperationsParams) {
   // Use generation tracking to prevent race conditions on rapid file switches.
   useEffect(() => {
     if (!editorViewRef.current) {
-      if (process.env.NODE_ENV !== 'production') console.debug('[FileOps] No editorView, skipping content sync');
+      fileOpsLogger.debug('No editorView, skipping content sync');
       return;
     }
     if (!currentFile) {
-      if (process.env.NODE_ENV !== 'production') console.debug('[FileOps] No currentFile, skipping content sync');
+      fileOpsLogger.debug('No currentFile, skipping content sync');
       return; // No file selected
     }
     
     // When a new file is selected (including when going from no files to first file)
     if (currentFile !== prevFileRef.current) {
-      if (process.env.NODE_ENV !== 'production') console.debug('[FileOps] File changed, syncing content', { currentFile, prevFile: prevFileRef.current, contentLength: content.length });
+      fileOpsLogger.debug('File changed, syncing content', { currentFile, prevFile: prevFileRef.current, contentLength: content.length });
       // Track the target file to detect if user switches away during loading
       const targetFile = currentFile;
       
@@ -141,7 +145,7 @@ export function useFileOperations(params: UseFileOperationsParams) {
         if (sc) {
           const pos = sc.scrollTop;
           setEditorScrollPosition(prevFileRef.current, pos);
-          if (process.env.NODE_ENV !== 'production') console.debug('[Editor] saved scroll pos on file switch', { file: prevFileRef.current, pos });
+          fileOpsLogger.debug('saved scroll pos on file switch', { file: prevFileRef.current, pos });
         }
       }
       
@@ -165,7 +169,7 @@ export function useFileOperations(params: UseFileOperationsParams) {
       requestAnimationFrame(() => {
         // Verify we're still on the same file (user might have switched again)
         if (currentFile !== targetFile) {
-          if (process.env.NODE_ENV !== 'production') console.debug('[Editor] skipped scroll restore - file changed', { targetFile, currentFile });
+          fileOpsLogger.debug('skipped scroll restore - file changed', { targetFile, currentFile });
           return;
         }
         
@@ -177,7 +181,7 @@ export function useFileOperations(params: UseFileOperationsParams) {
               programmaticScrollRef.current = true;
               sc.scrollTop = stored;
               requestAnimationFrame(() => { programmaticScrollRef.current = false; });
-              if (process.env.NODE_ENV !== 'production') console.debug('[Editor] restored scroll pos', { file: targetFile, pos: stored });
+              fileOpsLogger.debug('restored scroll pos', { file: targetFile, pos: stored });
             }
           }
         } catch { /* ignore */ }
@@ -244,7 +248,7 @@ export function useFileOperations(params: UseFileOperationsParams) {
   const initialRenderAttemptedRef = useRef(false);
   
   useEffect(() => {
-    console.debug('[Editor] startup render effect fired', {
+    fileOpsLogger.debug('startup render effect fired', {
       attempted: initialRenderAttemptedRef.current,
       editorReady,
       hasFile: !!currentFile,
@@ -254,27 +258,27 @@ export function useFileOperations(params: UseFileOperationsParams) {
     
     // Only attempt initial render once per mount
     if (initialRenderAttemptedRef.current) {
-      console.debug('[Editor] startup render already attempted, skipping');
+      fileOpsLogger.debug('startup render already attempted, skipping');
       return;
     }
     
     // Wait for editor to be ready
     if (!editorReady) {
-      console.debug('[Editor] startup render waiting for editor ready');
+      fileOpsLogger.debug('startup render waiting for editor ready');
       return;
     }
     if (!currentFile) {
-      console.debug('[Editor] startup render waiting for file');
+      fileOpsLogger.debug('startup render waiting for file');
       return;
     }
     if (!content) {
-      console.debug('[Editor] startup render waiting for content');
+      fileOpsLogger.debug('startup render waiting for content');
       return;
     }
     
     // Don't render if we already have a PDF
     if (sourceMap) {
-      console.debug('[Editor] startup render skipped - sourceMap already exists');
+      fileOpsLogger.debug('startup render skipped - sourceMap already exists');
       initialRenderAttemptedRef.current = true;
       return;
     }
@@ -283,10 +287,10 @@ export function useFileOperations(params: UseFileOperationsParams) {
     initialRenderAttemptedRef.current = true;
     
     // At this point: editor is ready, file is open, has content, but no PDF rendered yet
-    console.debug('[Editor] startup render triggered', { file: currentFile, contentLength: content.length });
+    fileOpsLogger.debug('startup render triggered', { file: currentFile, contentLength: content.length });
     
     const timerId = setTimeout(() => {
-      console.debug('[Editor] executing startup render NOW');
+      fileOpsLogger.debug('executing startup render NOW');
       handleAutoRender(content);
     }, 500); // Longer delay to ensure everything is initialized
     
