@@ -12,6 +12,7 @@ import { getPreferences, listenForFileChanges, readMarkdownFile } from './api';
 import { loadSession, saveSession } from './utils/session';
 import { handleError } from './utils/errorHandler';
 import { logger } from './utils/logger';
+import type { Preferences } from './types';
 import './App.css';
 import { INSTRUCTIONS_DOC } from './instructionsDoc';
 import type { BackendRenderedDocument } from './types';
@@ -179,9 +180,8 @@ function App() {
 
         const unlistenPrefsDump = await listen<string>('prefs-dump', (evt) => {
           try {
-            const json = JSON.parse(evt.payload);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            logger.debug('PrefsDump', 'preferences', { toc: (json as any).toc, numberSections: (json as any).numberSections, papersize: (json as any).papersize, margin: (json as any).margin });
+            const json = JSON.parse(evt.payload) as Preferences;
+            logger.debug('PrefsDump', 'preferences', { toc: json.toc, numberSections: json.number_sections, papersize: json.papersize, margin: json.margin });
           } catch {
             logger.debug('PrefsDump', 'raw preferences', evt.payload);
           }

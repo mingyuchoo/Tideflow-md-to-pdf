@@ -1,6 +1,7 @@
 import React from 'react';
 import { EditorView } from 'codemirror';
 import { cmd } from './commands';
+import type { Preferences } from '../types';
 
 // Curated font list for the dropdown
 const FONT_OPTIONS = [
@@ -23,7 +24,7 @@ const FONT_OPTIONS = [
 
 interface EditorToolbarProps {
   currentFile: string;
-  preferences: any;
+  preferences: Preferences;
   selectedFont: string;
   editorView: EditorView | null;
   onRender: () => void;

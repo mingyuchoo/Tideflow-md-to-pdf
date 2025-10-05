@@ -1,50 +1,16 @@
-  // ...existing code...
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { logger } from '../utils/logger';
-
-const PDFPreviewLogger = logger.createScoped('PDFPreview');
 import { useAppStore } from '../store';
 import { logger } from '../utils/logger';
-
-const PDFPreviewLogger = logger.createScoped('PDFPreview');
 import './PDFPreview.css';
-import { logger } from '../utils/logger';
-
-const PDFPreviewLogger = logger.createScoped('PDFPreview');
 import * as pdfjsLib from 'pdfjs-dist';
-import { logger } from '../utils/logger';
-
-const PDFPreviewLogger = logger.createScoped('PDFPreview');
 import PDFPreviewHeader from './PDFPreviewHeader';
-import { logger } from '../utils/logger';
-
-const PDFPreviewLogger = logger.createScoped('PDFPreview');
 import { usePdfRenderer } from '../hooks/usePdfRenderer';
-import { logger } from '../utils/logger';
-
-const PDFPreviewLogger = logger.createScoped('PDFPreview');
 import PdfJsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?worker';
-import { logger } from '../utils/logger';
-
-const PDFPreviewLogger = logger.createScoped('PDFPreview');
 import { useScrollState } from '../hooks/useScrollState';
-import { logger } from '../utils/logger';
-
-const PDFPreviewLogger = logger.createScoped('PDFPreview');
 import { useOffsetManager } from '../hooks/useOffsetManager';
-import { logger } from '../utils/logger';
-
-const PDFPreviewLogger = logger.createScoped('PDFPreview');
 import { useEditorToPdfSync } from '../hooks/useEditorToPdfSync';
-import { logger } from '../utils/logger';
-
-const PDFPreviewLogger = logger.createScoped('PDFPreview');
 import { usePdfToEditorSync } from '../hooks/usePdfToEditorSync';
-import { logger } from '../utils/logger';
-
-const PDFPreviewLogger = logger.createScoped('PDFPreview');
 import { UI } from '../constants/timing';
-import { logger } from '../utils/logger';
 
 const PDFPreviewLogger = logger.createScoped('PDFPreview');
 
@@ -61,13 +27,13 @@ try {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       lib.GlobalWorkerOptions.workerPort = new (PdfJsWorker as any)();
-      PDFPreviewLogger.\('pdf.js workerPort initialized');
+      PDFPreviewLogger.debug('pdf.js workerPort initialized');
     } catch (inner) {
-      PDFPreviewLogger.\('Worker construction failed, continuing with fake worker', inner);
+      PDFPreviewLogger.warn('Worker construction failed, continuing with fake worker', inner);
     }
   }
 } catch (outer) {
-  PDFPreviewLogger.\('Worker initialization outer failure; continuing without worker', outer);
+  PDFPreviewLogger.warn('Worker initialization outer failure; continuing without worker', outer);
 }
 
 const PDFPreview: React.FC = () => {
@@ -81,13 +47,6 @@ const PDFPreview: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [thumbnails, setThumbnails] = useState<Map<number, string>>(new Map());
-  
-  // Drag-to-scroll state for thumbnails
-  const [isDragging, setIsDragging] = useState(false);
-  const [startY, setStartY] = useState(0);
-  const [scrollTop, setScrollTop] = useState(0);
-  const [hasDragged, setHasDragged] = useState(false);
-  const thumbnailsRef = useRef<HTMLDivElement>(null);
 
   // Rendering control refs
   const cancelRenderRef = useRef<{ canceled: boolean }>({ canceled: false });
@@ -122,7 +81,10 @@ const PDFPreview: React.FC = () => {
     isTypingRef,
   } = scrollState;
 
-  // Ref for registerPendingAnchor to avoid circular dependency
+  // Legacy refs no longer used (kept in scrollState for backward compat)
+  // startupOneShotAppliedRef, finalRefreshDoneRef
+
+  // Temporary ref for registerPendingAnchor to avoid circular dependency
   const registerPendingAnchorRef = useRef<((anchorId: string) => void) | null>(null);
 
   // Memoize the callback to prevent recreating it on every render
@@ -159,12 +121,14 @@ const PDFPreview: React.FC = () => {
     // Ensure the container is still attached to the document
     if (!el || !el.parentNode || !el.isConnected) return;
     
-    PDFPreviewLogger.debug(`scrollToAnchor: anchor=${anchorId}, force=${force}, center=${center}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[PDFPreview] scrollToAnchor: anchor=${anchorId}, force=${force}, center=${center}`);
+    }
     
     const offset = anchorOffsetsRef.current.get(anchorId);
     if (offset === undefined) {
       if (process.env.NODE_ENV !== 'production') {
-        PDFPreviewLogger.debug('no offset for anchor', { anchorId });
+        console.debug('[PDFPreview] no offset for anchor', { anchorId });
       }
       return;
     }
@@ -177,7 +141,7 @@ const PDFPreview: React.FC = () => {
     // Skip if already at target position (within tolerance)
     if (Math.abs(currentTop - target) <= UI.SCROLL_POSITION_TOLERANCE_PX) {
       if (process.env.NODE_ENV !== 'production') {
-        PDFPreviewLogger.debug('already at target', { anchorId, target, currentTop });
+        console.debug('[PDFPreview] already at target', { anchorId, target, currentTop });
       }
       return;
     }
@@ -188,7 +152,7 @@ const PDFPreview: React.FC = () => {
       // First forced scroll - mark it complete
       initialForcedScrollDoneRef.current = true;
       if (process.env.NODE_ENV !== 'production') {
-        PDFPreviewLogger.debug('initial forced scroll completed', { anchorId });
+        console.debug('[PDFPreview] initial forced scroll completed', { anchorId });
       }
     }
     
@@ -201,7 +165,7 @@ const PDFPreview: React.FC = () => {
     el.scrollTo({ top: target, behavior: 'auto' });
     
     if (process.env.NODE_ENV !== 'production') {
-      PDFPreviewLogger.debug('scrolled', { anchorId, from: beforeTop, to: target, delta: target - beforeTop });
+      console.debug('[PDFPreview] scrolled', { anchorId, from: beforeTop, to: target, delta: target - beforeTop });
     }
     
         // Clear programmatic flag after scroll completes
@@ -219,7 +183,7 @@ const PDFPreview: React.FC = () => {
       userManuallyPositionedPdfRef.current = false;
       useAppStore.getState().setScrollLocked(false);
       if (process.env.NODE_ENV !== 'production') {
-        PDFPreviewLogger.debug('cleared manual position flag - mode:', syncMode);
+        console.debug('[PDFPreview] cleared manual position flag - mode:', syncMode);
       }
     }
   }, [syncMode, userManuallyPositionedPdfRef]);
@@ -233,7 +197,7 @@ const PDFPreview: React.FC = () => {
     
     if (startedTyping && syncMode === 'two-way') {
       if (process.env.NODE_ENV !== 'production') {
-        PDFPreviewLogger.debug('🔄 typing detected in two-way mode - switching to auto');
+        console.debug('[PDFPreview] 🔄 typing detected in two-way mode - switching to auto');
       }
       setSyncMode('auto');
     }
@@ -253,7 +217,7 @@ const PDFPreview: React.FC = () => {
     // 3. Anchor actually changed (user scrolled/navigated editor)
     if (!isTyping && !wasTyping && anchorChanged && activeAnchorId) {
       if (process.env.NODE_ENV !== 'production') {
-        PDFPreviewLogger.debug('🔓 clearing PDF lock - user SCROLLED/NAVIGATED editor', {
+        console.debug('[PDFPreview] 🔓 clearing PDF lock - user SCROLLED/NAVIGATED editor', {
           from: prevAnchorIdRef.current,
           to: activeAnchorId
         });
@@ -299,7 +263,6 @@ const PDFPreview: React.FC = () => {
     syncModeRef,
     renderingRef: scrollState.renderingRef,
     isTypingRef,
-    savedScrollPositionRef: scrollState.savedScrollPositionRef,
     rendering, // Pass state value so effect can re-run when PDF ready
     setActiveAnchorId,
     setSyncMode,
@@ -309,7 +272,7 @@ const PDFPreview: React.FC = () => {
   const registerPendingAnchor = useCallback((anchorId: string) => {
     pendingForcedAnchorRef.current = anchorId;
     if (process.env.NODE_ENV !== 'production') {
-      PDFPreviewLogger.debug('registered pending anchor', { anchorId });
+      console.debug('[PDFPreview] registered pending anchor', { anchorId });
     }
   }, []);
 
@@ -319,7 +282,7 @@ const PDFPreview: React.FC = () => {
 
     if (checkOffset && anchorOffsetsRef.current.size === 0) {
       if (process.env.NODE_ENV !== 'production') {
-        PDFPreviewLogger.debug('consumePendingAnchor: no offsets yet, skipping');
+        console.debug('[PDFPreview] consumePendingAnchor: no offsets yet, skipping');
       }
       return;
     }
@@ -327,7 +290,7 @@ const PDFPreview: React.FC = () => {
     pendingForcedAnchorRef.current = null;
     
     if (process.env.NODE_ENV !== 'production') {
-      PDFPreviewLogger.debug('consuming pending anchor', { anchorId, offsets: anchorOffsetsRef.current.size });
+      console.debug('[PDFPreview] consuming pending anchor', { anchorId, offsets: anchorOffsetsRef.current.size });
     }
 
     requestAnimationFrame(() => {
@@ -352,8 +315,6 @@ const PDFPreview: React.FC = () => {
     userInteractedRef,
     syncModeRef,
     isTypingRef,
-    programmaticScrollRef,
-    savedScrollPositionRef: scrollState.savedScrollPositionRef,
     pendingFallbackRef,
     pendingFallbackTimerRef,
     pendingForcedTimerRef,
@@ -378,7 +339,7 @@ const PDFPreview: React.FC = () => {
   // unmount.
   useEffect(() => {
     if (process.env.NODE_ENV !== 'production') {
-      PDFPreviewLogger.debug('offset-transition watcher mounted');
+      console.debug('[PDFPreview] offset-transition watcher mounted');
     }
     const checkPending = () => {
       if (!containerRef.current) return;
@@ -401,6 +362,11 @@ const PDFPreview: React.FC = () => {
     const rafId = requestAnimationFrame(checkPending);
     return () => cancelAnimationFrame(rafId);
   }, [consumePendingAnchor, anchorOffsetsRef, containerRef]);
+
+  // ✅ ALL OLD HOOKS REPLACED WITH 2 NEW SIMPLIFIED HOOKS ABOVE ✅
+  // Removed: usePdfSync, useAnchorSync, useDocumentLifecycle, useFinalSync, usePreviewEvents
+  // Total removed: ~800 lines of complex sync logic
+  // Replaced with: useEditorToPdfSync + usePdfToEditorSync (~400 lines)
 
   // Track current page and generate thumbnails
   useEffect(() => {
@@ -449,13 +415,13 @@ const PDFPreview: React.FC = () => {
     const generateThumbnails = () => {
       const canvases = container.querySelectorAll('canvas.pdfjs-page-canvas');
       if (process.env.NODE_ENV !== 'production') {
-        PDFPreviewLogger.debug('Generating thumbnails, found canvases:', canvases.length);
+        console.log('[PDFPreview] Generating thumbnails, found canvases:', canvases.length);
       }
       
       if (canvases.length === 0) {
         // Retry if canvases not ready yet
         if (process.env.NODE_ENV !== 'production') {
-          PDFPreviewLogger.debug('No canvases found, retrying in 500ms...');
+          console.log('[PDFPreview] No canvases found, retrying in 500ms...');
         }
         setTimeout(generateThumbnails, 500);
         return;
@@ -476,7 +442,7 @@ const PDFPreview: React.FC = () => {
         const aspectRatio = sourceHeight / sourceWidth;
         
         if (process.env.NODE_ENV !== 'production' && index === 0) {
-          PDFPreviewLogger.debug('Canvas dimensions:', {
+          console.log('[PDFPreview] Canvas dimensions:', {
             width: sourceWidth,
             height: sourceHeight,
             aspectRatio: aspectRatio.toFixed(3),
@@ -484,10 +450,9 @@ const PDFPreview: React.FC = () => {
           });
         }
         
-        // Create thumbnail with higher resolution for crisp display
+        // Create thumbnail with fixed width, height based on source aspect ratio
         const thumbnailCanvas = document.createElement('canvas');
-        // Use smaller size - 200px wide (reduced from 280)
-        const targetWidth = 200;
+        const targetWidth = 140;
         const targetHeight = Math.round(targetWidth * aspectRatio);
         
         thumbnailCanvas.width = targetWidth;
@@ -495,24 +460,15 @@ const PDFPreview: React.FC = () => {
         
         const ctx = thumbnailCanvas.getContext('2d', { alpha: false });
         if (ctx && sourceWidth > 0 && sourceHeight > 0) {
-          // Enable high-quality image smoothing
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = 'high';
-          
-          // Use white background for consistency
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, targetWidth, targetHeight);
-          
-          // Draw with high quality scaling
           ctx.drawImage(sourceCanvas, 0, 0, targetWidth, targetHeight);
-          
-          // Use higher quality JPEG for better compression with quality
-          newThumbnails.set(pageNum, thumbnailCanvas.toDataURL('image/jpeg', 0.92));
+          newThumbnails.set(pageNum, thumbnailCanvas.toDataURL('image/png'));
         }
       });
       
       if (process.env.NODE_ENV !== 'production') {
-        PDFPreviewLogger.debug('Generated thumbnails:', newThumbnails.size);
+        console.log('[PDFPreview] Generated thumbnails:', newThumbnails.size);
       }
       
       if (newThumbnails.size > 0) {
@@ -542,57 +498,6 @@ const PDFPreview: React.FC = () => {
       canvas.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   };
-  
-  // Drag-to-scroll handlers for thumbnails
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    const thumbnailsList = thumbnailsRef.current;
-    if (!thumbnailsList) return;
-    
-    setIsDragging(true);
-    setHasDragged(false);
-    setStartY(e.pageY - thumbnailsList.offsetTop);
-    setScrollTop(thumbnailsList.scrollTop);
-    
-    // Prevent text selection while dragging
-    e.preventDefault();
-  };
-  
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isDragging) return;
-    
-    const thumbnailsList = thumbnailsRef.current;
-    if (!thumbnailsList) return;
-    
-    e.preventDefault();
-    const y = e.pageY - thumbnailsList.offsetTop;
-    const walk = (y - startY) * 2; // Multiply by 2 for faster scrolling
-    
-    // If moved more than 5px, consider it a drag
-    if (Math.abs(walk) > 5) {
-      setHasDragged(true);
-    }
-    
-    thumbnailsList.scrollTop = scrollTop - walk;
-  };
-  
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
-  
-  const handleMouseLeave = () => {
-    setIsDragging(false);
-  };
-  
-  const handleThumbnailClick = (pageNum: number, e: React.MouseEvent) => {
-    // Prevent click if user was dragging
-    if (hasDragged) {
-      e.preventDefault();
-      e.stopPropagation();
-      setHasDragged(false);
-      return;
-    }
-    scrollToPage(pageNum);
-  };
 
   return (
     <div className="pdf-preview">
@@ -605,21 +510,13 @@ const PDFPreview: React.FC = () => {
         {thumbnailsVisible && (
           <div className="pdf-thumbnails-sidebar">
             <div className="thumbnails-header">Pages ({totalPages || '...'})</div>
-            <div 
-              className={`thumbnails-list ${isDragging ? 'is-dragging' : ''}`}
-              id="thumbnails-list"
-              ref={thumbnailsRef}
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseLeave}
-            >
+            <div className="thumbnails-list" id="thumbnails-list">
               {thumbnails.size > 0 ? (
                 Array.from(thumbnails.entries()).map(([pageNum, dataUrl]) => (
                   <div
                     key={pageNum}
                     className={`thumbnail-item ${currentPage === pageNum ? 'active' : ''}`}
-                    onClick={(e) => handleThumbnailClick(pageNum, e)}
+                    onClick={() => scrollToPage(pageNum)}
                     title={`Go to page ${pageNum}`}
                   >
                     <img src={dataUrl} alt={`Page ${pageNum}`} />
@@ -668,4 +565,3 @@ const PDFPreview: React.FC = () => {
 };
 
 export default PDFPreview;
-
