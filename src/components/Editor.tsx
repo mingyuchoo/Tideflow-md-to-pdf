@@ -145,7 +145,7 @@ const Editor: React.FC = () => {
     setImagePlusPath,
     handleImageInsert,
     handlePaste,
-    handleDrop, // Used for paste events
+    // handleDrop, // Not currently used
     promptImageProps,
   } = useImageHandlers({
     preferences,
