@@ -5,6 +5,9 @@
 
 import { useEffect } from 'react';
 import type { EditorStateRefs } from './useEditorState';
+import { logger } from '../utils/logger';
+
+const useEditorLifecycleLogger = logger.createScoped('useEditorLifecycle');
 
 interface UseEditorLifecycleParams {
   editorStateRefs: EditorStateRefs;
