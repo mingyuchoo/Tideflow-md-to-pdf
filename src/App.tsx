@@ -4,18 +4,15 @@ import {
   PanelGroup, 
   PanelResizeHandle 
 } from 'react-resizable-panels';
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import { useAppStore } from './store';
-import { getPreferences, listenForFileChanges, readMarkdownFile } from './api';
 import { loadSession, saveSession } from './utils/session';
-import { handleError, initErrorHandler } from './utils/errorHandler';
 import { logger } from './utils/logger';
-import type { Preferences } from './types';
 import './App.css';
 import { INSTRUCTIONS_DOC } from './instructionsDoc';
-import type { BackendRenderedDocument } from './types';
+import { useAppInitialization } from './hooks/useAppInitialization';
 
 // Import components
 import TabBar from './components/TabBar';
@@ -23,7 +20,6 @@ import Editor from './components/Editor';
 import PDFPreview from './components/PDFPreview';
 import PDFErrorBoundary from './components/PDFErrorBoundary';
 import Toolbar from './components/Toolbar';
-import { TIMING } from './constants/timing';
 import StatusBar from './components/StatusBar';
 import { ToastContainer } from './components/ToastContainer';
 
@@ -39,7 +35,10 @@ function App() {
 
   // Removed all panel persistence logic for fixed layout.
 
-  // Initialize app
+  // Initialize app with extracted hook
+  useAppInitialization();
+
+  // Window management and fullscreen logic
   useEffect(() => {
     let unsubscribes: UnlistenFn[] = [];
     let disposed = false;
@@ -56,164 +55,8 @@ function App() {
       }
     };
 
-    const init = async () => {
+    const setupWindowManagement = async () => {
       try {
-        appLogger.info('init start');
-        const session = loadSession();
-        const store = useAppStore.getState();
-        
-        // Initialize error handler with toast system
-        initErrorHandler(store.addToast);
-        
-        let sampleInjected = store.initialSampleInjected;
-
-        const prefs = await getPreferences();
-        store.setPreferences(prefs);
-        store.setThemeSelection(prefs.theme_id ?? 'default');
-        appLogger.debug('preferences loaded', prefs);
-
-        // Check if this is first time running (no previous session with files)
-        const isFirstTime = !session || !session.openFiles || session.openFiles.length === 0;
-
-        if (isFirstTime) {
-          // Load instructions document on first run instead of sample
-          store.setCurrentFile('instructions.md');
-          store.addOpenFile('instructions.md');
-          store.setContent(INSTRUCTIONS_DOC);
-          store.setInitialSampleInjected(true);
-          sampleInjected = true;
-          appLogger.debug('loaded instructions on first run');
-        } else if (session && !sampleInjected) {
-          try {
-            const restored = Array.from(new Set(session.openFiles || [])).filter(f => {
-              // Filter out invalid paths
-              if (!f || f === 'instructions.md' || f === 'sample.md') return false;
-              // Basic path validation - must have a proper extension
-              if (!f.match(/\.(md|qmd)$/i)) return false;
-              return true;
-            });
-            
-            for (const f of restored) {
-              try {
-                const content = await readMarkdownFile(f);
-                store.addOpenFile(f);
-                if (f === session.currentFile) {
-                  store.setCurrentFile(f);
-                  store.setContent(content);
-                }
-              } catch (e) {
-                logger.error('Session', `Failed to restore file: ${f}`, e);
-                // Continue with other files instead of stopping
-              }
-            }
-
-            if (
-              session.currentFile === 'instructions.md' ||
-              session.currentFile === 'sample.md' ||
-              (restored.length === 0 && !store.editor.currentFile)
-            ) {
-              store.setCurrentFile('instructions.md');
-              store.addOpenFile('instructions.md');
-              store.setContent(INSTRUCTIONS_DOC);
-            }
-
-            if (typeof session.previewVisible === 'boolean') {
-              store.setPreviewVisible(session.previewVisible);
-            }
-
-            store.setInitialSampleInjected(true);
-            sampleInjected = true;
-          } catch (e) {
-            logger.warn('Session', 'Failed to restore session, falling back to sample', e);
-          }
-        }
-
-        if (!store.editor.currentFile && !sampleInjected) {
-          store.setCurrentFile('instructions.md');
-          store.addOpenFile('instructions.md');
-          store.setContent(INSTRUCTIONS_DOC);
-          store.setInitialSampleInjected(true);
-          sampleInjected = true;
-        }
-
-        try {
-          const unlistenFiles = await listenForFileChanges((filePath) => {
-            const { editor: currentEditor } = useAppStore.getState();
-            if (filePath === currentEditor.currentFile) {
-              // Placeholder for future reload logic.
-            }
-          });
-          register(unlistenFiles);
-        } catch (e) {
-          appLogger.warn('Failed to register file-change listener', e);
-        }
-
-        const unlistenCompiled = await listen<BackendRenderedDocument>('compiled', (evt) => {
-          const { pdf_path, source_map } = evt.payload;
-          const state = useAppStore.getState();
-          state.setCompileStatus({ status: 'ok', pdf_path, source_map });
-          state.setSourceMap(source_map);
-          state.setCompiledAt(Date.now());
-          if (!state.activeAnchorId && source_map.anchors.length > 0) {
-            state.setActiveAnchorId(source_map.anchors[0].id);
-          }
-          // Trigger a final sync pass in the preview once the backend has
-          // delivered the compiled PDF and source map. This helps ensure
-          // the preview performs a one-shot final render+refresh on app
-          // startup rather than waiting for a subsequent document switch.
-          try {
-            // Delay a touch so the preview has a chance to mount and
-            // wire listeners before the final sync event is consumed.
-            setTimeout(() => {
-              try { window.dispatchEvent(new CustomEvent('pdf-preview-final-sync')); } catch { /* ignore */ }
-            }, TIMING.FINAL_SYNC_DELAY_MS);
-          } catch {
-            // ignore
-          }
-        });
-        register(unlistenCompiled);
-
-        const unlistenCompileError = await listen<string>('compile-error', (evt) => {
-          appLogger.error('Compile error', evt.payload);
-          const state = useAppStore.getState();
-          state.setCompileStatus({ status: 'error', message: 'Compile failed', details: evt.payload });
-          state.setSourceMap(null);
-          state.addToast({ type: 'error', message: 'Failed to compile document' });
-        });
-        register(unlistenCompileError);
-
-        const unlistenPrefsDump = await listen<string>('prefs-dump', (evt) => {
-          try {
-            const json = JSON.parse(evt.payload) as Preferences;
-            logger.debug('PrefsDump', 'preferences', { toc: json.toc, numberSections: json.number_sections, papersize: json.papersize, margin: json.margin });
-          } catch {
-            logger.debug('PrefsDump', 'raw preferences', evt.payload);
-          }
-        });
-        register(unlistenPrefsDump);
-
-        const unlistenRenderDebug = await listen<string>('render-debug', (evt) => {
-          if (process.env.NODE_ENV !== 'production') {
-            logger.debug('RenderDebug', evt.payload);
-          }
-        });
-        register(unlistenRenderDebug);
-
-        const unlistenTypstStdErr = await listen<string>('typst-query-stderr', (evt) => {
-          logger.warn('TypstQuery', 'STDERR: ' + evt.payload);
-        });
-        register(unlistenTypstStdErr);
-
-        const unlistenTypstStdOut = await listen<string>('typst-query-stdout', (evt) => {
-          logger.debug('TypstQuery', 'STDOUT: ' + evt.payload);
-        });
-        register(unlistenTypstStdOut);
-
-        const unlistenTypstFailed = await listen<string>('typst-query-failed', () => {
-          logger.warn('TypstQuery', 'no positions found, falling back to PDF-text extraction');
-        });
-        register(unlistenTypstFailed);
-
         // Listen for window close requests
         const appWindow = getCurrentWindow();
         const unlistenCloseRequested = await appWindow.onCloseRequested(async (event) => {
@@ -349,12 +192,11 @@ function App() {
         window.addEventListener('tideflow-request-fullscreen', onReqFs as EventListener);
         // unregister on cleanup
         register(() => window.removeEventListener('tideflow-request-fullscreen', onReqFs as EventListener));
-      } catch (error) {
-        handleError(error, { operation: 'initialize app', component: 'App' });
-      } finally {
+
+        // Set loading to false and apply saved fullscreen
         if (!disposed) {
           setLoading(false);
-          appLogger.info('init complete');
+          appLogger.info('window management setup complete');
           // Apply saved fullscreen if requested in session
           try {
             const s = loadSession();
@@ -370,10 +212,15 @@ function App() {
             appLogger.warn('failed to read session for fullscreen', err);
           }
         }
+      } catch (error) {
+        appLogger.error('Window management setup failed', error);
+        if (!disposed) {
+          setLoading(false);
+        }
       }
     };
 
-    init();
+    setupWindowManagement();
 
     return () => {
       disposed = true;
