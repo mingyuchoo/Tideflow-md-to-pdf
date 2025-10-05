@@ -7,6 +7,10 @@ import { useCallback } from 'react';
 import { renderTypst, cleanupTempPdfs } from '../api';
 import type { SourceMap, SyncMode } from '../types';
 import type { EditorStateRefs } from './useEditorState';
+import { logger } from '../utils/logger';
+
+// Create scoped logger
+const useContentManagementLogger = logger.createScoped('useContentManagement');
 
 interface CompileStatus {
   status: 'running' | 'ok' | 'error';

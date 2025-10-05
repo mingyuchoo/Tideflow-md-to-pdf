@@ -210,13 +210,10 @@ const Editor: React.FC = () => {
   // Handle opening a file from the no-file screen
   const handleOpenFile = async () => {
     try {
-      const result = await showOpenDialog({
-        title: 'Open Markdown File',
-        filters: [{
-          name: 'Markdown',
-          extensions: ['md', 'markdown']
-        }]
-      });
+      const result = await showOpenDialog([{
+        name: 'Markdown',
+        extensions: ['md', 'markdown']
+      }]);
 
       if (result && result.length > 0) {
         const filePath = result[0];
