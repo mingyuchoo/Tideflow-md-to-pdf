@@ -1,6 +1,7 @@
 <div align="center">
 
 # Tideflow
+<img width="1920" height="1032" alt="tideflowv1" src="https://github.com/user-attachments/assets/d4d88097-a895-458b-8e75-770398452e0b" />
 
 **Fast, offline-first Markdown → PDF desktop app powered by Typst**  
 Write on the left, get a beautifully typeset PDF on the right – instantly.
@@ -12,53 +13,24 @@ Write on the left, get a beautifully typeset PDF on the right – instantly.
 </div>
 
 ## Why I Built It
-I wanted a dead-simple, elegant writing tool that outputs print‑ready PDFs **without relying on a web service**, LaTeX toolchains, or heavy exports. Typst provides expressive, modern typesetting; Tauri keeps the footprint tiny; React + CodeMirror makes the editing experience fluid. Tideflow is the glue.
+I wanted a dead-simple, elegant writing tool that outputs print‑ready PDFs **without relying on a web service**, LaTeX toolchains, or heavy exports. That's that TideFlow is, a simple use editor for quickly editing and formatting markdowns as pdfs.
 
 ## Features
-* Real‑time Typst rendering with pixel-perfect, two-way scroll sync between editor & PDF preview
-* Clean, distraction‑lite editor (CodeMirror 6) with smart debounced compilation & scroll-lock controls
+* Real‑time two-way scroll sync between editor & PDF preview (Has around %70 accuracy)
+* Clean, distraction‑lite editor (CodeMirror 6)
 * Automatic Table of Contents, optional section numbering, and configurable cover page
-* Image paste, drag‑drop, and import dialogs with accessible metadata capture
-* Math (inline / block) via LaTeX-style syntax
+* Image paste, drag‑drop, and import dialogs
 * **12 beautiful themes**: Default, Minimal, Compact, Elegant, Technical, Magazine, Academic, Creative, Modern, Serif, Notebook, Dark
 * Full blockquote support with theme-appropriate backgrounds
 * Offline: once installed, **no network required**
 * Cross‑platform (Windows / macOS / Linux)
 * Fast startup: no giant runtime or Electron bloat
 
-## Demo (Preview Flow)
-1. Type Markdown
-2. App debounces & renders via Typst
-3. PDF preview refreshes in place
-4. Export when ready (or just copy the generated PDF path)
 
-## Keyboard Shortcuts
-| Action | Shortcut |
-| ------ | -------- |
-| Bold | Ctrl+B |
-| Italic | Ctrl+I |
-| Inline Code | Ctrl+` |
-| Link | Ctrl+K |
-| Heading 1 / 2 / 3 | Ctrl+Alt+1 / 2 / 3 |
-| Bullet List | Ctrl+Shift+8 |
-| Numbered List | Ctrl+Shift+7 |
-| Task List | Ctrl+Shift+9 |
-| Quote | Ctrl+Shift+. |
-| Code Block | Ctrl+Shift+C |
-| Horizontal Rule | Ctrl+Shift+- |
-| Save | Ctrl+S |
-| Save As | Ctrl+Shift+S |
-| Open File | Ctrl+O |
-| New File | Ctrl+N |
-| Export PDF | Ctrl+E |
-| Force Render | Ctrl+R |
-| Search | Ctrl+F |
-| Find & Replace | Ctrl+H |
-| Toggle Preview | Ctrl+P |
-| Design Modal | Ctrl+D |
-| Preferences | Ctrl+, |
-| Undo | Ctrl+Z |
-| Redo | Ctrl+Y or Ctrl+Shift+Z |
+https://github.com/user-attachments/assets/fea9562b-a315-44c1-abc9-1778ab4cd428
+
+
+
 
 ## Tech Stack
 **Core**
@@ -145,78 +117,16 @@ Open the **Design** modal from the toolbar to adjust layout, typography, and doc
 * **Images** – Set default width/alignment plus alt-text defaults for imports.
 * **Debounce & rendering** – Fine-tune compile cadence or temporarily pause auto renders.
 
-Changes apply instantly and persist via the shared preferences pipeline across Rust + TypeScript.
-
-## Architecture Overview
-```
-┌────────────┐   keystrokes   ┌───────────────┐   invoke (IPC)   ┌────────────┐
-│ CodeMirror │ ─────────────▶ │  Zustand Store │ ───────────────▶ │  Rust/Tauri │
-└────────────┘    state set    └───────────────┘    spawn Typst    └─────┬──────┘
-       ▲                               │                          PDF path +
-       │         anchor updates        │                     scroll source-map
-       └───────────────  PDFPreview ◀──┴──────────────────────────────────┘
-```
-
-## File Layout
-```
-Md-to-PDF/
-├── src/
-│   ├── components/        # Editor, PDFPreview, Toolbar, Design modal, etc.
-│   ├── store.ts           # Zustand app state + scroll-sync machine
-│   ├── api.ts             # Tauri invoke bindings & render queue
-│   └── types.ts           # Shared TypeScript interfaces
-├── src-tauri/
-│   ├── src/               # Rust commands (render, export, prefs)
-│   ├── content/           # Templates & theme partials (tideflow.typ, themes/*.typ)
-│   ├── styles/            # Typst style files
-│   └── bin/typst/         # Bundled Typst binaries per platform
-└── public/                # Static assets
-```
-
-## Roadmap
-**Completed:**
-* [x] PDF export dialog with destination picker
-* [x] Full theme system with 12 polished Typst themes
-* [x] Anchor-based scroll sync with bidirectional lock controls
-* [x] Cover page toggle + metadata editor (title, author, date, logo)
-* [x] Blockquote rendering with theme-appropriate backgrounds
-* [x] Image paste, drag-drop, and metadata capture
-* [x] Multi-tab document management
-* [x] Recent files list with persistence
-* [x] Search & replace functionality
-* [x] Keyboard shortcuts for all major operations
-* [x] PDF thumbnail sidebar for quick page navigation
-* [x] Instructions document for first-time users
-
-**In Progress (Major Refactoring - October 2025):**
-* [ ] Phase 1: Centralized logging infrastructure (production-safe, environment-aware)
-* [ ] Phase 2: Type safety improvements (eliminate `any` types, proper type definitions)
-* [ ] Phase 3: Standardized error handling (toast-based, no alerts)
-* [ ] Phase 4: Component splitting (reduce complexity, improve maintainability)
-* [ ] Phase 5: State management refactoring (split Zustand stores by domain)
-* [ ] Phase 6: Code quality improvements (extract constants, remove duplication)
-* [ ] Phase 7: Rust improvements (modular renderer, consistent serialization)
-* [ ] Phase 8: Comprehensive testing (unit, integration, E2E tests)
-* [ ] Phase 9: Performance optimization (bundle splitting, React.memo)
-
-See [REFACTORING_PLAN.md](./REFACTORING_PLAN.md) for detailed implementation strategy.
+Changes apply instantly and persist.
 
 **Future:**
-* [ ] Dark mode for editor UI (themes already support dark PDFs)
-* [ ] Built-in template gallery (report, memo, article, resume)
-* [ ] Image optimization pipeline (resize/compress before embedding)
-* [ ] Spellcheck integration
-* [ ] PDF annotation / outline navigation
-* [ ] Plugin system for custom postprocessors
-* [ ] Collaborative editing support
+As it stands, the current iteration is serving my needs, so I consider this project done but open for future improvements.
 
 ## Contributing
 PRs welcome. Please:
 1. Fork
 2. Branch: `feat/thing`
-3. Keep changes focused
-4. `npm run tauri:dev` for local testing
-5. Open PR with clear summary + screenshots if UI
+3. Open PR with clear summary + screenshots if UI
 
 ## Troubleshooting
 | Issue | Fix |
@@ -237,4 +147,4 @@ Email: **b.denizkoca@gmail.com**
 GitHub: [@BDenizKoca](https://github.com/BDenizKoca)
 
 ---
-If you build something cool with Tideflow or adapt the Typst pipeline, let me know!
+If you create anything cool with Tideflow PLEASE let me know!
