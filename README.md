@@ -5,6 +5,10 @@
 **Fast, offline-first Markdown → PDF desktop app powered by Typst**  
 Write on the left, get a beautifully typeset PDF on the right – instantly.
 
+[![CI](https://github.com/BDenizKoca/Md-to-PDF/actions/workflows/ci.yml/badge.svg)](https://github.com/BDenizKoca/Md-to-PDF/actions/workflows/ci.yml)
+[![Release](https://github.com/BDenizKoca/Md-to-PDF/actions/workflows/release.yml/badge.svg)](https://github.com/BDenizKoca/Md-to-PDF/actions/workflows/release.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 </div>
 
 ## Why I Built It
@@ -79,12 +83,29 @@ I wanted a dead-simple, elegant writing tool that outputs print‑ready PDFs **w
 5. Store `compileStatus.pdf_path` updates → `PDFPreview` component reloads iframe (pdf.js optional later)
 
 ## Installation
-### Prerequisites
+
+### Download Pre-built Binaries (Recommended)
+
+**Windows:**
+- Download `Tideflow_X.X.X_x64-setup.exe` from [Releases](https://github.com/BDenizKoca/Md-to-PDF/releases)
+- Run the installer
+
+**Linux:**
+- **Debian/Ubuntu**: `sudo dpkg -i tideflow_X.X.X_amd64.deb`
+- **Fedora/RHEL**: `sudo rpm -i tideflow-X.X.X-1.x86_64.rpm`
+- **Universal (Any distro)**: Download and run `tideflow_X.X.X_amd64.AppImage`
+
+**macOS:**
+- Download `Tideflow_aarch64.dmg` (Apple Silicon) or `Tideflow_x64.dmg` (Intel)
+- Open DMG and drag to Applications
+
+### Build from Source
+#### Prerequisites
 * Node.js 18+
 * Rust (stable)
 * Tauri CLI (`cargo install tauri-cli`)
 
-### Clone & Run
+#### Clone & Run
 ```bash
 git clone https://github.com/BDenizKoca/Md-to-PDF.git
 cd Md-to-PDF

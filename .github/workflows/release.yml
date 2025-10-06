@@ -1,0 +1,90 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - 'v*' # Trigger on version tags like v1.0.0
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest' # macOS (x64)
+            args: '--target x86_64-apple-darwin'
+          - platform: 'macos-latest' # macOS (ARM)
+            args: '--target aarch64-apple-darwin'
+          - platform: 'ubuntu-22.04' # Linux
+            args: ''
+          - platform: 'windows-latest' # Windows
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          # For macOS cross-compilation
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Install dependencies (Ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libssl-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build the app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }} # Use the tag name as release name
+          releaseName: 'Tideflow ${{ github.ref_name }}'
+          releaseBody: |
+            ## 🎉 Release ${{ github.ref_name }}
+            
+            See the full changelog and release notes on the [releases page](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}).
+            
+            ### 📥 Download Options
+            
+            **Windows:**
+            - `Tideflow_X.X.X_x64-setup.exe` - NSIS installer (recommended)
+            - `Tideflow_X.X.X_x64_en-US.msi` - MSI installer
+            
+            **Linux:**
+            - `tideflow_X.X.X_amd64.deb` - Debian/Ubuntu package
+            - `tideflow-X.X.X-1.x86_64.rpm` - Fedora/RHEL/openSUSE package
+            - `tideflow_X.X.X_amd64.AppImage` - Universal portable (any distro)
+            
+            **macOS:**
+            - `Tideflow_x64.dmg` - Intel Macs
+            - `Tideflow_aarch64.dmg` - Apple Silicon (M1/M2/M3)
+            
+            ### 🚀 First-time using Tideflow?
+            Click the ❓ Help button in the toolbar for a guided tour.
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
