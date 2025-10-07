@@ -15,7 +15,7 @@ pub mod typst;
 
 // Re-export commonly used functions for backward compatibility
 pub use filesystem::sanitize_filename;
-pub use initialization::initialize_app_directories;
+pub use initialization::{ensure_tideflow_template_exists, initialize_app_directories};
 pub use paths::{
     get_app_dir, get_assets_dir, get_content_dir,
     get_templates_dir, get_typst_path,

@@ -37,7 +37,7 @@ pub fn initialize_app_directories(app_handle: &AppHandle) -> Result<()> {
     }
     
     // Copy Typst template(s) from resources/content to user content dir, updating if different
-    copy_tideflow_template(app_handle, &resource_dir, &content_dir)?;
+    ensure_tideflow_template_exists(app_handle)?;
     
     // Copy all .typ style files from resources/styles to user styles dir if missing
     copy_style_files(&resource_dir, &styles_dir)?;
@@ -46,6 +46,21 @@ pub fn initialize_app_directories(app_handle: &AppHandle) -> Result<()> {
     create_default_config_files(app_handle)?;
     
     Ok(())
+}
+
+/// Ensure the tideflow.typ template exists in the user content directory, copying it from resources if needed.
+pub fn ensure_tideflow_template_exists(app_handle: &AppHandle) -> Result<PathBuf> {
+    let content_dir = paths::get_content_dir(app_handle)?;
+    fs::create_dir_all(&content_dir)?;
+
+    let resource_dir = app_handle
+        .path()
+        .resource_dir()
+        .map_err(|e| anyhow!("Failed to get resource directory: {}", e))?;
+
+    copy_tideflow_template(app_handle, &resource_dir, &content_dir)?;
+
+    Ok(content_dir.join("tideflow.typ"))
 }
 
 /// Copy tideflow.typ template and themes from resources to user content directory

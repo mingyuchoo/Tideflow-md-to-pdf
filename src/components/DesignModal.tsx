@@ -275,6 +275,23 @@ const DesignModal: React.FC = () => {
                 {themeSelection === 'custom' && <option value="custom">Custom</option>}
               </select>
             </label>
+            <button
+              type="button"
+              className="save-preset-quick-btn"
+              onClick={() => {
+                if (themeSelection !== 'custom') {
+                  return;
+                }
+                setPresetNameInput('');
+                setShowPresetNameModal(true);
+              }}
+              disabled={themeSelection !== 'custom'}
+              title={themeSelection === 'custom'
+                ? 'Save current settings as a preset'
+                : 'Switch to the Custom theme to enable preset saving'}
+            >
+              Save Preset
+            </button>
           </div>
           <div className="design-header-controls">
             <label className="auto-apply-toggle">

@@ -1,0 +1,3 @@
+Tideflow bundles the Typst command-line interface (v0.13.1) from https://github.com/typst/typst.
+Typst is available under the MIT OR Apache-2.0 license; see that project for complete terms.
+The binary archives are redistributed unmodified and verified in the release workflow before packaging.

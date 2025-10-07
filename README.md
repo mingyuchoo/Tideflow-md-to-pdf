@@ -138,6 +138,8 @@ PRs welcome. Please:
 | Theme not applying | Switch themes via the toolbar dropdown, changes apply instantly |
 | App won't start | Check that all dependencies are installed: `npm install` then `npm run tauri:dev` |
 
+## Third-Party Notices
+Tideflow bundles the official Typst CLI (currently v0.13.1) for macOS, Windows, and Linux so the app works offline out of the box. Typst is available under the MIT OR Apache-2.0 licenses; see the [Typst project](https://github.com/typst/typst) for details. Our release pipeline downloads the upstream archives, verifies their SHA256 digests, and repackages the binaries into the platform bundles.
 
 ## License
 MIT – use, modify, distribute with attribution.

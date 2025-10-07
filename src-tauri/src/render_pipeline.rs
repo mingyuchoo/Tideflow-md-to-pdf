@@ -241,7 +241,7 @@ pub fn setup_prefs(config: &RenderConfig, path_type: &str) -> Result<PrefsSetupR
 /// emit template inspection events.
 pub fn setup_template(config: &RenderConfig, path_type: &str) -> Result<()> {
     // Determine template source (prefer dev workspace during development)
-    let template_src = if let Ok(cwd) = std::env::current_dir() {
+    let mut template_src = if let Ok(cwd) = std::env::current_dir() {
         let dev_tpl = cwd.join("src-tauri").join("content").join("tideflow.typ");
         if dev_tpl.exists() {
             dev_tpl
@@ -251,6 +251,15 @@ pub fn setup_template(config: &RenderConfig, path_type: &str) -> Result<()> {
     } else {
         config.content_dir.join("tideflow.typ")
     };
+
+    if !template_src.exists() {
+        // Attempt to restore the template from resources into the user content directory
+        if let Ok(restored) = utils::ensure_tideflow_template_exists(config.app_handle) {
+            if restored.exists() {
+                template_src = restored;
+            }
+        }
+    }
     
     if !template_src.exists() {
         return Err(anyhow!(

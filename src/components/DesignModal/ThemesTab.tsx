@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { themePresets } from '../../themes';
 import type { Preferences, Toast } from '../../types';
 
@@ -10,6 +10,21 @@ interface ThemesTabProps {
   scheduleApply: (prefs: Preferences) => void;
   addToast: (toast: Omit<Toast, 'id'>) => void;
 }
+
+const sanitizeCssValue = (value: string | undefined, fallback: string) => {
+  if (!value) {
+    return fallback;
+  }
+  return value.replace(/[^#%(),.\-a-zA-Z0-9\s]/g, '').trim() || fallback;
+};
+
+const createClassSlug = (id: string, index: number) => {
+  const base = id
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return `custom-preset-${base || 'preset'}-${index}`;
+};
 
 const ThemesTab: React.FC<ThemesTabProps> = ({ 
   themeSelection, 
@@ -47,12 +62,44 @@ const ThemesTab: React.FC<ThemesTabProps> = ({
     }
   };
 
+  const customPresetEntries = useMemo(() => {
+    return Object.entries(customPresets).map(([id, preset], index) => {
+      const classSlug = createClassSlug(id, index);
+      const pageBg = sanitizeCssValue(preset.preferences.page_bg_color, '#ffffff');
+      const accent = sanitizeCssValue(preset.preferences.accent_color, '#1d4ed8');
+      const fontColor = sanitizeCssValue(preset.preferences.font_color, '#1f2937');
+      const fontMain = sanitizeCssValue(preset.preferences.fonts?.main, 'Inter, sans-serif');
+
+      const cssRule = `.${classSlug} {
+  --page-bg-color: ${pageBg};
+  --accent-color: ${accent};
+  --font-color: ${fontColor};
+  --main-font: ${fontMain};
+}`;
+
+      return {
+        id,
+        preset,
+        className: classSlug,
+        cssRule,
+      };
+    });
+  }, [customPresets]);
+
+  const customPresetCss = useMemo(() => {
+    return customPresetEntries.map(entry => entry.cssRule).join('\n');
+  }, [customPresetEntries]);
+
   return (
     <div className="tab-panel themes-tab">
       <h3>Theme Gallery</h3>
       <p className="helper-text theme-gallery-description">
         Choose a pre-designed theme as a starting point for your document
       </p>
+
+      {customPresetCss && (
+        <style>{customPresetCss}</style>
+      )}
       
       <div className="theme-gallery">
         {Object.entries(themePresets).map(([id, theme]) => {
@@ -86,15 +133,10 @@ const ThemesTab: React.FC<ThemesTabProps> = ({
         <>
           <h3 className="custom-presets-heading">Custom Presets</h3>
           <div className="theme-gallery">
-            {Object.entries(customPresets).map(([id, preset]) => (
+            {customPresetEntries.map(({ id, preset, className }) => (
               <div
                 key={id}
-                style={{
-                  '--page-bg-color': preset.preferences.page_bg_color,
-                  '--accent-color': preset.preferences.accent_color,
-                  '--font-color': preset.preferences.font_color,
-                  '--main-font': preset.preferences.fonts.main,
-                } as React.CSSProperties}
+                className={className}
               >
                 <button
                   type="button"
