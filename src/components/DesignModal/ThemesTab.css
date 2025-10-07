@@ -1,0 +1,25 @@
+.theme-preview-fallback.custom-preset {
+  background-color: var(--page-bg-color);
+  border-color: var(--accent-color);
+}
+
+.theme-preview-header {
+  color: var(--font-color);
+  font-family: var(--main-font);
+  opacity: 0.9;
+}
+
+.theme-preview-line:nth-child(1) {
+  background-color: var(--font-color);
+  opacity: 0.8;
+}
+
+.theme-preview-line:nth-child(2) {
+  background-color: var(--font-color);
+  opacity: 0.6;
+}
+
+.theme-preview-line:nth-child(3) {
+  background-color: var(--font-color);
+  opacity: 0.7;
+}

@@ -33,7 +33,7 @@ pub enum AppError {
     InvalidPath(String),
 
     /// Rendering and compilation errors
-    #[error("Typst binary not found. Please ensure Typst is installed in bin/typst/<platform>/ directory")]
+    #[error("Typst binary not found. Please install Typst system-wide or ensure it's in bin/typst/<platform>/ directory")]
     TypstNotFound,
 
     #[error("Typst compilation failed: {0}")]
@@ -102,7 +102,7 @@ impl AppError {
     pub fn to_frontend_message(&self) -> String {
         match self {
             AppError::TypstNotFound => {
-                "Typst binary not found. Please check your installation.".to_string()
+                "Typst binary not found. Please install Typst system-wide or check your installation.".to_string()
             }
             AppError::TypstCompilation(msg) => {
                 format!("Compilation error: {}", msg)

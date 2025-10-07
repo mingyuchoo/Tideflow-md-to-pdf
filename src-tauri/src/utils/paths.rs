@@ -65,46 +65,61 @@ pub fn get_styles_dir(app_handle: &AppHandle) -> Result<PathBuf> {
 
 /// Get the Typst binary path based on platform
 pub fn get_typst_path(app_handle: &AppHandle) -> Result<PathBuf> {
-    // Use resource directory for bundled binaries
+    // First, try to find typst on the system PATH
+    if let Ok(path) = std::env::var("PATH") {
+        for dir in std::env::split_paths(&path) {
+            let typst_path = if cfg!(target_os = "windows") {
+                dir.join("typst.exe")
+            } else {
+                dir.join("typst")
+            };
+
+            if typst_path.exists() {
+                return Ok(typst_path);
+            }
+        }
+    }
+
+    // Fall back to bundled binary in resource directory
     let resource_dir = app_handle
         .path()
         .resource_dir()
         .map_err(|e| anyhow!("Failed to get resource directory: {}", e))?;
-    
+
     // Search inside bin/typst/<platform>
-    let platform_dir = if cfg!(target_os = "windows") { 
-        "windows" 
-    } else if cfg!(target_os = "macos") { 
-        "macos" 
-    } else { 
-        "linux" 
+    let platform_dir = if cfg!(target_os = "windows") {
+        "windows"
+    } else if cfg!(target_os = "macos") {
+        "macos"
+    } else {
+        "linux"
     };
-    
+
     let platform_base = resource_dir.join("bin").join("typst").join(platform_dir);
     let mut attempted: Vec<PathBuf> = Vec::new();
     let mut candidates: Vec<PathBuf> = Vec::new();
-    
+
     if cfg!(target_os = "windows") {
         candidates.push(platform_base.join("typst.exe"));
     } else {
         candidates.push(platform_base.join("typst"));
     }
-    
+
     for c in &candidates {
         attempted.push(c.clone());
-        if c.exists() { 
-            return Ok(c.clone()); 
+        if c.exists() {
+            return Ok(c.clone());
         }
     }
-    
+
     let attempted_list = attempted
         .iter()
         .map(|p| p.display().to_string())
         .collect::<Vec<_>>()
         .join(", ");
-    
+
     Err(anyhow!(
-        "Typst binary not found. Download Typst binary and place in appropriate platform directory. Looked for: {}", 
+        "Typst binary not found. Download Typst binary and place in appropriate platform directory, or install Typst system-wide. Looked for: {}",
         attempted_list
     ))
 }

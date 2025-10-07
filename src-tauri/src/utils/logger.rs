@@ -128,13 +128,13 @@ impl Logger {
     }
 
     /// Time an operation (returns elapsed time in milliseconds)
-    pub fn time<F, R>(&self, operation: &str, f: F) -> R
+    pub fn time<F, R>(&self, _operation: &str, f: F) -> R
     where
         F: FnOnce() -> R,
     {
         let start = std::time::Instant::now();
         let result = f();
-        let duration = start.elapsed();
+        let _duration = start.elapsed();
 
         #[cfg(debug_assertions)]
         {
@@ -143,8 +143,8 @@ impl Logger {
                 "[{}] [{}] [DEBUG] {} completed in {:.2}ms",
                 timestamp,
                 self.component,
-                operation,
-                duration.as_secs_f64() * 1000.0
+                _operation,
+                _duration.as_secs_f64() * 1000.0
             );
         }
 

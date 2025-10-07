@@ -250,7 +250,7 @@ pub async fn render_markdown(app_handle: &AppHandle, file_path: &str) -> Result<
 
     // 4) Get bundled Typst binary path
     let typst_path = utils::get_typst_path(app_handle)
-        .context("Typst binary not found. Download and place Typst binary in bin/typst/<platform>/ directory.")?;
+        .context("Typst binary not found. Please install Typst system-wide or download and place in bin/typst/<platform>/ directory.")?;
 
     // Compile preview PDF
     // For preview, temporarily install the preview content into content.md so the
@@ -337,7 +337,7 @@ pub async fn export_markdown(app_handle: &AppHandle, file_path: &str) -> Result<
 
     // Get bundled Typst binary path
     let typst_path = utils::get_typst_path(app_handle)
-        .context("Typst binary not found. Download and place Typst binary in bin/typst/<platform>/ directory.")?;
+        .context("Typst binary not found. Please install Typst system-wide or download and place in bin/typst/<platform>/ directory.")?;
 
     // Compile to final PDF next to source file
     let final_pdf = Path::new(file_path).with_extension("pdf");
@@ -369,7 +369,7 @@ pub async fn render_typst(
 
     // Get path to Typst binary (fail fast if missing)
     let typst_path = utils::get_typst_path(app_handle)
-        .context("Typst binary not found. Download and place Typst binary in bin/typst/<platform>/ directory.")?;
+        .context("Typst binary not found. Please install Typst system-wide or download and place in bin/typst/<platform>/ directory.")?;
 
     // Create .build directory if it doesn't exist
     let content_dir = utils::get_content_dir(app_handle)?;

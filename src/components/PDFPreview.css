@@ -906,7 +906,6 @@
   flex-shrink: 0;
   /* Ensure crisp rendering */
   image-rendering: -webkit-optimize-contrast;
-  image-rendering: crisp-edges;
   /* Prevent blur from browser scaling */
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;

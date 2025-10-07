@@ -87,42 +87,38 @@ const ThemesTab: React.FC<ThemesTabProps> = ({
           <h3 className="custom-presets-heading">Custom Presets</h3>
           <div className="theme-gallery">
             {Object.entries(customPresets).map(([id, preset]) => (
-              <button
+              <div
                 key={id}
-                type="button"
-                className={`theme-card ${themeSelection === id ? 'active' : ''}`}
-                onClick={() => handleThemeSelect(id)}
+                style={{
+                  '--page-bg-color': preset.preferences.page_bg_color,
+                  '--accent-color': preset.preferences.accent_color,
+                  '--font-color': preset.preferences.font_color,
+                  '--main-font': preset.preferences.fonts.main,
+                } as React.CSSProperties}
               >
+                <button
+                  type="button"
+                  className={`theme-card ${themeSelection === id ? 'active' : ''}`}
+                  onClick={() => handleThemeSelect(id)}
+                >
                 <div className="theme-preview">
                   <div 
                     className="theme-preview-fallback custom-preset"
-                    style={{
-                      backgroundColor: preset.preferences.page_bg_color,
-                      borderColor: preset.preferences.accent_color,
-                    }}
                   >
                     <div 
                       className="theme-preview-header"
-                      style={{ 
-                        color: preset.preferences.font_color,
-                        fontFamily: preset.preferences.fonts.main,
-                        opacity: 0.9
-                      }}
                     >
                       ⭐
                     </div>
                     <div className="theme-preview-lines">
                       <div 
                         className="theme-preview-line"
-                        style={{ backgroundColor: preset.preferences.font_color, opacity: 0.8 }}
                       />
                       <div 
                         className="theme-preview-line short"
-                        style={{ backgroundColor: preset.preferences.font_color, opacity: 0.6 }}
                       />
                       <div 
                         className="theme-preview-line"
-                        style={{ backgroundColor: preset.preferences.font_color, opacity: 0.7 }}
                       />
                     </div>
                   </div>
@@ -133,7 +129,8 @@ const ThemesTab: React.FC<ThemesTabProps> = ({
                 {themeSelection === id && (
                   <div className="theme-card-badge">✓</div>
                 )}
-              </button>
+                </button>
+              </div>
             ))}
           </div>
         </>
