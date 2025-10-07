@@ -66,3 +66,16 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+      - name: List produced bundles (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          echo "Listing src-tauri/target/release/bundle"
+          ls -la src-tauri/target/release/bundle || true
+
+      - name: List produced bundles (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Host "Listing src-tauri/target/release/bundle"
+          Get-ChildItem -Path src-tauri\target\release\bundle -Force -ErrorAction SilentlyContinue | Format-List || true
