@@ -66,8 +66,6 @@ jobs:
           releaseBody: |
             ## 🎉 Release ${{ github.ref_name }}
             
-            See the full changelog and release notes on the [releases page](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}).
-            
             ### 📥 Download Options
             
             **Windows:**
