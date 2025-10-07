@@ -63,26 +63,6 @@ jobs:
         with:
           tagName: ${{ github.ref_name }} # Use the tag name as release name
           releaseName: 'Tideflow ${{ github.ref_name }}'
-          releaseBody: |
-            ## 🎉 Release ${{ github.ref_name }}
-            
-            ### 📥 Download Options
-            
-            **Windows:**
-            - `Tideflow_X.X.X_x64-setup.exe` - NSIS installer (recommended)
-            - `Tideflow_X.X.X_x64_en-US.msi` - MSI installer
-            
-            **Linux:**
-            - `tideflow_X.X.X_amd64.deb` - Debian/Ubuntu package
-            - `tideflow-X.X.X-1.x86_64.rpm` - Fedora/RHEL/openSUSE package
-            - `tideflow_X.X.X_amd64.AppImage` - Universal portable (any distro)
-            
-            **macOS:**
-            - `Tideflow_x64.dmg` - Intel Macs
-            - `Tideflow_aarch64.dmg` - Apple Silicon (M1/M2/M3)
-            
-            ### 🚀 First-time using Tideflow?
-            Click the ❓ Help button in the toolbar for a guided tour.
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
