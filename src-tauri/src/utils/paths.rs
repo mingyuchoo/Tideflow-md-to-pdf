@@ -80,6 +80,37 @@ pub fn get_typst_path(app_handle: &AppHandle) -> Result<PathBuf> {
         }
     }
 
+    // On Unix-like systems, try `which typst` as an additional check (covers AppImage environments)
+    #[cfg(unix)]
+    {
+        if let Ok(output) = std::process::Command::new("sh")
+            .arg("-c")
+            .arg("which typst || true")
+            .output()
+        {
+            if output.status.success() {
+                if let Ok(found) = String::from_utf8(output.stdout) {
+                    let found = found.trim();
+                    if !found.is_empty() {
+                        let p = PathBuf::from(found);
+                        if p.exists() {
+                            return Ok(p);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Also check common system locations that some distributions and AppImages use
+        let common_paths = ["/usr/bin/typst", "/bin/typst", "/usr/local/bin/typst", "/snap/bin/typst"];
+        for cp in &common_paths {
+            let p = PathBuf::from(cp);
+            if p.exists() {
+                return Ok(p);
+            }
+        }
+    }
+
     // Fall back to bundled binary in resource directory
     let resource_dir = app_handle
         .path()
@@ -117,6 +148,22 @@ pub fn get_typst_path(app_handle: &AppHandle) -> Result<PathBuf> {
         .map(|p| p.display().to_string())
         .collect::<Vec<_>>()
         .join(", ");
+    // As a final fallback, check user preferences for an explicit typst_path
+    if let Ok(content_dir) = get_content_dir(app_handle) {
+        let prefs_path = content_dir.join("prefs.json");
+        if prefs_path.exists() {
+            if let Ok(contents) = std::fs::read_to_string(&prefs_path) {
+                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&contents) {
+                    if let Some(tp) = json.get("typst_path").and_then(|v| v.as_str()) {
+                        let p = PathBuf::from(tp);
+                        if p.exists() {
+                            return Ok(p);
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     Err(anyhow!(
         "Typst binary not found. Download Typst binary and place in appropriate platform directory, or install Typst system-wide. Looked for: {}",

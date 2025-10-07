@@ -231,6 +231,8 @@ interface BackendPreferences {
   focused_preview_enabled?: boolean;
   preserve_scroll_position: boolean;
   confirm_exit_on_unsaved?: boolean;
+  // Optional typst_path forwarded from backend
+  typst_path?: string;
 }
 
 export async function getPreferences(): Promise<Preferences> {
@@ -264,6 +266,8 @@ export async function getPreferences(): Promise<Preferences> {
     focused_preview_enabled: raw.focused_preview_enabled,
     preserve_scroll_position: raw.preserve_scroll_position,
     confirm_exit_on_unsaved: raw.confirm_exit_on_unsaved ?? true,
+    // Optional typst_path is forwarded from the backend
+    typst_path: raw.typst_path ?? undefined,
   };
 }
 
@@ -299,6 +303,8 @@ export async function setPreferences(preferences: Preferences): Promise<void> {
     focused_preview_enabled: preferences.focused_preview_enabled,
     preserve_scroll_position: preferences.preserve_scroll_position,
     confirm_exit_on_unsaved: preferences.confirm_exit_on_unsaved,
+    // Forward typst_path to backend if present
+    typst_path: preferences.typst_path,
   };
   await invoke('set_preferences', { preferences: outbound });
 }

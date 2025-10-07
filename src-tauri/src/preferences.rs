@@ -133,6 +133,9 @@ pub struct Preferences {
     /// Show confirmation dialog when closing with unsaved changes
     #[serde(default = "default_confirm_exit")]
     pub confirm_exit_on_unsaved: bool,
+    /// Optional explicit path to Typst binary (used as a final fallback)
+    #[serde(default)]
+    pub typst_path: Option<String>,
 }
 
 /// Page margin configuration
@@ -230,6 +233,7 @@ impl Default for Preferences {
             focused_preview_enabled: true,
             preserve_scroll_position: true,
             confirm_exit_on_unsaved: true,
+            typst_path: None,
         }
     }
 }

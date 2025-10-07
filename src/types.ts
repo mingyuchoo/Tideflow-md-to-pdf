@@ -47,6 +47,8 @@ export interface Preferences {
   focused_preview_enabled?: boolean; // kept optional (removed in UI) for backend compatibility
   preserve_scroll_position: boolean;
   confirm_exit_on_unsaved: boolean;
+  // Optional explicit path to Typst binary (used as a final fallback)
+  typst_path?: string;
 }
 
 export interface CompileStatus {

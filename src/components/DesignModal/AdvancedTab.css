@@ -1,0 +1,98 @@
+/* Styles for the Advanced preferences tab - specifically Typst path UI */
+.typst-path-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.typst-path-input {
+  flex: 1 1 auto;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  border: 1px solid var(--border-color, #cdd3db);
+  background: var(--input-bg, #fff);
+  color: var(--text-color, #111);
+  transition: all 150ms ease;
+}
+
+/* Dark / tab-panel context (matching existing .tab-panel input styles) */
+.tab-panel .typst-path-input {
+  border: 1px solid var(--border-color, #444);
+  background: var(--input-bg, #23272e);
+  color: var(--text-color, #fff);
+}
+.tab-panel .typst-path-input::placeholder {
+  color: var(--placeholder-color, #bfc7d5);
+}
+
+/* Light / design-section context (matching .design-section input styles) */
+.design-section .typst-path-input {
+  border: 1px solid var(--border-color, #cdd3db);
+  background: var(--input-bg, #fff);
+  color: var(--text-color, #111);
+  box-shadow: 0 1px 0 rgba(0,0,0,0.04);
+}
+.design-section .typst-path-input::placeholder {
+  color: var(--placeholder-color, #9aa2af);
+}
+
+.typst-diagnostics {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: var(--muted-bg, #f7f7f8);
+  border: 1px solid var(--border-color, #eee);
+  border-radius: 6px;
+  font-size: 12px;
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  box-sizing: border-box;
+}
+
+/* Dark/tab-panel adjustments so diagnostics don't show as a white box */
+.tab-panel .typst-diagnostics {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  color: #e6eef8;
+}
+
+.tab-panel .typst-diagnostics code, .tab-panel .typst-diagnostics pre { color: #e6eef8; }
+
+.typst-status-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #fff;
+}
+.typst-status-badge.ok { background: #16a34a; }
+.typst-status-badge.warn { background: #f59e0b; }
+.typst-status-badge.error { background: #dc2626; }
+
+.typst-path-actions button {
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color, #ddd);
+  background: var(--btn-bg, #f7f7f8);
+  color: var(--btn-color, #222);
+  font-size: 1em;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.tab-panel .typst-path-actions button {
+  background: var(--btn-bg, #23272e);
+  color: var(--btn-color, #fff);
+}
+
+.typst-path-actions button:active { transform: translateY(1px); }
+.typst-path-actions button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 12px rgba(0,0,0,0.12); }
+.typst-path-actions button:focus-visible { outline: 2px solid rgba(53,144,243,0.2); outline-offset: 2px; }
+
+.design-section { margin-top: 1rem; padding: 0.9rem; }
+.design-section h3 { margin: 0 0 8px 0; }
+
+.typst-info {
+  margin-top: 8px;
+}
