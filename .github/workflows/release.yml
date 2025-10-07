@@ -10,7 +10,6 @@ jobs:
   release:
     permissions:
       contents: write
-      releases: write
     strategy:
       fail-fast: false
       matrix:
@@ -64,6 +63,6 @@ jobs:
         with:
           tagName: ${{ github.ref_name }} # Use the tag name as release name
           releaseName: 'Tideflow ${{ github.ref_name }}'
-          releaseDraft: false
+          releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
