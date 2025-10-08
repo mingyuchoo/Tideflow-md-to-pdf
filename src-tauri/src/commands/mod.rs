@@ -1,7 +1,8 @@
 //! Tauri command handlers organized by domain.
 //!
 //! This module exposes all application commands through submodules:
-//! - `file_ops`: File CRUD operations (read, write, list, create, delete, rename)
+//! - `file_ops`: File CRUD operations (read, write, list, create, delete,
+//!   rename)
 //! - `image_ops`: Image import and management
 //! - `render_ops`: Markdown/Typst compilation to PDF
 //! - `cache_ops`: Cache management and cleanup

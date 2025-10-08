@@ -1,10 +1,7 @@
-use crate::preprocessor::{
-    attach_pdf_positions, pdf_positions_from_query, preprocess_markdown, AnchorMeta, PdfPosition,
-    SourceMapPayload,
-};
+use crate::preprocessor::{AnchorMeta, PdfPosition, SourceMapPayload, attach_pdf_positions, pdf_positions_from_query, preprocess_markdown};
 use crate::render_pipeline::{self, RenderConfig};
 use crate::utils;
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::fs;
@@ -31,13 +28,7 @@ lazy_static::lazy_static! {
         Arc::new(Mutex::new(std::collections::HashMap::new()));
 }
 
-fn build_source_map(
-    app_handle: &AppHandle,
-    typst_path: &Path,
-    build_dir: &Path,
-    content_dir: &Path,
-    anchors: &[AnchorMeta],
-) -> SourceMapPayload {
+fn build_source_map(app_handle: &AppHandle, typst_path: &Path, build_dir: &Path, content_dir: &Path, anchors: &[AnchorMeta]) -> SourceMapPayload {
     if anchors.is_empty() {
         return SourceMapPayload::default();
     }
@@ -61,7 +52,10 @@ fn build_source_map(
                 use std::sync::atomic::{AtomicBool, Ordering};
                 static LOGGED_ONCE: AtomicBool = AtomicBool::new(false);
                 if !LOGGED_ONCE.swap(true, Ordering::Relaxed) {
-                    println!("[renderer] detected Typst version 0.13.x ({}); skipping typst query for all renders", ver_txt.trim());
+                    println!(
+                        "[renderer] detected Typst version 0.13.x ({}); skipping typst query for all renders",
+                        ver_txt.trim()
+                    );
                 }
                 let _ = app_handle.emit("typst-query-failed", "typst-0.13-incompatible");
                 return attach_pdf_positions(anchors, &pdf_lookup);
@@ -74,28 +68,14 @@ fn build_source_map(
     let selector_variants = vec!["label", "element(label)", "element('label')", "element(\"label\")", "element.label"];
     let mut tried_any = false;
     for selector in selector_variants.iter() {
-        let args = [
-            "query",
-            "--format",
-            "json",
-            "--root",
-            root_arg.as_str(),
-            "tideflow.typ",
-            selector,
-        ];
+        let args = ["query", "--format", "json", "--root", root_arg.as_str(), "tideflow.typ", selector];
         println!("[renderer] running typst query args: {:?}", args);
-        let query_result = render_pipeline::typst_command(&typst_path)
-            .current_dir(build_dir)
-            .args(&args)
-            .output();
+        let query_result = render_pipeline::typst_command(&typst_path).current_dir(build_dir).args(&args).output();
 
         tried_any = true;
         if let Ok(output) = query_result {
             // Sanitize selector for filename usage
-            let sel_name: String = selector
-                .chars()
-                .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
-                .collect();
+            let sel_name: String = selector.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect();
             let stdout_txt = String::from_utf8_lossy(&output.stdout).to_string();
             let stderr_txt = String::from_utf8_lossy(&output.stderr).to_string();
             let out_dump = build_dir.join(format!(".typst_query_output_{}.json", sel_name));
@@ -130,7 +110,11 @@ fn build_source_map(
                 if let Ok(map) = pdf_positions_from_query(&output.stdout) {
                     if !map.is_empty() {
                         pdf_lookup = map;
-                        println!("[renderer] typst query succeeded with selector '{}' and produced {} positions", selector, pdf_lookup.len());
+                        println!(
+                            "[renderer] typst query succeeded with selector '{}' and produced {} positions",
+                            selector,
+                            pdf_lookup.len()
+                        );
                         break;
                     } else {
                         println!("[renderer] typst query succeeded with selector '{}' but produced 0 positions", selector);
@@ -145,7 +129,10 @@ fn build_source_map(
             }
         } else if let Err(e) = query_result {
             println!("[renderer] typst query invocation error for selector '{}': {:?}", selector, e);
-            let inv_err = build_dir.join(format!(".typst_query_invocation_error_{}.txt", selector.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect::<String>()));
+            let inv_err = build_dir.join(format!(
+                ".typst_query_invocation_error_{}.txt",
+                selector.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect::<String>()
+            ));
             if let Err(err) = std::fs::write(&inv_err, format!("{:?}", e).as_bytes()) {
                 println!("[renderer] failed to write typst invocation error: {}", err);
             } else {
@@ -188,8 +175,9 @@ pub async fn render_markdown(app_handle: &AppHandle, file_path: &str) -> Result<
     let metadata = fs::metadata(file_path)?;
     let mod_time = metadata.modified()?;
 
-    // NOTE: Removed optimization that skipped rendering when file timestamp unchanged.
-    // Preferences can change without touching the markdown file; we still need a fresh render.
+    // NOTE: Removed optimization that skipped rendering when file timestamp
+    // unchanged. Preferences can change without touching the markdown file; we
+    // still need a fresh render.
     let mut last_render_times = LAST_RENDER_TIMES.lock().await;
 
     // Use Typst to render for preview
@@ -208,34 +196,32 @@ pub async fn render_markdown(app_handle: &AppHandle, file_path: &str) -> Result<
     // Setup preferences (handles cover image rewriting and debug events)
     render_pipeline::setup_prefs(&config, "markdown")?;
 
-    // 2) Copy the markdown content to build/content.md (with preprocessing + image path rewrites)
+    // 2) Copy the markdown content to build/content.md (with preprocessing + image
+    //    path rewrites)
     // We write two files:
-    // - content.md (clean, no preview-only tokens) used for export and canonical build state
-    // - content.preview.md (preview-only, includes non-printing/preview tokens next to anchors)
-    // During preview compilation we temporarily copy content.preview.md over content.md so the
-    // template and Typst query can see the preview-only tokens. Export remains untouched.
+    // - content.md (clean, no preview-only tokens) used for export and canonical
+    //   build state
+    // - content.preview.md (preview-only, includes non-printing/preview tokens next
+    //   to anchors)
+    // During preview compilation we temporarily copy content.preview.md over
+    // content.md so the template and Typst query can see the preview-only
+    // tokens. Export remains untouched.
     let md_content_raw = fs::read_to_string(path)?;
     let base_dir = path.parent().unwrap_or(Path::new("."));
-    // Resolve assets/ paths to the global content/assets directory so images work from any doc folder
+    // Resolve assets/ paths to the global content/assets directory so images work
+    // from any doc folder
     let assets_root = utils::get_assets_dir(app_handle).ok();
     let assets_root_ref = assets_root.as_deref();
 
     // Clean (export) version: do NOT inject visible tokens
     let preprocess_clean = preprocess_markdown(&md_content_raw)?;
-    let md_content_clean = utils::rewrite_image_paths_in_markdown(
-        &preprocess_clean.markdown,
-        base_dir,
-        assets_root_ref,
-    );
+    let md_content_clean = utils::rewrite_image_paths_in_markdown(&preprocess_clean.markdown, base_dir, assets_root_ref);
     fs::write(build_dir.join("content.md"), &md_content_clean)?;
 
-    // Preview version: inject preview-only tokens (these will NOT be used for exports)
+    // Preview version: inject preview-only tokens (these will NOT be used for
+    // exports)
     let preprocess_preview = preprocess_markdown(&md_content_raw)?;
-    let md_content_preview = utils::rewrite_image_paths_in_markdown(
-        &preprocess_preview.markdown,
-        base_dir,
-        assets_root_ref,
-    );
+    let md_content_preview = utils::rewrite_image_paths_in_markdown(&preprocess_preview.markdown, base_dir, assets_root_ref);
     fs::write(build_dir.join("content.preview.md"), &md_content_preview)?;
     // Also write debug copies into workspace for developer inspection
     if let Ok(cwd) = std::env::current_dir() {
@@ -267,18 +253,17 @@ pub async fn render_markdown(app_handle: &AppHandle, file_path: &str) -> Result<
     render_pipeline::compile_typst(&config, &typst_path, "preview.pdf")?;
     let preview_pdf = build_dir.join("preview.pdf");
 
-    // Restore the clean content.md so the build directory reflects canonical (export) content.
+    // Restore the clean content.md so the build directory reflects canonical
+    // (export) content.
     if let Err(e) = fs::write(build_dir.join("content.md"), &md_content_clean) {
-        println!(
-            "[renderer] warning: failed to restore clean content.md after preview compile: {}",
-            e
-        );
+        println!("[renderer] warning: failed to restore clean content.md after preview compile: {}", e);
     }
 
     // Update last render time
     last_render_times.insert(file_path.to_string(), mod_time);
 
-    // Use the anchor list from the clean preprocess (anchors are identical between preview and clean)
+    // Use the anchor list from the clean preprocess (anchors are identical between
+    // preview and clean)
     let source_map = build_source_map(app_handle, &typst_path, &build_dir, &content_dir, &preprocess_clean.anchors);
     let document = RenderedDocument {
         pdf_path: preview_pdf.to_string_lossy().to_string(),
@@ -328,8 +313,7 @@ pub async fn export_markdown(app_handle: &AppHandle, file_path: &str) -> Result<
     let assets_root_ref = assets_root.as_deref();
     // For export, do NOT inject visible tokens — output must be clean for users
     let preprocess = preprocess_markdown(&md_content_raw)?;
-    let md_content =
-        utils::rewrite_image_paths_in_markdown(&preprocess.markdown, base_dir, assets_root_ref);
+    let md_content = utils::rewrite_image_paths_in_markdown(&preprocess.markdown, base_dir, assets_root_ref);
     fs::write(build_dir.join("content.md"), md_content)?;
 
     // Setup template
@@ -341,10 +325,11 @@ pub async fn export_markdown(app_handle: &AppHandle, file_path: &str) -> Result<
 
     // Compile to final PDF next to source file
     let final_pdf = Path::new(file_path).with_extension("pdf");
-    let final_pdf_name = final_pdf.file_name()
+    let final_pdf_name = final_pdf
+        .file_name()
         .and_then(|n| n.to_str())
         .ok_or_else(|| anyhow!("Invalid output filename"))?;
-    
+
     render_pipeline::compile_typst(&config, &typst_path, final_pdf_name)?;
 
     if !final_pdf.exists() {
@@ -358,12 +343,7 @@ pub async fn export_markdown(app_handle: &AppHandle, file_path: &str) -> Result<
 }
 
 /// Renders Typst content directly to PDF (always full render)
-pub async fn render_typst(
-    app_handle: &AppHandle,
-    content: &str,
-    _format: &str,
-    current_file: Option<&str>,
-) -> Result<RenderedDocument> {
+pub async fn render_typst(app_handle: &AppHandle, content: &str, _format: &str, current_file: Option<&str>) -> Result<RenderedDocument> {
     // Acquire render lock to prevent multiple simultaneous renders
     let _lock = RENDER_MUTEX.lock().await;
 
@@ -381,39 +361,35 @@ pub async fn render_typst(
     let temp_content_name = format!("temp_{}.md", uuid);
     let temp_content_path = build_dir.join(&temp_content_name);
 
-    // Preprocess content to rewrite image paths so Typst/cmarker can resolve them properly
-    // For ad-hoc typst renders, include visible tokens to aid preview extraction
+    // Preprocess content to rewrite image paths so Typst/cmarker can resolve them
+    // properly For ad-hoc typst renders, include visible tokens to aid preview
+    // extraction
     let preprocess = preprocess_markdown(content)?;
-    
+
     // Determine base directory for image path resolution
-    // Use the current file's parent directory if available, otherwise fall back to content_dir
+    // Use the current file's parent directory if available, otherwise fall back to
+    // content_dir
     let base_dir = if let Some(file_path) = current_file {
-        Path::new(file_path)
-            .parent()
-            .map(|p| p.to_path_buf())
-            .unwrap_or_else(|| content_dir.clone())
+        Path::new(file_path).parent().map(|p| p.to_path_buf()).unwrap_or_else(|| content_dir.clone())
     } else {
         content_dir.clone()
     };
-    
+
     // Rewrite image paths so Typst can resolve them
     let assets_root = utils::get_assets_dir(app_handle).ok();
     let assets_root_ref = assets_root.as_deref();
-    let mut processed = utils::rewrite_image_paths_in_markdown(
-        &preprocess.markdown,
-        &base_dir,
-        assets_root_ref,
-    );
-    
-    // Filter out content that cmarker/Typst can't handle to prevent compilation errors
-    // Remove external image URLs that cmarker can't fetch (causes OS error 123)
+    let mut processed = utils::rewrite_image_paths_in_markdown(&preprocess.markdown, &base_dir, assets_root_ref);
+
+    // Filter out content that cmarker/Typst can't handle to prevent compilation
+    // errors Remove external image URLs that cmarker can't fetch (causes OS
+    // error 123)
     let re_external_img = regex::Regex::new(r"!\[[^\]]*\]\(https?://[^)]+\)").unwrap();
     processed = re_external_img.replace_all(&processed, "").to_string();
-    
+
     // Also remove HTML img tags with external URLs
     let re_external_html = regex::Regex::new(r#"<img[^>]*src=["']https?://[^"']+["'][^>]*>"#).unwrap();
     processed = re_external_html.replace_all(&processed, "").to_string();
-    
+
     fs::write(&temp_content_path, &processed)?;
 
     // Setup render configuration - always use content_dir as Typst root
@@ -454,5 +430,3 @@ pub async fn render_typst(
         source_map,
     })
 }
-
-

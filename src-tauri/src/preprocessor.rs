@@ -44,13 +44,12 @@ pub struct PreprocessorOutput {
     pub anchors: Vec<AnchorMeta>,
 }
 
-/// Transform user markdown by injecting invisible Typst anchors used for scroll synchronisation.
+/// Transform user markdown by injecting invisible Typst anchors used for scroll
+/// synchronisation.
 pub fn preprocess_markdown(markdown: &str) -> Result<PreprocessorOutput> {
     let result = inject_anchors(markdown)?;
     Ok(result)
 }
-
-
 
 fn inject_anchors(markdown: &str) -> Result<PreprocessorOutput> {
     let mut insertions: Vec<(usize, String)> = Vec::new();
@@ -61,7 +60,7 @@ fn inject_anchors(markdown: &str) -> Result<PreprocessorOutput> {
     // the top even when a cover page is rendered above content.
     let doc_id = "tf-doc-start".to_string();
     if !seen_offsets.contains(&0) {
-            let doc_anchor = build_anchor_markup(markdown, 0, &doc_id);
+        let doc_anchor = build_anchor_markup(markdown, 0, &doc_id);
         insertions.push((0, doc_anchor));
         anchors.push(AnchorMeta {
             id: doc_id.clone(),
@@ -72,40 +71,38 @@ fn inject_anchors(markdown: &str) -> Result<PreprocessorOutput> {
         seen_offsets.insert(0usize);
     }
 
-    let parser = Parser::new_ext(
-        markdown,
-        Options::ENABLE_FOOTNOTES | Options::ENABLE_TASKLISTS,
-    );
+    let parser = Parser::new_ext(markdown, Options::ENABLE_FOOTNOTES | Options::ENABLE_TASKLISTS);
     for (event, range) in parser.into_offset_iter() {
         if let Event::Start(tag) = event {
             if !is_block_level(&tag) {
                 continue;
             }
-            
+
             // SKIP blockquote tags - they cause issues because the anchor gets inserted
             // between the '>' and the content. We'll still get anchors from the paragraphs
             // inside the blockquote, which is sufficient for scrolling.
             if matches!(tag, Tag::BlockQuote) {
                 continue;
             }
-            
+
             let insertion_offset = range.start;
-            
-            // If we're inserting into a blockquote line (starts with '>'), SKIP it entirely.
-            // Blockquotes (including admonitions) will get anchored via their inner paragraphs.
+
+            // If we're inserting into a blockquote line (starts with '>'), SKIP it
+            // entirely. Blockquotes (including admonitions) will get anchored
+            // via their inner paragraphs.
             let mut line_start = insertion_offset;
             while line_start > 0 && markdown.as_bytes()[line_start - 1] != b'\n' {
                 line_start -= 1;
             }
-            
+
             // Check if this line starts with '>' (possibly with whitespace before)
-            let line_text = &markdown[line_start..];
+            let line_text = &markdown[line_start ..];
             let first_line = line_text.split('\n').next().unwrap_or("");
             if first_line.trim_start().starts_with('>') {
                 // Skip this anchor entirely - don't insert into blockquote lines
                 continue;
             }
-            
+
             if !seen_offsets.insert(insertion_offset) {
                 continue;
             }
@@ -154,7 +151,7 @@ fn is_block_level(tag: &Tag<'_>) -> bool {
 fn offset_to_line_column(source: &str, offset: usize) -> (usize, usize) {
     let mut line = 0;
     let mut column = 0;
-    for ch in source[..offset].chars() {
+    for ch in source[.. offset].chars() {
         if ch == '\n' {
             line += 1;
             column = 0;
@@ -167,10 +164,10 @@ fn offset_to_line_column(source: &str, offset: usize) -> (usize, usize) {
 
 fn build_anchor_markup(source: &str, offset: usize, id: &str) -> String {
     let mut snippet = String::new();
-    
+
     // Original logic - ensure we're on a new line
     if offset > 0 {
-        let preceding = &source[..offset];
+        let preceding = &source[.. offset];
         if !preceding.ends_with('\n') {
             snippet.push('\n');
         }
@@ -183,10 +180,7 @@ fn build_anchor_markup(source: &str, offset: usize, id: &str) -> String {
     snippet
 }
 
-pub fn attach_pdf_positions(
-    anchors: &[AnchorMeta],
-    positions: &HashMap<String, PdfPosition>,
-) -> SourceMapPayload {
+pub fn attach_pdf_positions(anchors: &[AnchorMeta], positions: &HashMap<String, PdfPosition>) -> SourceMapPayload {
     let entries = anchors
         .iter()
         .map(|anchor| AnchorEntry {
@@ -200,7 +194,9 @@ pub fn attach_pdf_positions(
         })
         .collect();
 
-    SourceMapPayload { anchors: entries }
+    SourceMapPayload {
+        anchors: entries,
+    }
 }
 
 #[allow(dead_code)]
@@ -234,7 +230,14 @@ pub fn pdf_positions_from_query(json_bytes: &[u8]) -> Result<HashMap<String, Pdf
                 // variants such as { location: { page, position: { x,y } } }
                 // or nested fields like 'point', 'pos', or 'rect'.
                 if let Some((page, x, y)) = find_location(entry) {
-                    map.insert(label, PdfPosition { page, x, y });
+                    map.insert(
+                        label,
+                        PdfPosition {
+                            page,
+                            x,
+                            y,
+                        },
+                    );
                 }
             }
         }
@@ -244,7 +247,7 @@ pub fn pdf_positions_from_query(json_bytes: &[u8]) -> Result<HashMap<String, Pdf
 
 fn find_label(value: &serde_json::Value) -> Option<String> {
     match value {
-        serde_json::Value::Object(map) => {
+        | serde_json::Value::Object(map) => {
             if let Some(label) = map.get("label").and_then(|v| v.as_str()) {
                 return Some(label.to_owned());
             }
@@ -256,18 +259,19 @@ fn find_label(value: &serde_json::Value) -> Option<String> {
                 }
             }
             None
-        }
-        serde_json::Value::Array(arr) => arr.iter().find_map(find_label),
-        _ => None,
+        },
+        | serde_json::Value::Array(arr) => arr.iter().find_map(find_label),
+        | _ => None,
     }
 }
 
-/// Recursively search a serde_json::Value for a location-like object and extract
-/// (page, x, y) if possible. Supports keys: location, page, position, point,
-/// pos, rect (rect may provide [x0,y0,x1,y1] coords; we use y0 as baseline).
+/// Recursively search a serde_json::Value for a location-like object and
+/// extract (page, x, y) if possible. Supports keys: location, page, position,
+/// point, pos, rect (rect may provide [x0,y0,x1,y1] coords; we use y0 as
+/// baseline).
 fn find_location(value: &serde_json::Value) -> Option<(usize, f32, f32)> {
     match value {
-        serde_json::Value::Object(map) => {
+        | serde_json::Value::Object(map) => {
             // Direct location field
             if let Some(loc) = map.get("location") {
                 if let Some(res) = extract_page_xy(loc) {
@@ -285,9 +289,9 @@ fn find_location(value: &serde_json::Value) -> Option<(usize, f32, f32)> {
                 }
             }
             None
-        }
-        serde_json::Value::Array(arr) => arr.iter().find_map(find_location),
-        _ => None,
+        },
+        | serde_json::Value::Array(arr) => arr.iter().find_map(find_location),
+        | _ => None,
     }
 }
 
@@ -319,14 +323,8 @@ fn extract_page_xy(v: &serde_json::Value) -> Option<(usize, f32, f32)> {
         if let Some(rect) = obj.get("rect") {
             if let Some(arr) = rect.as_array() {
                 if arr.len() >= 2 {
-                    let x = arr[0]
-                        .as_f64()
-                        .or_else(|| arr[0].as_str().and_then(|s| s.parse::<f64>().ok()))
-                        .unwrap_or(0.0) as f32;
-                    let y = arr[1]
-                        .as_f64()
-                        .or_else(|| arr[1].as_str().and_then(|s| s.parse::<f64>().ok()))
-                        .unwrap_or(0.0) as f32;
+                    let x = arr[0].as_f64().or_else(|| arr[0].as_str().and_then(|s| s.parse::<f64>().ok())).unwrap_or(0.0) as f32;
+                    let y = arr[1].as_f64().or_else(|| arr[1].as_str().and_then(|s| s.parse::<f64>().ok())).unwrap_or(0.0) as f32;
                     return Some((page, x, y));
                 }
             }
@@ -334,4 +332,3 @@ fn extract_page_xy(v: &serde_json::Value) -> Option<(usize, f32, f32)> {
     }
     None
 }
-

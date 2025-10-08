@@ -1,17 +1,14 @@
 //! Path resolution utilities for app directories.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
 /// Get the app's base directory
 pub fn get_app_dir(app_handle: &AppHandle) -> Result<PathBuf> {
-    let app_dir = app_handle
-        .path()
-        .app_data_dir()
-        .map_err(|e| anyhow!("Failed to get app directory: {}", e))?;
-    
+    let app_dir = app_handle.path().app_data_dir().map_err(|e| anyhow!("Failed to get app directory: {}", e))?;
+
     Ok(app_dir)
 }
 
@@ -19,11 +16,11 @@ pub fn get_app_dir(app_handle: &AppHandle) -> Result<PathBuf> {
 pub fn get_content_dir(app_handle: &AppHandle) -> Result<PathBuf> {
     let app_dir = get_app_dir(app_handle)?;
     let content_dir = app_dir.join("content");
-    
+
     if !content_dir.exists() {
         fs::create_dir_all(&content_dir)?;
     }
-    
+
     Ok(content_dir)
 }
 
@@ -31,11 +28,11 @@ pub fn get_content_dir(app_handle: &AppHandle) -> Result<PathBuf> {
 pub fn get_assets_dir(app_handle: &AppHandle) -> Result<PathBuf> {
     let content_dir = get_content_dir(app_handle)?;
     let assets_dir = content_dir.join("assets");
-    
+
     if !assets_dir.exists() {
         fs::create_dir_all(&assets_dir)?;
     }
-    
+
     Ok(assets_dir)
 }
 
@@ -43,11 +40,11 @@ pub fn get_assets_dir(app_handle: &AppHandle) -> Result<PathBuf> {
 pub fn get_templates_dir(app_handle: &AppHandle) -> Result<PathBuf> {
     let app_dir = get_app_dir(app_handle)?;
     let templates_dir = app_dir.join("templates");
-    
+
     if !templates_dir.exists() {
         fs::create_dir_all(&templates_dir)?;
     }
-    
+
     Ok(templates_dir)
 }
 
@@ -55,11 +52,11 @@ pub fn get_templates_dir(app_handle: &AppHandle) -> Result<PathBuf> {
 pub fn get_styles_dir(app_handle: &AppHandle) -> Result<PathBuf> {
     let app_dir = get_app_dir(app_handle)?;
     let styles_dir = app_dir.join("styles");
-    
+
     if !styles_dir.exists() {
         fs::create_dir_all(&styles_dir)?;
     }
-    
+
     Ok(styles_dir)
 }
 
@@ -80,14 +77,11 @@ pub fn get_typst_path(app_handle: &AppHandle) -> Result<PathBuf> {
         }
     }
 
-    // On Unix-like systems, try `which typst` as an additional check (covers AppImage environments)
+    // On Unix-like systems, try `which typst` as an additional check (covers
+    // AppImage environments)
     #[cfg(unix)]
     {
-        if let Ok(output) = std::process::Command::new("sh")
-            .arg("-c")
-            .arg("which typst || true")
-            .output()
-        {
+        if let Ok(output) = std::process::Command::new("sh").arg("-c").arg("which typst || true").output() {
             if output.status.success() {
                 if let Ok(found) = String::from_utf8(output.stdout) {
                     let found = found.trim();
@@ -143,11 +137,7 @@ pub fn get_typst_path(app_handle: &AppHandle) -> Result<PathBuf> {
         }
     }
 
-    let attempted_list = attempted
-        .iter()
-        .map(|p| p.display().to_string())
-        .collect::<Vec<_>>()
-        .join(", ");
+    let attempted_list = attempted.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(", ");
     // As a final fallback, check user preferences for an explicit typst_path
     if let Ok(content_dir) = get_content_dir(app_handle) {
         let prefs_path = content_dir.join("prefs.json");

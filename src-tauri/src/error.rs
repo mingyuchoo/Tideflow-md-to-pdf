@@ -7,7 +7,8 @@ use std::io;
 use std::path::PathBuf;
 use thiserror::Error;
 
-/// Main application error type with specific variants for different failure scenarios.
+/// Main application error type with specific variants for different failure
+/// scenarios.
 #[allow(dead_code)]
 #[derive(Error, Debug)]
 pub enum AppError {
@@ -101,25 +102,25 @@ impl AppError {
     /// This is used by Tauri commands that return Result<T, String>.
     pub fn to_frontend_message(&self) -> String {
         match self {
-            AppError::TypstNotFound => {
-                "Typst binary not found. Please install Typst system-wide or check your installation.".to_string()
-            }
-            AppError::TypstCompilation(msg) => {
+            | AppError::TypstNotFound => "Typst binary not found. Please install Typst system-wide or check your installation.".to_string(),
+            | AppError::TypstCompilation(msg) => {
                 format!("Compilation error: {}", msg)
-            }
-            AppError::FileNotFound(path) => {
+            },
+            | AppError::FileNotFound(path) => {
                 format!("File not found: {}", path.display())
-            }
-            AppError::InvalidPath(path) => {
+            },
+            | AppError::InvalidPath(path) => {
                 format!("Invalid file path: {}", path)
-            }
-            AppError::ImageImport { path, .. } => {
+            },
+            | AppError::ImageImport {
+                path, ..
+            } => {
                 format!("Failed to import image: {}", path.display())
-            }
-            AppError::UnsupportedImageFormat(format) => {
+            },
+            | AppError::UnsupportedImageFormat(format) => {
                 format!("Unsupported image format: {}", format)
-            }
-            _ => self.to_string(),
+            },
+            | _ => self.to_string(),
         }
     }
 }
@@ -134,9 +135,15 @@ pub trait ResultExt<T> {
 impl<T> ResultExt<T> for Result<T, io::Error> {
     fn with_file_context(self, path: PathBuf, operation: &str) -> AppResult<T> {
         self.map_err(|source| match operation {
-            "read" => AppError::FileRead { path, source },
-            "write" => AppError::FileWrite { path, source },
-            _ => AppError::Io(source),
+            | "read" => AppError::FileRead {
+                path,
+                source,
+            },
+            | "write" => AppError::FileWrite {
+                path,
+                source,
+            },
+            | _ => AppError::Io(source),
         })
     }
 }

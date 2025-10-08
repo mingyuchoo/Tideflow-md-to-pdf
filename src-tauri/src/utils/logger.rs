@@ -82,10 +82,7 @@ impl Logger {
     #[cfg(debug_assertions)]
     pub fn debug(&self, message: impl Display) {
         let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
-        println!(
-            "[{}] [{}] [DEBUG] {}",
-            timestamp, self.component, message
-        );
+        println!("[{}] [{}] [DEBUG] {}", timestamp, self.component, message);
     }
 
     /// Log a debug message (no-op in release builds)
@@ -103,28 +100,19 @@ impl Logger {
     /// Log a warning message
     pub fn warn(&self, message: impl Display) {
         let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
-        eprintln!(
-            "[{}] [{}] [WARN] {}",
-            timestamp, self.component, message
-        );
+        eprintln!("[{}] [{}] [WARN] {}", timestamp, self.component, message);
     }
 
     /// Log an error message
     pub fn error(&self, message: impl Display) {
         let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
-        eprintln!(
-            "[{}] [{}] [ERROR] {}",
-            timestamp, self.component, message
-        );
+        eprintln!("[{}] [{}] [ERROR] {}", timestamp, self.component, message);
     }
 
     /// Log an error with additional context
     pub fn error_with_context(&self, message: impl Display, error: &dyn std::error::Error) {
         let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
-        eprintln!(
-            "[{}] [{}] [ERROR] {}: {}",
-            timestamp, self.component, message, error
-        );
+        eprintln!("[{}] [{}] [ERROR] {}: {}", timestamp, self.component, message, error);
     }
 
     /// Time an operation (returns elapsed time in milliseconds)
