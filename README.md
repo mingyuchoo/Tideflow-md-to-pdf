@@ -34,7 +34,7 @@ https://github.com/user-attachments/assets/fea9562b-a315-44c1-abc9-1778ab4cd428
 
 ## Tech Stack
 **Core**
-* React 19 + TypeScript + Vite
+* React 19 + TypeScript + Vite + PNPM
 * Tauri (Rust) shell & command layer
 * Typst (bundled binary) for PDF
 
@@ -81,13 +81,13 @@ https://github.com/user-attachments/assets/fea9562b-a315-44c1-abc9-1778ab4cd428
 ```bash
 git clone https://github.com/BDenizKoca/Md-to-PDF.git
 cd Md-to-PDF
-npm install
-npm run tauri:dev
+pnpm install
+pnpm run tauri:dev
 ```
 
 ### Build (Release Bundle)
 ```bash
-npm run tauri:build
+pnpm run tauri:build
 ```
 
 ## Usage
@@ -136,7 +136,7 @@ PRs welcome. Please:
 | Blockquotes not rendering | Ensure you're using standard `>` syntax at the start of lines |
 | Images not showing | Check that image paths are relative to the document or use absolute paths |
 | Theme not applying | Switch themes via the toolbar dropdown, changes apply instantly |
-| App won't start | Check that all dependencies are installed: `npm install` then `npm run tauri:dev` |
+| App won't start | Check that all dependencies are installed: `pnpm install` then `pnpm run tauri:dev` |
 
 ## Third-Party Notices
 Tideflow bundles the official Typst CLI (currently v0.13.1) for macOS, Windows, and Linux so the app works offline out of the box. Typst is available under the MIT OR Apache-2.0 licenses; see the [Typst project](https://github.com/typst/typst) for details. Our release pipeline downloads the upstream archives, verifies their SHA256 digests, and repackages the binaries into the platform bundles.
