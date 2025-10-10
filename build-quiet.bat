@@ -1,6 +1,6 @@
 @echo off
 echo Starting Tauri build...
-cd "C:\Users\Deniz\Desktop\newapp\Md-to-PDF"
+cd "C:\Users\Deniz\Desktop\newapp\Tideflow-md-to-pdf"
 npm run tauri:build > build.log 2>&1
 if %errorlevel% equ 0 (
     echo Build completed successfully!

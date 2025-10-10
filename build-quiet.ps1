@@ -4,7 +4,7 @@
 Write-Host "Starting Tauri build..." -ForegroundColor Green
 
 # Change to project directory
-Set-Location "C:\Users\Deniz\Desktop\newapp\Md-to-PDF"
+Set-Location "C:\Users\Deniz\Desktop\newapp\Tideflow-md-to-pdf"
 
 # Run build with output redirected to log file
 npm run tauri:build > build.log 2>&1
