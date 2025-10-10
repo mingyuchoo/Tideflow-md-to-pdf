@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { renderPdfPages } from '../utils/pdfRenderer';
 import { extractOffsetsFromPdfText } from '../utils/offsets';
-import { convertFileSrc } from '@tauri-apps/api/core';
 import { ANCHOR } from '../constants/timing';
 import type { SourceMap } from '../types';
 
@@ -104,12 +103,26 @@ export function usePdfRenderer(args: UsePdfRendererArgs) {
       // previous render passes preventing the automatic scroll.
       initialForcedScrollDoneRef.current = false;
       try {
-        // Ensure file paths are converted to a browser-loadable URL when
-        // running inside Tauri; convertFileSrc handles file:// -> http(s)
-        // served blob URLs required by pdf.js.
-        const fileUrl = convertFileSrc(compileStatus.pdf_path ?? '') + `?v=${Date.now()}`;
+        // Read PDF as base64 from Tauri backend to bypass asset protocol restrictions
+        const { invoke } = await import('@tauri-apps/api/core');
+        const base64Data = await invoke<string>('read_pdf_as_base64', { 
+          pdfPath: compileStatus.pdf_path 
+        });
+        
+        // Convert base64 to blob URL for pdf.js
+        const binaryString = atob(base64Data);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: 'application/pdf' });
+        const fileUrl = URL.createObjectURL(blob);
+        
         const renderScale = pdfZoom;
         const { doc, metrics } = await renderPdfPages(fileUrl, containerRef.current, renderScale, localCancel, savedPosition, programmaticScrollRef);
+        
+        // Clean up blob URL after rendering
+        URL.revokeObjectURL(fileUrl);
         if (localCancel.canceled) return;
         pdfMetricsRef.current = metrics;
 

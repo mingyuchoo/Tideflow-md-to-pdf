@@ -39,6 +39,7 @@ pub fn run() {
             commands::get_runtime_files,
             commands::cleanup_temp_pdfs,
             commands::open_pdf_in_viewer,
+            commands::read_pdf_as_base64,
             preferences::get_preferences,
             preferences::set_preferences,
             preferences::apply_preferences
