@@ -81,7 +81,7 @@ fn inject_anchors(markdown: &str) -> Result<PreprocessorOutput> {
             // SKIP blockquote tags - they cause issues because the anchor gets inserted
             // between the '>' and the content. We'll still get anchors from the paragraphs
             // inside the blockquote, which is sufficient for scrolling.
-            if matches!(tag, Tag::BlockQuote) {
+            if matches!(tag, Tag::BlockQuote(_)) {
                 continue;
             }
 
@@ -135,8 +135,8 @@ fn is_block_level(tag: &Tag<'_>) -> bool {
     matches!(
         tag,
         Tag::Paragraph
-            | Tag::Heading(..)
-            | Tag::BlockQuote
+            | Tag::Heading { .. }
+            | Tag::BlockQuote(_)
             | Tag::CodeBlock(_)
             | Tag::List(_)
             | Tag::Item
