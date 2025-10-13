@@ -6,9 +6,9 @@
 **Fast, offline-first Markdown → PDF desktop app powered by Typst**  
 Write on the left, get a beautifully typeset PDF on the right – instantly.
 
-[![CI](https://github.com/BDenizKoca/Tideflow-md-to-pdf/actions/workflows/ci.yml/badge.svg)](https://github.com/BDenizKoca/Tideflow-md-to-pdf/actions/workflows/ci.yml)
-[![Release](https://github.com/BDenizKoca/Tideflow-md-to-pdf/actions/workflows/release.yml/badge.svg)](https://github.com/BDenizKoca/Tideflow-md-to-pdf/actions/workflows/release.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+- [![CI](https://github.com/BDenizKoca/Tideflow-md-to-pdf/actions/workflows/ci.yml/badge.svg)](https://github.com/BDenizKoca/Tideflow-md-to-pdf/actions/workflows/ci.yml)
+- [![Release](https://github.com/BDenizKoca/Tideflow-md-to-pdf/actions/workflows/release.yml/badge.svg)](https://github.com/BDenizKoca/Tideflow-md-to-pdf/actions/workflows/release.yml)
+- [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 </div>
 
@@ -28,9 +28,6 @@ I wanted a dead-simple, elegant writing tool that outputs print‑ready PDFs **w
 
 
 https://github.com/user-attachments/assets/fea9562b-a315-44c1-abc9-1778ab4cd428
-
-
-
 
 ## Tech Stack
 **Core**
@@ -82,12 +79,12 @@ https://github.com/user-attachments/assets/fea9562b-a315-44c1-abc9-1778ab4cd428
 git clone https://github.com/BDenizKoca/Tideflow-md-to-pdf.git
 cd Tideflow-md-to-pdf
 pnpm install
-pnpm run tauri:dev
+pnpm run tauri:dev # or `cargo tauri dev`
 ```
 
 ### Build (Release Bundle)
 ```bash
-pnpm run tauri:build
+pnpm run tauri:build # or `cargo tauri build`
 ```
 
 ## Usage
@@ -129,14 +126,14 @@ PRs welcome. Please:
 3. Open PR with clear summary + screenshots if UI
 
 ## Troubleshooting
-| Issue | Fix |
-| ----- | --- |
-| Blank PDF preview | Ensure Typst binary present in `src-tauri/bin/typst/<platform>` |
-| No re-render on edit | Force render with Ctrl+R, or check debounce settings in preferences |
-| Blockquotes not rendering | Ensure you're using standard `>` syntax at the start of lines |
-| Images not showing | Check that image paths are relative to the document or use absolute paths |
-| Theme not applying | Switch themes via the toolbar dropdown, changes apply instantly |
-| App won't start | Check that all dependencies are installed: `pnpm install` then `pnpm run tauri:dev` |
+| Issue                     | Fix                                                                                 |
+| ------------------------- | ----------------------------------------------------------------------------------- |
+| Blank PDF preview         | Ensure Typst binary present in `src-tauri/bin/typst/<platform>`                     |
+| No re-render on edit      | Force render with Ctrl+R, or check debounce settings in preferences                 |
+| Blockquotes not rendering | Ensure you're using standard `>` syntax at the start of lines                       |
+| Images not showing        | Check that image paths are relative to the document or use absolute paths           |
+| Theme not applying        | Switch themes via the toolbar dropdown, changes apply instantly                     |
+| App won't start           | Check that all dependencies are installed: `pnpm install` then `pnpm run tauri:dev` |
 
 ## Third-Party Notices
 Tideflow bundles the official Typst CLI (currently v0.13.1) for macOS, Windows, and Linux so the app works offline out of the box. Typst is available under the MIT OR Apache-2.0 licenses; see the [Typst project](https://github.com/typst/typst) for details. Our release pipeline downloads the upstream archives, verifies their SHA256 digests, and repackages the binaries into the platform bundles.
