@@ -203,6 +203,64 @@ pub async fn rename_file(old_path: &str, new_name: &str) -> Result<String, Strin
 }
 
 #[tauri::command]
+pub async fn list_documents_directory(dir_path: Option<&str>) -> Result<Vec<FileEntry>, String> {
+    // Get the user's documents directory
+    let base_path = if let Some(path) = dir_path {
+        PathBuf::from(path)
+    } else {
+        dirs::document_dir()
+            .ok_or_else(|| "Could not find documents directory".to_string())?
+    };
+
+    if !base_path.exists() {
+        return Err(format!("Directory does not exist: {}", base_path.display()));
+    }
+
+    let entries = fs::read_dir(&base_path).map_err(|e| e.to_string())?;
+    let mut files = Vec::new();
+
+    for entry in entries {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let metadata = entry.metadata().map_err(|e| e.to_string())?;
+        let file_name = entry.file_name().to_string_lossy().to_string();
+
+        // Skip hidden files
+        if file_name.starts_with('.') {
+            continue;
+        }
+
+        let path_str = entry.path().to_string_lossy().to_string();
+
+        // For directories, don't recursively load children (load on demand)
+        let children = if metadata.is_dir() {
+            Some(Vec::new())
+        } else {
+            None
+        };
+
+        files.push(FileEntry {
+            name: file_name,
+            path: path_str,
+            is_dir: metadata.is_dir(),
+            children,
+        });
+    }
+
+    // Sort directories first, then files alphabetically
+    files.sort_by(|a, b| {
+        if a.is_dir && !b.is_dir {
+            std::cmp::Ordering::Less
+        } else if !a.is_dir && b.is_dir {
+            std::cmp::Ordering::Greater
+        } else {
+            a.name.to_lowercase().cmp(&b.name.to_lowercase())
+        }
+    });
+
+    Ok(files)
+}
+
+#[tauri::command]
 pub async fn open_pdf_in_viewer(pdf_path: &str) -> Result<(), String> {
     let path = Path::new(pdf_path);
     if !path.exists() {

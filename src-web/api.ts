@@ -43,6 +43,10 @@ export async function listFiles(dirPath = ''): Promise<FileEntry[]> {
   return invoke('list_files', { dirPath });
 }
 
+export async function listDocumentsDirectory(dirPath?: string): Promise<FileEntry[]> {
+  return invoke('list_documents_directory', { dirPath });
+}
+
 export async function createFile(
   name: string,
   template?: string,

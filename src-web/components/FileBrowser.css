@@ -1,0 +1,132 @@
+.file-browser {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-secondary, #f5f5f5);
+  border-right: 1px solid var(--border-color, #ddd);
+  overflow: hidden;
+}
+
+.file-browser-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--bg-primary, #fff);
+  border-bottom: 1px solid var(--border-color, #ddd);
+}
+
+.file-browser-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #333);
+}
+
+.refresh-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.refresh-btn:hover {
+  background: var(--bg-hover, #e0e0e0);
+}
+
+.file-browser-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.file-browser-content.loading,
+.file-browser-content.error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+  color: var(--text-secondary, #666);
+}
+
+.file-browser-content.error button {
+  padding: 8px 16px;
+  background: var(--primary-color, #007bff);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.file-browser-content.error button:hover {
+  background: var(--primary-color-hover, #0056b3);
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+  font-size: 13px;
+  color: var(--text-primary, #333);
+}
+
+.file-item:hover {
+  background: var(--bg-hover, #e8e8e8);
+}
+
+.file-item.directory {
+  font-weight: 500;
+}
+
+.folder-icon,
+.file-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.file-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.children {
+  margin-left: 0;
+}
+
+.empty-state {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-secondary, #999);
+  font-size: 13px;
+}
+
+/* Scrollbar styling */
+.file-browser-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.file-browser-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.file-browser-content::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb, #ccc);
+  border-radius: 4px;
+}
+
+.file-browser-content::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover, #999);
+}

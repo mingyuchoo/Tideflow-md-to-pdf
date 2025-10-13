@@ -21,6 +21,7 @@ import PDFErrorBoundary from './components/PDFErrorBoundary';
 import Toolbar from './components/Toolbar';
 import StatusBar from './components/StatusBar';
 import { ToastContainer } from './components/ToastContainer';
+import FileBrowser from './components/FileBrowser';
 
 // Create scoped logger for App component
 const appLogger = logger.createScoped('App');
@@ -88,9 +89,7 @@ function App() {
       </div>
     );
   }
-  // Compute default sizes: if collapsed -> editor 100%, else restored or fallback (55/45)
-  const defaultEditorSize = previewCollapsed ? 100 : 50;
-  const defaultPreviewSize = previewCollapsed ? 0 : 50;
+  // Compute panel group key based on preview state
   const panelGroupKey = `pg-fixed-${previewCollapsed ? 'collapsed' : 'open'}`;
 
   return (
@@ -108,9 +107,18 @@ function App() {
       <div className="main-content">
         <PanelGroup key={panelGroupKey} direction="horizontal" style={{ height: '100%', overflow: 'hidden' }}>
           <Panel
-            defaultSize={defaultEditorSize}
+            defaultSize={20}
+            minSize={15}
+            maxSize={35}
+            style={{ overflow: 'hidden', minWidth: 0 }}
+          >
+            <FileBrowser />
+          </Panel>
+          <PanelResizeHandle className="resize-handle" />
+          <Panel
+            defaultSize={previewCollapsed ? 80 : 40}
             minSize={25}
-            maxSize={previewCollapsed ? 100 : 75}
+            maxSize={previewCollapsed ? 85 : 60}
             style={{ overflow: 'hidden', minWidth: 0 }}
           >
             <Editor />
@@ -118,9 +126,9 @@ function App() {
           <PanelResizeHandle className="resize-handle" />
           <Panel
             // When collapsed, force a tiny size
-            defaultSize={defaultPreviewSize}
+            defaultSize={previewCollapsed ? 0 : 40}
             minSize={previewCollapsed ? 0 : 20}
-            maxSize={previewCollapsed ? 0 : 75}
+            maxSize={previewCollapsed ? 0 : 60}
             style={{ 
               overflow: 'hidden', 
               minWidth: 0, 
