@@ -263,7 +263,7 @@ export async function renderPdfPages(
     // Use requestIdleCallback if available, otherwise setTimeout
     const scheduleWork = (callback: () => void) => {
       if ('requestIdleCallback' in window) {
-        (window as any).requestIdleCallback(callback, { timeout: 1000 });
+        (window as Window & { requestIdleCallback: (callback: () => void, options?: { timeout: number }) => number }).requestIdleCallback(callback, { timeout: 1000 });
       } else {
         setTimeout(callback, RENDER_CONFIG.BATCH_DELAY_MS);
       }

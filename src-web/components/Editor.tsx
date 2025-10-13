@@ -333,7 +333,7 @@ const Editor: React.FC = () => {
           currentFile={currentFile || ''}
           preferences={preferences}
           selectedFont={selectedFont}
-          editorView={editorStateRefs.editorViewRef.current}
+          editorViewRef={editorStateRefs.editorViewRef}
           onRender={handleRenderWithPreview}
           onFontChange={handleFontChange}
           onImageInsert={handleImageInsert}

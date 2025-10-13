@@ -27,7 +27,7 @@ interface EditorToolbarProps {
   currentFile: string;
   preferences: Preferences;
   selectedFont: string;
-  editorView: EditorView | null;
+  editorViewRef: React.MutableRefObject<EditorView | null>;
   onRender: () => void;
   onFontChange: (font: string) => void;
   onImageInsert: () => void;
@@ -39,7 +39,7 @@ interface EditorToolbarProps {
 const EditorToolbar: React.FC<EditorToolbarProps> = ({
   preferences,
   selectedFont,
-  editorView,
+  editorViewRef,
   onRender,
   onFontChange,
   onImageInsert,
@@ -52,84 +52,84 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
       {/* Simple Markdown Toolbar */}
       <div className="simple-markdown-toolbar">
         {/* Text Formatting */}
-        <button onClick={() => cmd.bold(editorView!)} title="Bold (Ctrl+B)">
+        <button onClick={() => editorViewRef.current && cmd.bold(editorViewRef.current)} title="Bold (Ctrl+B)">
           <strong>B</strong>
         </button>
-        <button onClick={() => cmd.italic(editorView!)} title="Italic (Ctrl+I)">
+        <button onClick={() => editorViewRef.current && cmd.italic(editorViewRef.current)} title="Italic (Ctrl+I)">
           <em>I</em>
         </button>
-        <button onClick={() => cmd.strike(editorView!)} title="Strikethrough">
+        <button onClick={() => editorViewRef.current && cmd.strike(editorViewRef.current)} title="Strikethrough">
           <s>S</s>
         </button>
-        <button onClick={() => cmd.codeInline(editorView!)} title="Inline Code (Ctrl+`)">
+        <button onClick={() => editorViewRef.current && cmd.codeInline(editorViewRef.current)} title="Inline Code (Ctrl+`)">
           {'</>'}
         </button>
-        <button onClick={() => cmd.link(editorView!)} title="Link (Ctrl+K)">
+        <button onClick={() => editorViewRef.current && cmd.link(editorViewRef.current)} title="Link (Ctrl+K)">
           🔗
         </button>
         
         <div className="toolbar-divider" />
         
         {/* Structure */}
-        <button onClick={() => cmd.heading(editorView!, 1)} title="Heading 1 (Ctrl+Alt+1)">
+        <button onClick={() => editorViewRef.current && cmd.heading(editorViewRef.current, 1)} title="Heading 1 (Ctrl+Alt+1)">
           H1
         </button>
-        <button onClick={() => cmd.heading(editorView!, 2)} title="Heading 2 (Ctrl+Alt+2)">
+        <button onClick={() => editorViewRef.current && cmd.heading(editorViewRef.current, 2)} title="Heading 2 (Ctrl+Alt+2)">
           H2
         </button>
-        <button onClick={() => cmd.heading(editorView!, 3)} title="Heading 3 (Ctrl+Alt+3)">
+        <button onClick={() => editorViewRef.current && cmd.heading(editorViewRef.current, 3)} title="Heading 3 (Ctrl+Alt+3)">
           H3
         </button>
-        <button onClick={() => cmd.quote(editorView!)} title="Blockquote (Ctrl+Shift+Q)">
+        <button onClick={() => editorViewRef.current && cmd.quote(editorViewRef.current)} title="Blockquote (Ctrl+Shift+Q)">
           ""
         </button>
         
         <div className="toolbar-divider" />
         
         {/* Lists */}
-        <button onClick={() => cmd.ul(editorView!)} title="Bullet List (Ctrl+Shift+8)">
+        <button onClick={() => editorViewRef.current && cmd.ul(editorViewRef.current)} title="Bullet List (Ctrl+Shift+8)">
           •
         </button>
-        <button onClick={() => cmd.ol(editorView!)} title="Numbered List (Ctrl+Shift+7)">
+        <button onClick={() => editorViewRef.current && cmd.ol(editorViewRef.current)} title="Numbered List (Ctrl+Shift+7)">
           1.
         </button>
-        <button onClick={() => cmd.task(editorView!)} title="Task List (Ctrl+Shift+9)">
+        <button onClick={() => editorViewRef.current && cmd.task(editorViewRef.current)} title="Task List (Ctrl+Shift+9)">
           ☐
         </button>
         
         <div className="toolbar-divider" />
         
         {/* Alignment */}
-        <button onClick={() => cmd.alignBlock(editorView!, 'left')} title="Align Left">
+        <button onClick={() => editorViewRef.current && cmd.alignBlock(editorViewRef.current, 'left')} title="Align Left">
           ⬅
         </button>
-        <button onClick={() => cmd.alignBlock(editorView!, 'center')} title="Align Center">
+        <button onClick={() => editorViewRef.current && cmd.alignBlock(editorViewRef.current, 'center')} title="Align Center">
           ↔
         </button>
-        <button onClick={() => cmd.alignBlock(editorView!, 'right')} title="Align Right">
+        <button onClick={() => editorViewRef.current && cmd.alignBlock(editorViewRef.current, 'right')} title="Align Right">
           ➡
         </button>
         
         <div className="toolbar-divider" />
         
         {/* History */}
-        <button onClick={() => cmd.undo(editorView!)} title="Undo (Ctrl+Z)">
+        <button onClick={() => editorViewRef.current && cmd.undo(editorViewRef.current)} title="Undo (Ctrl+Z)">
           ↶
         </button>
-        <button onClick={() => cmd.redo(editorView!)} title="Redo (Ctrl+Y)">
+        <button onClick={() => editorViewRef.current && cmd.redo(editorViewRef.current)} title="Redo (Ctrl+Y)">
           ↷
         </button>
         
         <div className="toolbar-divider" />
         
         {/* Insert Content */}
-        <button onClick={() => cmd.table(editorView!)} title="Insert Table">
+        <button onClick={() => editorViewRef.current && cmd.table(editorViewRef.current)} title="Insert Table">
           ▦
         </button>
-        <button onClick={() => cmd.hr(editorView!)} title="Horizontal Rule">
+        <button onClick={() => editorViewRef.current && cmd.hr(editorViewRef.current)} title="Horizontal Rule">
           ―
         </button>
-        <button onClick={() => cmd.footnote(editorView!)} title="Insert Footnote">
+        <button onClick={() => editorViewRef.current && cmd.footnote(editorViewRef.current)} title="Insert Footnote">
           ⁵
         </button>
         
@@ -160,13 +160,13 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
         <div className="toolbar-divider" />
         
         {/* Layout & Advanced */}
-        <button onClick={() => cmd.columnsNoBorder(editorView!)} title="Insert 2 Columns">
+        <button onClick={() => editorViewRef.current && cmd.columnsNoBorder(editorViewRef.current)} title="Insert 2 Columns">
           ⫴
         </button>
-        <button onClick={() => cmd.pagebreak(editorView!)} title="Page Break">
+        <button onClick={() => editorViewRef.current && cmd.pagebreak(editorViewRef.current)} title="Page Break">
           ⤓⤒
         </button>
-        <button onClick={() => cmd.vspace(editorView!, '8pt')} title="Vertical Space">
+        <button onClick={() => editorViewRef.current && cmd.vspace(editorViewRef.current, '8pt')} title="Vertical Space">
           ↕
         </button>
         
@@ -188,10 +188,10 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
             ))}
           </select>
         </div>
-        <button onClick={() => cmd.sizeLocal(editorView!, 'small')} title="Decrease Text Size">
+        <button onClick={() => editorViewRef.current && cmd.sizeLocal(editorViewRef.current, 'small')} title="Decrease Text Size">
           A−
         </button>
-        <button onClick={() => cmd.sizeLocal(editorView!, 'large')} title="Increase Text Size">
+        <button onClick={() => editorViewRef.current && cmd.sizeLocal(editorViewRef.current, 'large')} title="Increase Text Size">
           A+
         </button>
         

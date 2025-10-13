@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { listDocumentsDirectory, readMarkdownFile, deleteFile, renameFile, createFile } from '../api';
+import { listDocumentsDirectory, readMarkdownFile, deleteFile, renameFile } from '../api';
 import { useEditorStore } from '../stores/editorStore';
 import { useUIStore } from '../stores/uiStore';
 import type { FileEntry } from '../types';

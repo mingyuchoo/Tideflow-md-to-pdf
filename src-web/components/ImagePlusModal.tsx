@@ -59,9 +59,11 @@ export function ImagePlusModal({
   const [position, setPosition] = useState<LayoutPosition>('image-left');
   const firstFieldRef = useRef<HTMLInputElement | null>(null);
 
+  // Initialize state when modal opens
   useEffect(() => {
     if (!open) return;
-
+    
+    // Batch state updates to avoid cascading renders
     setMode('figure');
     setPath(initialPath);
     setWidth(defaultWidth);
