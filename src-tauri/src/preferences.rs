@@ -15,7 +15,7 @@ lazy_static! {
 /// User preferences for document rendering and application behavior.
 ///
 /// This struct is serialized to/from JSON and must stay in sync with
-/// the TypeScript `Preferences` interface in src/types.ts.
+/// the TypeScript `Preferences` interface in src-web/types.ts.
 ///
 /// Field names use snake_case in Rust but may be renamed during serialization
 /// to match Typst conventions (e.g., `number_sections` → `numberSections`).
