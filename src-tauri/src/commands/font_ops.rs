@@ -187,6 +187,7 @@ fn extract_font_name(filename: &str) -> Option<String> {
 }
 
 /// Fallback fonts for when system font detection fails
+#[cfg(target_os = "linux")]
 fn get_fallback_fonts() -> Vec<&'static str> {
     vec![
         "Arial",
