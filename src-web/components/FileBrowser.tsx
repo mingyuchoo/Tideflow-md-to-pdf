@@ -106,20 +106,6 @@ export default function FileBrowser() {
     });
   };
 
-  const handleNewFile = async () => {
-    try {
-      const fileName = prompt('새 파일 이름을 입력하세요:', 'untitled.md');
-      if (!fileName) return;
-
-      const finalName = fileName.endsWith('.md') ? fileName : `${fileName}.md`;
-      await createFile(finalName);
-      await loadFiles();
-      setContextMenu({ visible: false, x: 0, y: 0, file: null, isEmptySpace: false });
-    } catch (err) {
-      alert(`파일 생성 실패: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  };
-
   const handleRename = (file: FileEntry) => {
     setRenamingFile(file.path);
     setNewFileName(file.name);
@@ -145,15 +131,15 @@ export default function FileBrowser() {
       await loadFiles();
       setRenamingFile(null);
     } catch (err) {
-      alert(`파일 이름 변경 실패: ${err instanceof Error ? err.message : String(err)}`);
+      alert(`파일 Rename 실패: ${err instanceof Error ? err.message : String(err)}`);
       setRenamingFile(null);
     }
   };
 
   const handleDelete = async (file: FileEntry) => {
     const confirmMsg = file.is_dir
-      ? `폴더 "${file.name}"와 그 안의 모든 파일을 삭제하시겠습니까?`
-      : `파일 "${file.name}"을 삭제하시겠습니까?`;
+      ? `Would you like to delete the folder "${file.name}" and all files inside it?`
+      : `Would you like to delete the file "${file.name}"?`;
 
     if (!confirm(confirmMsg)) {
       setContextMenu({ visible: false, x: 0, y: 0, file: null, isEmptySpace: false });
@@ -173,7 +159,7 @@ export default function FileBrowser() {
       await loadFiles();
       setContextMenu({ visible: false, x: 0, y: 0, file: null, isEmptySpace: false });
     } catch (err) {
-      alert(`삭제 실패: ${err instanceof Error ? err.message : String(err)}`);
+      alert(`Failed delete: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
@@ -281,20 +267,12 @@ export default function FileBrowser() {
             left: contextMenu.x,
           }}
         >
-          {contextMenu.isEmptySpace ? (
-            <div className="context-menu-item" onClick={handleNewFile}>
-              ➕ 새 파일
-            </div>
-          ) : (
-            <>
-              <div className="context-menu-item" onClick={() => contextMenu.file && handleRename(contextMenu.file)}>
-                ✏️ 이름 변경
-              </div>
-              <div className="context-menu-item delete" onClick={() => contextMenu.file && handleDelete(contextMenu.file)}>
-                🗑️ 삭제
-              </div>
-            </>
-          )}
+          <div className="context-menu-item" onClick={() => contextMenu.file && handleRename(contextMenu.file)}>
+            ✏️ Rename
+          </div>
+          <div className="context-menu-item delete" onClick={() => contextMenu.file && handleDelete(contextMenu.file)}>
+            🗑️ Delete
+          </div>
         </div>
       )}
     </div>
