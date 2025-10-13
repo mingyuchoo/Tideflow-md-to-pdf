@@ -1,42 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import type { TabProps } from './types';
-import { getSystemFonts } from '../../api';
+import { useFontStore } from '../../stores/fontStore';
 
 const TypographyTab: React.FC<TabProps> = ({ local, mutate }) => {
-  const [systemFonts, setSystemFonts] = useState<string[]>([]);
-  const [monoFonts, setMonoFonts] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { fonts: systemFonts, monoFonts, isLoading: loading, loadFonts } = useFontStore();
 
   useEffect(() => {
-    const loadFonts = async () => {
-      try {
-        const fonts = await getSystemFonts();
-        
-        // Common monospace font names to filter
-        const monoKeywords = ['mono', 'console', 'courier', 'code', 'terminal', 'fixed', 'typewriter'];
-        
-        const mono = fonts.filter(font => 
-          monoKeywords.some(keyword => font.toLowerCase().includes(keyword))
-        );
-        
-        setSystemFonts(fonts);
-        setMonoFonts(mono.length > 0 ? mono : fonts);
-      } catch (error) {
-        console.error('Failed to load system fonts:', error);
-        // Fallback to default fonts
-        setSystemFonts([
-          'Arial', 'Calibri', 'Cambria', 'Candara', 'Comic Sans MS',
-          'Constantia', 'Corbel', 'Georgia', 'Palatino Linotype',
-          'Segoe UI', 'Tahoma', 'Times New Roman', 'Trebuchet MS', 'Verdana'
-        ]);
-        setMonoFonts(['Consolas', 'Courier New', 'Lucida Console']);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
+    // Load fonts from cache or system (only once per app session)
     loadFonts();
-  }, []);
+  }, [loadFonts]);
 
   return (
     <div className="tab-panel">

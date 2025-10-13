@@ -1,11 +1,30 @@
 //! Font operations for listing system fonts
 
-use std::collections::BTreeSet;
+use once_cell::sync::Lazy;
+use std::collections::HashSet;
+use std::sync::{Arc, Mutex};
 use tauri::command;
 
-/// Get list of all system fonts
+// Global font cache to avoid repeated filesystem scans
+static FONT_CACHE: Lazy<Arc<Mutex<Option<Vec<String>>>>> = Lazy::new(|| Arc::new(Mutex::new(None)));
+
+/// Get list of all system fonts (cached)
 #[command]
 pub fn get_system_fonts() -> Result<Vec<String>, String> {
+    // Check cache first
+    let mut cache = FONT_CACHE.lock().unwrap();
+    if let Some(fonts) = cache.as_ref() {
+        return Ok(fonts.clone());
+    }
+
+    // Cache miss - load from system
+    let fonts = load_fonts_from_system()?;
+    *cache = Some(fonts.clone());
+    Ok(fonts)
+}
+
+/// Load fonts from system (platform-specific)
+fn load_fonts_from_system() -> Result<Vec<String>, String> {
     #[cfg(target_os = "windows")]
     {
         get_windows_fonts()
@@ -27,7 +46,7 @@ fn get_windows_fonts() -> Result<Vec<String>, String> {
     use std::fs;
     use std::path::Path;
 
-    let mut fonts = BTreeSet::new();
+    let mut fonts = HashSet::new();
 
     // Windows fonts directory
     let windows_dir = std::env::var("WINDIR").unwrap_or_else(|_| "C:\\Windows".to_string());
@@ -57,14 +76,16 @@ fn get_windows_fonts() -> Result<Vec<String>, String> {
         }
     }
 
-    Ok(fonts.into_iter().collect())
+    let mut result: Vec<String> = fonts.into_iter().collect();
+    result.sort();
+    Ok(result)
 }
 
 #[cfg(target_os = "linux")]
 fn get_linux_fonts() -> Result<Vec<String>, String> {
     use std::process::Command;
 
-    let mut fonts = BTreeSet::new();
+    let mut fonts = HashSet::new();
 
     // Use fc-list to get system fonts
     if let Ok(output) = Command::new("fc-list").arg(":").arg("family").output() {
@@ -87,7 +108,9 @@ fn get_linux_fonts() -> Result<Vec<String>, String> {
         fonts.extend(get_fallback_fonts().into_iter().map(String::from));
     }
 
-    Ok(fonts.into_iter().collect())
+    let mut result: Vec<String> = fonts.into_iter().collect();
+    result.sort();
+    Ok(result)
 }
 
 #[cfg(target_os = "macos")]
@@ -95,7 +118,7 @@ fn get_macos_fonts() -> Result<Vec<String>, String> {
     use std::fs;
     use std::path::Path;
 
-    let mut fonts = BTreeSet::new();
+    let mut fonts = HashSet::new();
 
     // macOS font directories
     let mut font_dirs = vec!["/System/Library/Fonts", "/Library/Fonts"];
@@ -119,7 +142,9 @@ fn get_macos_fonts() -> Result<Vec<String>, String> {
         }
     }
 
-    Ok(fonts.into_iter().collect())
+    let mut result: Vec<String> = fonts.into_iter().collect();
+    result.sort();
+    Ok(result)
 }
 
 /// Extract font name from filename
