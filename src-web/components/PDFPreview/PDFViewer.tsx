@@ -1,7 +1,7 @@
 import React from 'react';
 import type { PDFViewerProps } from './types';
 
-const PDFViewer: React.FC<PDFViewerProps> = ({ 
+const PDFViewer: React.FC<PDFViewerProps> = React.memo(({ 
   containerRef, 
   rendering, 
   compileStatus, 
@@ -45,6 +45,16 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
       <p>Open a markdown file to see the PDF preview</p>
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison for shallow equality check
+  return (
+    prevProps.rendering === nextProps.rendering &&
+    prevProps.pdfError === nextProps.pdfError &&
+    prevProps.compileStatus.status === nextProps.compileStatus.status &&
+    prevProps.compileStatus.pdf_path === nextProps.compileStatus.pdf_path &&
+    prevProps.compileStatus.message === nextProps.compileStatus.message &&
+    prevProps.compileStatus.details === nextProps.compileStatus.details
+  );
+});
 
 export default PDFViewer;

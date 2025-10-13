@@ -396,11 +396,11 @@ const PDFPreview: React.FC = () => {
     };
   }, [compileStatus.pdf_path, rendering, containerRef]);
 
-  const handlePageClick = (pageNum: number) => {
+  const handlePageClick = useCallback((pageNum: number) => {
     const container = containerRef.current;
     if (!container) return;
     scrollToPageUtil(container, pageNum);
-  };
+  }, [containerRef]);
 
   return (
     <div className="pdf-preview">

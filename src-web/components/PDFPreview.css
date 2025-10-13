@@ -606,6 +606,48 @@
   border-radius: var(--border-radius);
 }
 
+/* Optimized PDF rendering with placeholders */
+.pdfjs-page-placeholder {
+  display: block;
+  margin: 0 auto 24px auto;
+  background: #f3f4f6;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  border-radius: var(--border-radius);
+  position: relative;
+  overflow: hidden;
+}
+
+.pdfjs-page-placeholder::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.4),
+    transparent
+  );
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+.pdfjs-page-placeholder .pdfjs-page-canvas {
+  margin: 0;
+  box-shadow: none;
+  border-radius: 0;
+}
+
 .pdfjs-loading-overlay {
   position: absolute;
   inset: 0;

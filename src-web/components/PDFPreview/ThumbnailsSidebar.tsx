@@ -2,7 +2,7 @@ import React from 'react';
 import type { ThumbnailsProps } from './types';
 import { useDragToScroll } from '../../hooks/useDragToScroll';
 
-const ThumbnailsSidebar: React.FC<ThumbnailsProps> = ({ 
+const ThumbnailsSidebar: React.FC<ThumbnailsProps> = React.memo(({ 
   thumbnails, 
   currentPage, 
   totalPages, 
@@ -10,12 +10,17 @@ const ThumbnailsSidebar: React.FC<ThumbnailsProps> = ({
 }) => {
   const thumbnailsListRef = useDragToScroll<HTMLDivElement>();
   
+  // Memoize thumbnail entries to avoid recreating array on every render
+  const thumbnailEntries = React.useMemo(() => {
+    return Array.from(thumbnails.entries());
+  }, [thumbnails]);
+  
   return (
     <div className="pdf-thumbnails-sidebar">
       <div className="thumbnails-header">Pages ({totalPages || '...'})</div>
       <div className="thumbnails-list" id="thumbnails-list" ref={thumbnailsListRef}>
         {thumbnails.size > 0 ? (
-          Array.from(thumbnails.entries()).map(([pageNum, dataUrl]) => (
+          thumbnailEntries.map(([pageNum, dataUrl]) => (
             <div
               key={pageNum}
               className={`thumbnail-item ${currentPage === pageNum ? 'active' : ''}`}
@@ -34,6 +39,14 @@ const ThumbnailsSidebar: React.FC<ThumbnailsProps> = ({
       </div>
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison - only re-render if these specific props change
+  return (
+    prevProps.currentPage === nextProps.currentPage &&
+    prevProps.totalPages === nextProps.totalPages &&
+    prevProps.thumbnails.size === nextProps.thumbnails.size &&
+    prevProps.onPageClick === nextProps.onPageClick
+  );
+});
 
 export default ThumbnailsSidebar;

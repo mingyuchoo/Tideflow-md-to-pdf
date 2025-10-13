@@ -16,7 +16,8 @@ interface Props {
   setPdfZoom: (zoom: number) => void;
 }
 
-const PDFPreviewHeader: React.FC<Props> = ({ pdfZoom, setPdfZoom }) => {
+const PDFPreviewHeader: React.FC<Props> = React.memo(({ pdfZoom, setPdfZoom }) => {
+  // Selective subscriptions - only subscribe to what we need
   const syncMode = useEditorStore((state) => state.syncMode);
   const setSyncMode = useEditorStore((state) => state.setSyncMode);
   const syncEnabled = useEditorStore((state) => state.syncEnabled);
@@ -27,11 +28,9 @@ const PDFPreviewHeader: React.FC<Props> = ({ pdfZoom, setPdfZoom }) => {
   const thumbnailsVisible = useUIStore((state) => state.thumbnailsVisible);
   const setThumbnailsVisible = useUIStore((state) => state.setThumbnailsVisible);
   const setDesignModalOpen = useUIStore((s) => s.setDesignModalOpen);
-  const {
-    themeSelection,
-    setThemeSelection,
-    setPreferences,
-  } = usePreferencesStore();
+  const themeSelection = usePreferencesStore((state) => state.themeSelection);
+  const setThemeSelection = usePreferencesStore((state) => state.setThemeSelection);
+  const setPreferences = usePreferencesStore((state) => state.setPreferences);
   
   const zoomLevels = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
   const currentZoomIndex = zoomLevels.indexOf(pdfZoom);
@@ -79,18 +78,77 @@ const PDFPreviewHeader: React.FC<Props> = ({ pdfZoom, setPdfZoom }) => {
     }
   };
   
+  // Memoize handlers to prevent recreation on every render
+  const handleZoomOut = React.useCallback(() => {
+    const currentIndex = zoomLevels.indexOf(pdfZoom);
+    if (currentIndex > 0) {
+      setPdfZoom(zoomLevels[currentIndex - 1]);
+    }
+  }, [pdfZoom, setPdfZoom]);
+
+  const handleZoomIn = React.useCallback(() => {
+    const currentIndex = zoomLevels.indexOf(pdfZoom);
+    if (currentIndex < zoomLevels.length - 1) {
+      setPdfZoom(zoomLevels[currentIndex + 1]);
+    }
+  }, [pdfZoom, setPdfZoom]);
+
+  const handleZoomReset = React.useCallback(() => {
+    setPdfZoom(1.0);
+  }, [setPdfZoom]);
+
+  const handleSyncModeToggle = React.useCallback(() => {
+    const newMode: SyncMode = syncMode === 'two-way' ? 'auto' : 'two-way';
+    setSyncMode(newMode);
+    addToast({ 
+      type: 'success', 
+      message: newMode === 'two-way' ? 'Two-way sync enabled' : 'One-way sync enabled' 
+    });
+  }, [syncMode, setSyncMode, addToast]);
+
+  const handleSyncToggle = React.useCallback(() => {
+    const newEnabled = !syncEnabled;
+    setSyncEnabled(newEnabled);
+    addToast({ 
+      type: 'info', 
+      message: newEnabled ? 'Scroll sync enabled' : 'Scroll sync disabled' 
+    });
+  }, [syncEnabled, setSyncEnabled, addToast]);
+
+  const handlePrint = React.useCallback(async () => {
+    const pdfPath = compileStatus.pdf_path;
+    if (pdfPath) {
+      try {
+        await openPdfInViewer(pdfPath);
+        addToast({ 
+          type: 'success', 
+          message: 'PDF sent to printer' 
+        });
+      } catch (error) {
+        addToast({ 
+          type: 'error', 
+          message: `Failed to print PDF: ${error}` 
+        });
+      }
+    } else {
+      addToast({ 
+        type: 'error', 
+        message: 'No PDF available to print' 
+      });
+    }
+  }, [compileStatus.pdf_path, addToast]);
+
+  const handleThumbnailsToggle = React.useCallback(() => {
+    setThumbnailsVisible(!thumbnailsVisible);
+  }, [thumbnailsVisible, setThumbnailsVisible]);
+
   return (
     <div className="pdf-preview-header">
       <div className="pdf-preview-actions sync-controls">
         <div className="zoom-controls">
           <button
             type="button"
-            onClick={() => {
-              const currentIndex = zoomLevels.indexOf(pdfZoom);
-              if (currentIndex > 0) {
-                setPdfZoom(zoomLevels[currentIndex - 1]);
-              }
-            }}
+            onClick={handleZoomOut}
             title="Zoom out"
             className="zoom-btn"
             disabled={currentZoomIndex === 0}
@@ -102,12 +160,7 @@ const PDFPreviewHeader: React.FC<Props> = ({ pdfZoom, setPdfZoom }) => {
           </span>
           <button
             type="button"
-            onClick={() => {
-              const currentIndex = zoomLevels.indexOf(pdfZoom);
-              if (currentIndex < zoomLevels.length - 1) {
-                setPdfZoom(zoomLevels[currentIndex + 1]);
-              }
-            }}
+            onClick={handleZoomIn}
             title="Zoom in"
             className="zoom-btn"
             disabled={currentZoomIndex === zoomLevels.length - 1}
@@ -116,7 +169,7 @@ const PDFPreviewHeader: React.FC<Props> = ({ pdfZoom, setPdfZoom }) => {
           </button>
           <button
             type="button"
-            onClick={() => setPdfZoom(1.0)}
+            onClick={handleZoomReset}
             title="Reset zoom to 100%"
             className="zoom-reset-btn"
             disabled={pdfZoom === 1.0}
@@ -186,14 +239,7 @@ const PDFPreviewHeader: React.FC<Props> = ({ pdfZoom, setPdfZoom }) => {
         </div>
         <button
           type="button"
-          onClick={() => {
-            const newMode: SyncMode = syncMode === 'two-way' ? 'auto' : 'two-way';
-            setSyncMode(newMode);
-            addToast({ 
-              type: 'success', 
-              message: newMode === 'two-way' ? 'Two-way sync enabled' : 'One-way sync enabled' 
-            });
-          }}
+          onClick={handleSyncModeToggle}
           title={syncMode === 'two-way' ? 'Switch to one-way sync' : 'Enable two-way sync (PDF scroll updates editor)'}
           className="sync-mode-btn"
         >
@@ -201,14 +247,7 @@ const PDFPreviewHeader: React.FC<Props> = ({ pdfZoom, setPdfZoom }) => {
         </button>
         <button
           type="button"
-          onClick={() => {
-            const newEnabled = !syncEnabled;
-            setSyncEnabled(newEnabled);
-            addToast({ 
-              type: 'info', 
-              message: newEnabled ? 'Scroll sync enabled' : 'Scroll sync disabled' 
-            });
-          }}
+          onClick={handleSyncToggle}
           title={syncEnabled ? 'Disable scroll synchronization' : 'Enable scroll synchronization'}
           className={`sync-toggle-btn ${syncEnabled ? 'sync-enabled' : 'sync-disabled'}`}
         >
@@ -217,29 +256,7 @@ const PDFPreviewHeader: React.FC<Props> = ({ pdfZoom, setPdfZoom }) => {
         <div className="toolbar-separator"></div>
         <button
           type="button"
-          onClick={async () => {
-            // Send PDF directly to default printer
-            const pdfPath = compileStatus.pdf_path;
-            if (pdfPath) {
-              try {
-                await openPdfInViewer(pdfPath);
-                addToast({ 
-                  type: 'success', 
-                  message: 'PDF sent to printer' 
-                });
-              } catch (error) {
-                addToast({ 
-                  type: 'error', 
-                  message: `Failed to print PDF: ${error}` 
-                });
-              }
-            } else {
-              addToast({ 
-                type: 'error', 
-                message: 'No PDF available to print' 
-              });
-            }
-          }}
+          onClick={handlePrint}
           title="Print PDF to default printer"
           className="sync-mode-btn"
           disabled={!compileStatus.pdf_path || compileStatus.status !== 'ok'}
@@ -248,7 +265,7 @@ const PDFPreviewHeader: React.FC<Props> = ({ pdfZoom, setPdfZoom }) => {
         </button>
         <button
           type="button"
-          onClick={() => setThumbnailsVisible(!thumbnailsVisible)}
+          onClick={handleThumbnailsToggle}
           title={thumbnailsVisible ? 'Hide page thumbnails' : 'Show page thumbnails'}
           className="sync-mode-btn"
         >
@@ -257,6 +274,6 @@ const PDFPreviewHeader: React.FC<Props> = ({ pdfZoom, setPdfZoom }) => {
       </div>
     </div>
   );
-};
+});
 
 export default PDFPreviewHeader;

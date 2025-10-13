@@ -3,14 +3,28 @@ import { useEditorStore } from '../stores/editorStore';
 import { usePreferencesStore } from '../stores/preferencesStore';
 import './StatusBar.css';
 
-const StatusBar: React.FC = () => {
-  const { editor, scrollLocked } = useEditorStore();
-  const preferences = usePreferencesStore((state) => state.preferences);
-  const { currentFile, modified, compileStatus, content } = editor;
+const StatusBar: React.FC = React.memo(() => {
+  // Selective subscriptions - only subscribe to what we need
+  const currentFile = useEditorStore((state) => state.editor.currentFile);
+  const modified = useEditorStore((state) => state.editor.modified);
+  const compileStatus = useEditorStore((state) => state.editor.compileStatus);
+  const content = useEditorStore((state) => state.editor.content);
+  const scrollLocked = useEditorStore((state) => state.scrollLocked);
+  
+  // Only subscribe to specific preference fields
+  const papersize = usePreferencesStore((state) => state.preferences.papersize);
+  const margin = usePreferencesStore((state) => state.preferences.margin);
+  const toc = usePreferencesStore((state) => state.preferences.toc);
+  const cover_page = usePreferencesStore((state) => state.preferences.cover_page);
 
-  // Calculate word and character counts
-  const wordCount = content ? content.trim().split(/\s+/).filter(w => w.length > 0).length : 0;
-  const charCount = content ? content.length : 0;
+  // Memoize expensive calculations
+  const wordCount = React.useMemo(() => {
+    return content ? content.trim().split(/\s+/).filter(w => w.length > 0).length : 0;
+  }, [content]);
+  
+  const charCount = React.useMemo(() => {
+    return content ? content.length : 0;
+  }, [content]);
 
   const getStatusText = () => {
     if (!currentFile) {
@@ -66,20 +80,20 @@ const StatusBar: React.FC = () => {
           </span>
         )}
         <span className="status-item">
-          Paper: {preferences.papersize.toUpperCase()}
+          Paper: {papersize.toUpperCase()}
         </span>
         <span className="status-item">
-          Margins: {preferences.margin.x} × {preferences.margin.y}
+          Margins: {margin.x} × {margin.y}
         </span>
         <span className="status-item">
-          TOC: {preferences.toc ? 'On' : 'Off'}
+          TOC: {toc ? 'On' : 'Off'}
         </span>
         <span className="status-item">
-          Cover: {preferences.cover_page ? 'On' : 'Off'}
+          Cover: {cover_page ? 'On' : 'Off'}
         </span>
       </div>
     </div>
   );
-};
+});
 
 export default StatusBar;
