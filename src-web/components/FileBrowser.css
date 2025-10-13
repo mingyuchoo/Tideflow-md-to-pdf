@@ -130,3 +130,54 @@
 .file-browser-content::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover, #999);
 }
+
+/* Context Menu */
+.context-menu {
+  background: white;
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 4px 0;
+  min-width: 160px;
+  z-index: 10000;
+}
+
+.context-menu-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary, #333);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.15s;
+}
+
+.context-menu-item:hover {
+  background: var(--bg-hover, #f0f0f0);
+}
+
+.context-menu-item.delete {
+  color: #dc3545;
+}
+
+.context-menu-item.delete:hover {
+  background: #fff5f5;
+}
+
+/* Rename Input */
+.rename-input {
+  flex: 1;
+  padding: 2px 6px;
+  border: 1px solid var(--primary-color, #007bff);
+  border-radius: 3px;
+  font-size: 13px;
+  outline: none;
+  background: white;
+  color: var(--text-primary, #333);
+}
+
+.rename-input:focus {
+  border-color: var(--primary-color, #007bff);
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
+}
