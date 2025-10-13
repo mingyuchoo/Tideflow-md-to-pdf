@@ -453,3 +453,8 @@ export async function cleanupTempPdfs(keepLastN?: number): Promise<{
 export async function openPdfInViewer(pdfPath: string): Promise<void> {
   return invoke('open_pdf_in_viewer', { pdfPath });
 }
+
+// Get list of all system fonts
+export async function getSystemFonts(): Promise<string[]> {
+  return invoke('get_system_fonts');
+}

@@ -1,7 +1,43 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import type { TabProps } from './types';
+import { getSystemFonts } from '../../api';
 
 const TypographyTab: React.FC<TabProps> = ({ local, mutate }) => {
+  const [systemFonts, setSystemFonts] = useState<string[]>([]);
+  const [monoFonts, setMonoFonts] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadFonts = async () => {
+      try {
+        const fonts = await getSystemFonts();
+        
+        // Common monospace font names to filter
+        const monoKeywords = ['mono', 'console', 'courier', 'code', 'terminal', 'fixed', 'typewriter'];
+        
+        const mono = fonts.filter(font => 
+          monoKeywords.some(keyword => font.toLowerCase().includes(keyword))
+        );
+        
+        setSystemFonts(fonts);
+        setMonoFonts(mono.length > 0 ? mono : fonts);
+      } catch (error) {
+        console.error('Failed to load system fonts:', error);
+        // Fallback to default fonts
+        setSystemFonts([
+          'Arial', 'Calibri', 'Cambria', 'Candara', 'Comic Sans MS',
+          'Constantia', 'Corbel', 'Georgia', 'Palatino Linotype',
+          'Segoe UI', 'Tahoma', 'Times New Roman', 'Trebuchet MS', 'Verdana'
+        ]);
+        setMonoFonts(['Consolas', 'Courier New', 'Lucida Console']);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadFonts();
+  }, []);
+
   return (
     <div className="tab-panel">
       <h3>Typography</h3>
@@ -10,20 +46,15 @@ const TypographyTab: React.FC<TabProps> = ({ local, mutate }) => {
           <select
             value={local.fonts.main}
             onChange={e => mutate({ fonts: { ...local.fonts, main: e.target.value } })}
+            disabled={loading}
           >
-            <option value="Segoe UI">Segoe UI</option>
-            <option value="Arial">Arial</option>
-            <option value="Calibri">Calibri</option>
-            <option value="Cambria">Cambria</option>
-            <option value="Candara">Candara</option>
-            <option value="Constantia">Constantia</option>
-            <option value="Corbel">Corbel</option>
-            <option value="Georgia">Georgia</option>
-            <option value="Palatino Linotype">Palatino Linotype</option>
-            <option value="Tahoma">Tahoma</option>
-            <option value="Times New Roman">Times New Roman</option>
-            <option value="Trebuchet MS">Trebuchet MS</option>
-            <option value="Verdana">Verdana</option>
+            {loading ? (
+              <option>Loading fonts...</option>
+            ) : (
+              systemFonts.map(font => (
+                <option key={font} value={font}>{font}</option>
+              ))
+            )}
           </select>
           <div className="font-preview" data-font-role="body" data-font-value={local.fonts.main}>{`Aa Bb Cc 123 \u2014 ${local.fonts.main}`}</div>
         </label>
@@ -31,10 +62,15 @@ const TypographyTab: React.FC<TabProps> = ({ local, mutate }) => {
           <select
             value={local.fonts.mono}
             onChange={e => mutate({ fonts: { ...local.fonts, mono: e.target.value } })}
+            disabled={loading}
           >
-            <option value="Consolas">Consolas</option>
-            <option value="Courier New">Courier New</option>
-            <option value="Lucida Console">Lucida Console</option>
+            {loading ? (
+              <option>Loading fonts...</option>
+            ) : (
+              monoFonts.map(font => (
+                <option key={font} value={font}>{font}</option>
+              ))
+            )}
           </select>
           <div className="font-preview" data-font-role="mono" data-font-value={local.fonts.mono}>{`code {sample} <tag/> \u2014 ${local.fonts.mono}`}</div>
           <div className="helper-text">Used for code blocks and inline code</div>
