@@ -203,13 +203,18 @@ pub async fn rename_file(old_path: &str, new_name: &str) -> Result<String, Strin
 }
 
 #[tauri::command]
+pub async fn get_documents_directory() -> Result<String, String> {
+    let docs_dir = dirs::document_dir().ok_or_else(|| "Could not find documents directory".to_string())?;
+    Ok(docs_dir.to_string_lossy().to_string())
+}
+
+#[tauri::command]
 pub async fn list_documents_directory(dir_path: Option<&str>) -> Result<Vec<FileEntry>, String> {
     // Get the user's documents directory
     let base_path = if let Some(path) = dir_path {
         PathBuf::from(path)
     } else {
-        dirs::document_dir()
-            .ok_or_else(|| "Could not find documents directory".to_string())?
+        dirs::document_dir().ok_or_else(|| "Could not find documents directory".to_string())?
     };
 
     if !base_path.exists() {
@@ -232,11 +237,7 @@ pub async fn list_documents_directory(dir_path: Option<&str>) -> Result<Vec<File
         let path_str = entry.path().to_string_lossy().to_string();
 
         // For directories, don't recursively load children (load on demand)
-        let children = if metadata.is_dir() {
-            Some(Vec::new())
-        } else {
-            None
-        };
+        let children = if metadata.is_dir() { Some(Vec::new()) } else { None };
 
         files.push(FileEntry {
             name: file_name,

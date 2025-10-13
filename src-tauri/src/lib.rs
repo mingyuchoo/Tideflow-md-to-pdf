@@ -23,6 +23,7 @@ pub fn run() {
             commands::read_markdown_file,
             commands::write_markdown_file,
             commands::list_files,
+            commands::get_documents_directory,
             commands::list_documents_directory,
             commands::create_file,
             commands::delete_file,

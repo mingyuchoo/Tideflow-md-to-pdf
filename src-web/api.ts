@@ -47,6 +47,10 @@ export async function listDocumentsDirectory(dirPath?: string): Promise<FileEntr
   return invoke('list_documents_directory', { dirPath });
 }
 
+export async function getDocumentsDirectory(): Promise<string> {
+  return invoke('get_documents_directory');
+}
+
 export async function createFile(
   name: string,
   template?: string,

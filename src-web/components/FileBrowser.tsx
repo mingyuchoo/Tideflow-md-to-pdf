@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { listDocumentsDirectory, readMarkdownFile } from '../api';
 import { useEditorStore } from '../stores/editorStore';
+import { useUIStore } from '../stores/uiStore';
 import type { FileEntry } from '../types';
 import './FileBrowser.css';
 
@@ -13,10 +14,12 @@ export default function FileBrowser() {
   const addOpenFile = useEditorStore((state) => state.addOpenFile);
   const setCurrentFile = useEditorStore((state) => state.setCurrentFile);
   const setContent = useEditorStore((state) => state.setContent);
+  
+  const fileBrowserRefreshTrigger = useUIStore((state) => state.fileBrowserRefreshTrigger);
 
   useEffect(() => {
     loadFiles();
-  }, []);
+  }, [fileBrowserRefreshTrigger]);
 
   const loadFiles = async () => {
     try {

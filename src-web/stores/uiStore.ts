@@ -33,6 +33,10 @@ interface UIStoreState {
   recentFiles: string[];
   addRecentFile: (path: string) => void;
   clearRecentFiles: () => void;
+  
+  // File browser refresh trigger
+  fileBrowserRefreshTrigger: number;
+  triggerFileBrowserRefresh: () => void;
 }
 
 // Create UI store
@@ -107,4 +111,10 @@ export const useUIStore = create<UIStoreState>((set) => ({
     }
     return { recentFiles: [] };
   }),
+  
+  // File browser refresh trigger
+  fileBrowserRefreshTrigger: 0,
+  triggerFileBrowserRefresh: () => set((state) => ({
+    fileBrowserRefreshTrigger: state.fileBrowserRefreshTrigger + 1,
+  })),
 }));

@@ -5,7 +5,7 @@ import DesignModal from './DesignModal';
 import { invoke } from '@tauri-apps/api/core';
 import { save, open } from '@tauri-apps/plugin-dialog';
 import { handleError, showSuccess } from '../utils/errorHandler';
-import { readMarkdownFile, createFile, writeMarkdownFile } from '../api';
+import { readMarkdownFile, createFile, writeMarkdownFile, getDocumentsDirectory } from '../api';
 import { scrubRawTypstAnchors } from '../utils/scrubAnchors';
 import './Toolbar.css';
 
@@ -26,6 +26,7 @@ const Toolbar: React.FC = () => {
     recentFiles,
     addRecentFile,
     clearRecentFiles,
+    triggerFileBrowserRefresh,
   } = useUIStore();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [recentDropdownOpen, setRecentDropdownOpen] = useState(false);
@@ -76,14 +77,21 @@ const Toolbar: React.FC = () => {
       
       const fileName = name.includes('.') ? name : `${name}.md`;
       const newContent = `# ${name.replace('.md', '')}\n\nStart writing your document.`;
-      const filePath = await createFile(fileName);
+      
+      // Get the documents directory and create the file there
+      const documentsDir = await getDocumentsDirectory();
+      const filePath = await createFile(fileName, undefined, documentsDir);
       await writeMarkdownFile(filePath, newContent);
       
       addOpenFile(filePath);
       setCurrentFile(filePath);
       setContent(newContent);
       addRecentFile(filePath);
-      addToast({ type: 'success', message: 'File created successfully' });
+      
+      // Trigger file browser refresh to show the new file
+      triggerFileBrowserRefresh();
+      
+      addToast({ type: 'success', message: 'File created successfully in Documents folder' });
     } catch (err) {
       addToast({ type: 'error', message: 'Failed to create file' });
       handleError(err, { operation: 'create file', component: 'Toolbar' });
