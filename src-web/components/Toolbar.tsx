@@ -32,6 +32,8 @@ const Toolbar: React.FC = () => {
   const [recentDropdownOpen, setRecentDropdownOpen] = useState(false);
   const [saveDropdownOpen, setSaveDropdownOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = React.useState(false);
+  const [newFileModalOpen, setNewFileModalOpen] = useState(false);
+  const [newFileNameInput, setNewFileNameInput] = useState('');
 
   // Close dropdown when clicking outside
   React.useEffect(() => {
@@ -70,13 +72,21 @@ const Toolbar: React.FC = () => {
   };
 
   // File operations
-  const handleNewFile = async () => {
+  const handleNewFile = () => {
+    setNewFileNameInput('');
+    setNewFileModalOpen(true);
+  };
+
+  const handleCreateNewFile = async () => {
     try {
-      const name = prompt('Enter file name (with .md extension):');
-      if (!name) return;
+      const name = newFileNameInput.trim();
+      if (!name) {
+        addToast({ type: 'warning', message: 'Please enter a file name' });
+        return;
+      }
       
       const fileName = name.includes('.') ? name : `${name}.md`;
-      const newContent = `# ${name.replace('.md', '')}\n\nStart writing your document.`;
+      const newContent = `# ${name.replace(/\.md$/, '')}\n\nStart writing your document.`;
       
       // Get the documents directory and create the file there
       const documentsDir = await getDocumentsDirectory();
@@ -91,7 +101,9 @@ const Toolbar: React.FC = () => {
       // Trigger file browser refresh to show the new file
       triggerFileBrowserRefresh();
       
-      addToast({ type: 'success', message: 'File created successfully in Documents folder' });
+      setNewFileModalOpen(false);
+      setNewFileNameInput('');
+      addToast({ type: 'success', message: 'File created successfully' });
     } catch (err) {
       addToast({ type: 'error', message: 'Failed to create file' });
       handleError(err, { operation: 'create file', component: 'Toolbar' });
@@ -415,6 +427,46 @@ const Toolbar: React.FC = () => {
           </button>
         </div>
       </div>
+      
+      {/* New File Modal */}
+      {newFileModalOpen && (
+        <div className="modal-overlay" onClick={() => setNewFileModalOpen(false)}>
+          <div className="modal-content new-file-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Create New File</h2>
+              <button className="modal-close" onClick={() => setNewFileModalOpen(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <label htmlFor="new-file-name">File Name:</label>
+              <input
+                id="new-file-name"
+                type="text"
+                value={newFileNameInput}
+                onChange={(e) => setNewFileNameInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleCreateNewFile();
+                  } else if (e.key === 'Escape') {
+                    setNewFileModalOpen(false);
+                  }
+                }}
+                placeholder="my-document.md"
+                autoFocus
+              />
+              <p className="modal-hint">File will be created in the Documents folder</p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setNewFileModalOpen(false)}>
+                Cancel
+              </button>
+              <button className="btn-primary" onClick={handleCreateNewFile}>
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {designModalOpen && <DesignModal />}
     </div>
   );
